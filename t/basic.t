@@ -23,6 +23,7 @@ sub test {
 # Test code:
 my $ptr = Ace::AceDB->new(HOST,PORT,25);
 test(2,$ptr,"connection failed");
+die "Couldn't establish connection to database.  Aborting tests.\n" unless $ptr;
 test(3,$ptr->status() == STATUS_WAITING,"did not get wait status");
 test(4,$ptr->query("Find Author"),"query() returned undef");
 test(5,$ptr->status() == STATUS_PENDING,"did not get pending status");

@@ -6,7 +6,7 @@ use lib '../blib/lib','../blib/arch';
 use constant HOST => $ENV{ACEDB_HOST} || 'beta.crbm.cnrs-mop.fr';
 use constant PORT => $ENV{ACEDB_PORT} || 20000100;
 
-BEGIN {$| = 1; print "1..14\n"; }
+BEGIN {$| = 1; print "1..17\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Ace;
 $loaded = 1;
@@ -24,16 +24,22 @@ sub test {
 my ($db,$obj);
 test(2,$db = Ace->connect(-host=>HOST,-port=>PORT),
      "couldn't establish connection");
-test(3,$me = Ace::Object->new('Author','Dent A',$db),"couldn't create new object");
-test(4,$me->add('Full_name','Arthur Dent'));
+die "Couldn't establish connection to database.  Aborting tests.\n" unless $db;
+test(3,$me = Ace::Object->new('Author','Dent AD',$db),"couldn't create new object");
+test(4,$me->add('Full_name','Arthur D. Dent'));
 test(5,$me->add('Laboratory','FF'));
-test(6,$me->add('Address.Mail','Cold Spring Harbor Laboratory'));
-test(7,$me->add('Address.Mail','One Bungtown Road'));
-test(8,$me->add('Address.Mail','Cold Spring Harbor, New York 11777'));
-test(9,$me->add('Address.Mail','USA'));
-test(10,$me->add('Address.Fax','1111111'));
-test(11,$me->replace('Address.Fax','1111111','2222222'));
-test(12,$me->add('Address.Phone','123456'));
-test(13,$me->delete('Address.Phone'));
+test(6,$me->add('Address.Mail','Heart of Gold'));
+test(7,$me->add('Address.Mail','Western End'));
+test(8,$me->add('Address.Mail','Unfashionable Outer Rim of the Milky Way'));
+test(9,$me->add('Address.Fax','1111111'));
+test(10,$me->replace('Address.Fax','1111111','2222222'));
+test(11,$me->add('Address.Phone','123456'));
+test(12,$me->delete('Address.Phone'));
 # Either the commit should succeed, or it should fail with a Write Access denied failure
-test(14,$me->commit || Ace->error=~/Write access to database denied/i,"commit failure $ACE::ERR"); 
+test(13,$me->commit || $me->error=~/you do not have write access/i,"commit failure $Ace::ERR"); 
+test(14,$me->kill   || $me->error=~/you do not have write access/i,"kill failure $Ace::ERR"); 
+# Now we're going to test whether parse errors are correctly reported
+test(15,$me = Ace::Object->new('Author','Dent AD',$db),"couldn't create new object");
+test(16,$me->add('Address.VideoPhone','123456'));
+test(17,!$me->commit,"failed to catch parse error");
+$me->kill;

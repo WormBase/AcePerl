@@ -1,3 +1,9 @@
+1.43	1. Moved the unescape routine into the C level for performance reasons.
+	2. Should now escape \? correctly and handle most protection issues.
+1.42	1. Numerous small bug fixes
+1.41	1. Fixed problem with truncation of trees at zero values
+	2. Fixed implementation of updating wrt new aceservers
+1.40    Internal version, never released	
 1.39	1. Workaround for problem with dropped date fields
 1.38	1. list() is now deprecated.  Use fetch() instead
 	2. grep() method added

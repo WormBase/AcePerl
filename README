@@ -1,4 +1,4 @@
-This is version 1.38 of AcePerl, a Perl interface for the ACEDB
+This is version 1.43 of AcePerl, a Perl interface for the ACEDB
 object-oriented database.  The code is currently in beta stage, which
 means the interface will not change.  However, it may still contain
 bugs.
@@ -45,10 +45,13 @@ B. Building AcePerl
 You may "make test" to test the system.  It will attempt to open a
 connection to a database at beta.crbm.cnrs-mop.fr:20000100.  You may
 change these defaults by setting the environment variables ACEDB_HOST
-and ACEDB_PORT.  However, since some of the tests are dependent on
-specific values in the database, this may cause some tests to fail.
-Do not be alarmed if a handful of tests fail.  Do be alarmed if all of
-the tests fail.
+and ACEDB_PORT, or by defining them on the command line, as in:
+
+   make test ACEDB_HOST=localhost ACEDB_PORT=200005
+
+ However, since some of the tests are dependent on specific values in
+the database, this may cause some tests to fail.  Do not be alarmed if
+a handful of tests fail.  Do be alarmed if all of the tests fail.
 
 You may need to be root (superuser) in order to "make install".  This
 is because Perl will want to install the newly-built files into its
@@ -64,7 +67,6 @@ $ACEDB/bin.<<architecture>>.  To use AcePerl within your scripts, you
 will have to tell your scripts where they can find the library files,
 or move these files to the main Perl library tree.  See section (E)
 for the details.
-
 
 C. Installing AcePerl in a non-standard location
 
@@ -163,5 +165,5 @@ package at this URL:
 Lincoln Stein
 lstein@cshl.org
 
-July 2, 1998
+September 17, 1998
 

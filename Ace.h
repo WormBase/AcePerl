@@ -4,6 +4,7 @@
 #define STATUS_WAITING 0
 #define STATUS_PENDING 1
 #define STATUS_ERROR  -1
+#define ACE_PARSE      3
 
 typedef struct AceDB {
   ace_handle*    database;

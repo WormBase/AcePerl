@@ -12,6 +12,9 @@ extern "C" {
 #include "Ace.h"
 #define CHUNKSIZE 10
 
+#define metachar(c) (c == '\\' || c == '"' || c == '/' || c == '%' || \
+			c == '\t' || c == '\n')
+
 static int
 not_here(s)
 char *s;
@@ -49,6 +52,12 @@ int arg;
 	if (strEQ(name, "ACE_UNRECOGNIZED"))
 #ifdef ACE_UNRECOGNIZED
 	    return ACE_UNRECOGNIZED;
+#else
+	    goto not_there;
+#endif
+	if (strEQ(name, "ACE_PARSE"))
+#ifdef ACE_PARSE
+	    return ACE_PARSE;
 #else
 	    goto not_there;
 #endif
@@ -172,7 +181,7 @@ constant(name,arg)
 MODULE = Ace	PACKAGE = Ace::AceDB
 
 AceDB*
-new(CLASS, host, rpc_port, timeOut=25)
+new(CLASS, host, rpc_port, timeOut=120)
 	char*         CLASS
 	char*         host
 	unsigned long rpc_port
@@ -239,13 +248,15 @@ OUTPUT:
 	RETVAL
 
 int
-query(self,request)
+query(self,request, encore=0)
 	AceDB* self
 	char*  request
+	int    encore
 PREINIT:
 	unsigned char* answer = NULL;
-	int retval,length,encore=0;
+	int retval,length,isWrite;
 CODE:
+	isWrite = encore == 3;
 	retval = askServerBinary(self->database,request,
 	                         &answer,&length,&encore,CHUNKSIZE);
 	if (self->answer) {
@@ -261,7 +272,7 @@ CODE:
 	   self->answer = answer;
 	   self->length = length;
            self->status = STATUS_PENDING;
-	   self->encoring = encore;
+	   self->encoring = encore && !isWrite;
 	   RETVAL = 1;
         }
 OUTPUT:
@@ -300,3 +311,85 @@ CLEANUP:
 	   self->length = 0;
 	   self->answer = NULL;
 	}
+
+SV*
+freeprotect(CLASS,string)
+     char*  CLASS
+     char*  string
+PREINIT:
+	unsigned long count = 2;
+	char *cp,*new,*a;
+CODE:
+	/* count the number of characters that need to be escaped */
+	for (cp = string; *cp; cp++ ) {
+	   count += metachar(*cp) ? 2 : 1;
+	   if (*cp == '\n') count += 2;
+	}
+
+	/* create a new char* large enough to hold the result */
+	New(0,new,count+1,char);
+	if (new == NULL) XSRETURN_UNDEF;
+	a = new;
+	*a++ = '"';
+	cp = string;
+	for (cp = string; *cp; *a++ = *cp++) {
+	   if (metachar(*cp)) *a++ = '\\';
+	   if (*cp == '\n') { *a++ = 'n' ; *a++ = '\\'; }
+	}
+	*a++ = '"';
+	*a++ = '\0';
+	RETVAL = newSVpv("",0);
+	sv_usepvn(RETVAL,new,count);
+OUTPUT:
+	RETVAL
+
+void
+split(CLASS,string)
+     char*  CLASS
+     char*  string
+PREINIT:
+	char *class,*name,*cp,*dest;
+	SV* c,n;
+	int class_size,name_size,total_size;
+PPCODE:
+	if (*string != '?') XSRETURN_EMPTY;
+	/* first scan for the class */
+	total_size = strlen(string) + 1;
+	Newz(0,class,total_size,char);
+	SAVEFREEPV(class);
+
+	for (cp = string+1,dest=class; *cp; *cp && (*dest++ = *cp++) ) {
+		while (*cp && *cp == '\\') {
+			cp++;             /* skip character */
+			if (!*cp) break;
+			*dest++ = *cp++; /* copy next character */
+		}
+		if (*cp == '?') break;
+	}
+	*dest = '\0';  /* paranoia */
+	if (!*cp) XSRETURN_EMPTY;
+
+	/* dest should now point at the '?' character, and class holds
+	the class name */
+	class_size = dest-class;
+
+	/* now we go after the object name */
+	total_size -= (cp - string);
+	Newz(0,name,total_size,char);
+	SAVEFREEPV(name);
+
+	for (++cp, dest=name; *cp ; *cp && (*dest++ = *cp++) ) {
+		while (*cp && *cp == '\\') {
+			cp++;             /* skip character */
+			if (!*cp) break;
+			*dest++ = *cp++; /* copy next character */
+		}
+		if (*cp == '?') break;
+	}
+	*dest = '\0';
+	if (!*cp) XSRETURN_EMPTY;
+
+	name_size = dest - name;
+	EXTEND(sp,2);
+	PUSHs(sv_2mortal(newSVpv(class,class_size)));
+	PUSHs(sv_2mortal(newSVpv(name,name_size)));

@@ -16,6 +16,7 @@ require DynaLoader;
 	ACE_OUTOFCONTEXT
 	ACE_SYNTAXERROR
 	ACE_UNRECOGNIZED
+	ACE_PARSE
 	STATUS_WAITING
         STATUS_PENDING
 	STATUS_ERROR
@@ -23,13 +24,9 @@ require DynaLoader;
 @EXPORT_OK = qw(
 		rearrange
 		);
-$VERSION = '1.39';
+$VERSION = '1.43';
 
 sub AUTOLOAD {
-    # This AUTOLOAD is used to 'autoload' constants from the constant()
-    # XS function.  If a constant is not found then control is passed
-    # to the AUTOLOAD in AutoLoader.
-
     my $constname;
     ($constname = $AUTOLOAD) =~ s/.*:://;
     my $val = constant($constname, @_ ? $_[0] : 0);
@@ -49,17 +46,21 @@ sub AUTOLOAD {
 bootstrap Ace $VERSION;
 
 # Preloaded methods go here.
-use vars qw/$ERR/;
+$Ace::ERR = '';
 
 # Pseudonyms and deprecated methods.
 *list = \&fetch;
+*find_many = \&fetch_many;
 
 sub connect {
     my $class = shift;
-    my ($host,$port,$path,$program,$objclass,$timeout) = 
-      rearrange(['HOST','PORT','PATH','PROGRAM','CLASS','TIMEOUT'],@_);
+    my ($host,$port,$path,$program,$objclass,$timeout,$query_timeout) = 
+      rearrange(['HOST','PORT','PATH',
+		 'PROGRAM','CLASS','TIMEOUT',
+		'QUERY_TIMEOUT'],@_);
     $host ||= 'localhost';
-    $port ||= defined(&ACE_PORT) ? &ACE_PORT : 23456;
+    $port ||= defined(&ACE_PORT) ? &ACE_PORT : 200001;
+    $timeout = 25 unless defined $timeout;
 
     my $database;
 
@@ -69,11 +70,13 @@ sub connect {
       $database = Ace::Local->connect(@_);
     } else {
       my @p = ($host,$port);
-      push(@p,$timeout) if defined $timeout;
+      push(@p,$query_timeout) if defined $query_timeout;
+#      local($SIG{ALRM}) = sub { die "timed out" } ;
+#      $database = eval "alarm($timeout) if $timeout; my \$d = Ace::AceDB->new(\@p);alarm(0); \$d";
       $database = Ace::AceDB->new(@p);
     }
     unless ($database) {
-	$ACE::ERR = "Couldn't open database";
+	$Ace::ERR = "Couldn't open database";
 	return undef;
     }
 
@@ -109,11 +112,12 @@ sub db {
 
 # Create a new Ace::Object in the indicated database
 # (doesn't actually write into database until you do a commit)
-sub new (\$$$) {
+sub new (\$@) {
   my $self = shift;
   my ($class,$name) = rearrange([qw/class name/],@_);
   return undef if $self->fetch($class,$name);
-  return $self->{'class'}->new($class,$name,$self);
+  my $obj = $self->{'class'}->new($class,$name,$self);
+  return $obj;
 }
 
 # Get or set the display style for dates
@@ -133,14 +137,19 @@ sub timestamps (\$;$) {
 # Fetch one or a group of objects from the database
 sub fetch {
   my $self = shift;
-  my ($class,$pattern,$count,$offset,$filled,$total) =  
-    rearrange(['CLASS',['NAME','PATTERN'],'COUNT','OFFSET',
+  my ($class,$pattern,$count,$offset,$query,$filled,$total) =  
+    rearrange(['CLASS',['NAME','PATTERN'],'COUNT','OFFSET','QUERY',
 	       ['FILL','FILLED'],'TOTAL'],@_);
   $offset += 0;
   $count = wantarray ? -1 : 1 unless defined $count;
   $pattern ||= '*';
-
-  my $r = $self->raw_query(qq{query find $class "$pattern"});
+  $pattern = Ace::AceDB->freeprotect($pattern);
+  if (defined $query) {
+    $query = "query $query" unless $query=~/^query\s/;
+  } else {
+    $query = qq{query find $class $pattern};
+  }
+  my $r = $self->raw_query($query);
   my ($cnt) = $r =~ /Found (\d+) objects/m;
   $$total = $cnt if defined $total;
 
@@ -170,19 +179,19 @@ sub find {
 # Fetch many objects in iterative style
 sub fetch_many {
   my $self = shift;
-  my ($class,$pattern,$filled,$chunksize) = rearrange(['CLASS',['PATTERN','NAME'],['FILL','FILLED'],'CHUNKSIZE'],@_);
-  $pattern = '*' unless defined $pattern;
-  my $iterator = Ace::Iterator->new($self,"find $class $pattern",$filled,$chunksize);
-  $self->_register_iterator($iterator);
-  return $iterator;
-}
-
-# Find many objects in iterative style
-sub find_many {
-  my $self = shift;
-  my ($query) = rearrange(['QUERY'],@_);
-  $query = "find $query" unless $query=~/^find/i;
-  my $iterator = Ace::Iterator->new($self,"query $query");
+  my ($class,$pattern,$filled,$query,$chunksize) = rearrange( ['CLASS',
+							       ['PATTERN','NAME'],
+							       ['FILL','FILLED'],
+							       'QUERY',
+							       'CHUNKSIZE'],@_);
+  $pattern ||= '*';
+  $pattern = Ace::AceDB->freeprotect($pattern);
+  if (defined $query) {
+    $query = "query $query" unless $query=~/^query\s/;
+  } else {
+    $query = qq{query find $class $pattern};
+  }
+  my $iterator = Ace::Iterator->new($self,$query,$filled,$chunksize);
   $self->_register_iterator($iterator);
   return $iterator;
 }
@@ -190,20 +199,22 @@ sub find_many {
 # Count the objects matching pattern without fetching them.
 sub count {
   my $self = shift;
-  my ($class,$pattern,$query) = rearrange(['CLASS',['NAME','PATTERN'],'QUERY'],@_);
-  undef $ERR;
+  my ($class,$pattern,$query) = rearrange(['CLASS',
+					   ['NAME','PATTERN'],
+					   'QUERY'],@_);
+  $Ace::ERR = '';
 
   if (defined $query) {
-    $query = "find $query" unless $query=~/^find/i;
-    $query = "query $query";
+    $query = "query $query" unless $query=~/^query\s/;
   } else {
     $pattern =~ tr/\n//d;
     $pattern ||= '*';
+    $pattern = Ace::AceDB->freeprotect($pattern);
     $query = "find $class $pattern";
   }
   my $result = $self->raw_query($query);
   unless ($result =~ /Found (\d+) objects/m) {
-    $ERR = 'Unexpected close during find';
+    $Ace::ERR = 'Unexpected close during find';
     return undef;
   }
   return $1;
@@ -217,6 +228,8 @@ sub grep {
   my ($pattern,$count,$offset,$filled,$total) = rearrange(['PATTERN','COUNT','OFFSET',['FILL','FILLED'],'TOTAL'],@_);
   $offset += 0;
   $count = wantarray ? -1 : 1 unless defined $count;
+  # apparently grep doesn't like this!
+  # $pattern = Ace::AceDB->freeprotect($pattern);
   my $r = $self->raw_query("grep $pattern");
   my ($cnt) = $r =~ /Found (\d+) objects/m;
   $$total = $cnt if defined $total;
@@ -228,7 +241,7 @@ sub grep {
 # These functions are for low-level (non OO) access only.
 sub pick {
     my ($self,$class,$item) = @_;
-    undef $ERR;
+    $Ace::ERR = '';
 # assumption of uniqueness of name is violated by some classes!
 #    return () unless $self->count($class,$item) == 1;
     return () unless $self->count($class,$item) >= 1;
@@ -239,7 +252,7 @@ sub pick {
     my $ts = $self->{'timestamps'} ? '-T' : '';
     my $result = $self->raw_query("show -j $ts");
     unless ($result =~ /(\d+) object dumped/m) {
-	$ERR = 'Unexpected close during pick';
+	$Ace::ERR = 'Unexpected close during pick';
 	return undef;
     }
 
@@ -250,7 +263,7 @@ sub pick {
 # This is for low-level access only.
 sub show {
     my ($self,$class,$pattern,$tag) = @_;
-    undef $ERR;
+    $Ace::ERR = '';
     return () unless $self->count($class,$pattern);
     
     # if we get here, then we've got some data to return.
@@ -258,7 +271,7 @@ sub show {
     my $ts = $self->{'timestamps'} ? '-T' : '';
     my $result = $self->raw_query("show -j $ts $tag");
     unless ($result =~ /(\d+) object dumped/m) {
-	$ERR = 'Unexpected close during show';
+	$Ace::ERR = 'Unexpected close during show';
 	return undef;
     }
     return grep (!m!^//!,split("\n\n",$result));
@@ -275,9 +288,9 @@ sub read_object {
 }
 
 # do a query, and return the result immediately
-sub raw_query {
-    my ($self,$query) = @_;
-    $self->{database}->query($query);
+sub raw_query (\$$;$) {
+    my ($self,$query,$parse) = @_;
+    $self->{database}->query($query, $parse ? ACE_PARSE() : () );
     $self->_alert_iterators;
     return $self->read_object;
 }
@@ -288,7 +301,7 @@ sub classes {
   my $query = defined($invisible) && $invisible ?
     "query find class !buried" 
       :
-    "query find class visible !buried";
+    "query find class visible AND !buried";
   $self->_alert_iterators;
   $self->_query($query);
   return $self->_list;
@@ -300,9 +313,36 @@ sub class_count {
   return $self->raw_query('classes') =~ /^\s+(\S+) (\d+)/gm;
 }
 
+# Return a hash of miscellaneous status information from the server
+# (to be expanded later)
+sub status {
+  my $self = shift;
+  my $data = $self->raw_query('status');
+  study $data;
+  my ($version)   = $data=~/ACEDB version (\S+),/m;
+  my ($date)      = $data=~/linked (.+)$/m;
+  my ($directory) = $data=~/Data directory (\S+),/m;
+  my ($blocks)    = $data=~/Disk: (\d+) blocks/m;
+  my ($classes)   = $data=~/Lexiques: (\d+) classes/m;
+  my ($keys)      = $data=~/(\d+) keys/;
+  my ($memory)    = $data=~/Messalloc: (\d+)/;
+  my ($write)     = $data=~/Write Access Yes/;
+  my %data = (
+	  'version'    => $version,
+	  'date'       => $date,
+	  'directory'  => $directory,
+	  'blocks'     => $blocks,
+	  'classes'    => $classes,
+	  'keys'       => $keys,
+	  'memory'     => $memory,
+	  'write'      => $write,
+	      );
+  return wantarray ? %data : \%data;
+}
+
 # return the last error
 sub error {
-    return $ACE::ERR;
+    return $Ace::ERR;
 }
 
 #####################################################################
@@ -344,9 +384,9 @@ sub rearrange {
 
 # do a query, but don't return the result
 sub _query {
-  my ($self,$query) = @_;
+  my ($self,@query) = @_;
   $self->_alert_iterators;
-  $self->{'database'}->query($query);
+  $self->{'database'}->query("@query");
 }
 
 # return a portion of the active list
@@ -356,8 +396,9 @@ sub _list {
   ($offset,$count) = (0,-1) unless $count;
   my (@result);
   my $result = $self->raw_query("list -j -b $offset -c $count");
-  while ($result =~ /\?(\w+)\?(.+)\?$/mg) {
-    push(@result,$self->{'class'}->new($1,$2,$self));
+  foreach (split("\n",$result)) {
+    next unless my ($class,$name) = Ace::AceDB->split($_);
+    push(@result,$self->{'class'}->new($class,$name,$self));
   }
   return @result;
 }
@@ -462,10 +503,9 @@ use Carp;
 use overload 
     '""'       => 'name',
     'fallback' =>' TRUE';
-use vars qw($AUTOLOAD $DEFAULT_WIDTH $SPLIT_PATTERN %MO);
+use vars qw($AUTOLOAD $DEFAULT_WIDTH %MO);
 
 $DEFAULT_WIDTH=25;  # column width for pretty-printing
-$SPLIT_PATTERN='\?([^?]*)\?\??([^?]*)\?';
 
 # Pseudonyms and deprecated methods.
 *isClass        =  \&isObject;
@@ -488,12 +528,12 @@ sub DESTROY { }
 sub new ($$$;\$) {
   my $pack = shift;
   my($class,$name,$db) = rearrange([qw/class name/,[qw/database db/]],@_);
-    $pack = ref($pack) if ref($pack);
-    my $self = bless { 'name'  =>  $name,
-		       'class' =>  $class
-		       },$pack;
-    $self->{'db'} = $db if $self->isObject;
-    return $self
+  $pack = ref($pack) if ref($pack);
+  my $self = bless { 'name'  =>  $name,
+		     'class' =>  $class
+		   },$pack;
+  $self->{'db'} = $db if $self->isObject;
+  return $self
 }
 
 ######### construct object from serialized input, not usually called directly ########
@@ -559,7 +599,7 @@ sub tags (\$){
     my $self = shift;
     my $current = $self->right;
     my @tags;
-    while ($current) {
+    while (defined($current)) {
 	push(@tags,$current);
 	$current = $current->down;
     }
@@ -589,7 +629,7 @@ sub at (\$;$$) {
       $tag=~s/$;/./g; # unprotect backslashed dots
       my $p = $o;
       ($o,$above,$left) = $o->_at($tag);
-      return () unless $o;
+      return () unless defined($o);
     }
     return $above || $left if $return_parent;
     return defined $pos ? $o->right($pos) : $o unless wantarray;
@@ -603,7 +643,7 @@ sub row (\$;$) {
   my $pos = shift;
   my @r;
   my $o = defined $pos ? $self->right($pos) : $self;
-  while ($o) {
+  while (defined($o)) {
     push(@r,$o);
     $o = $o->right;
   }
@@ -623,13 +663,13 @@ sub col (\$;$) {
   my @r;
   # This is for tag[1] semantics
   if ($pos == 1) {
-    for (my $o=$self->right; $o; $o=$o->down) {
+    for (my $o=$self->right; defined($o); $o=$o->down) {
       push (@r,$o);
     }
   } else {
     # This is for tag[2] semantics
-    for (my $o=$self->right; $o; $o=$o->down) {
-      next unless my $right = $o->right($pos-2);
+    for (my $o=$self->right; defined($o); $o=$o->down) {
+      next unless defined(my $right = $o->right($pos-2));
       push (@r,$right->col);
     }
   }
@@ -725,7 +765,7 @@ sub escape (\$){
 sub asHTML (\$;$$) {
     my $self = shift;
     my ($modify_code) = rearrange(['MODIFY'],@_);
-    return undef unless $self->right;
+    return undef unless defined($self->right);
     my $string = "<TABLE BORDER>\n<TR ALIGN=LEFT VALIGN=TOP><TH>$self</TH>";
     $modify_code = \&_default_makeHTML unless $modify_code;
     $self->right->_asHTML(\$string,1,2,$modify_code);
@@ -733,13 +773,31 @@ sub asHTML (\$;$$) {
     return $string;
 }
 
+### Get the FASTA-format DNA/Peptide representation for this object ###
+### (if appropriate) ###
+sub asDNA (\$) {
+  return shift()->_special_dump('dna');
+}
+
+sub asPeptide (\$) {
+  return shift()->_special_dump('peptide');
+}
+
+sub _special_dump (\$$) {
+  my $self = shift;
+  my $dump_format = shift;
+  return undef unless $self->db->raw_query(join(' ','find',$self->class,$self->name));
+  my $result = $self->db->raw_query($dump_format);
+  $result =~ s!^//.*!!ms;
+  $result;
+}
 
 #### As tab-delimited table ####
 sub asTable (\$) {
     my $self = shift;
     my $string = "$self\t";
     my $right = $self->right;
-    $right->_asTable(\$string,1,2) if $right;
+    $right->_asTable(\$string,1,2) if defined($right);
     return $string . "\n";
 }
 
@@ -787,7 +845,7 @@ sub asGif {
   my $self = shift;
   my ($clicks,$dimensions) = rearrange(['CLICKS',['DIMENSIONS','DIM']],@_);
   my @commands = "gif display @{[$self->class]} \"@{[$self->name]}\"";
-  unshift (@commands,"Dimensions @$dimensions") if ref($dimensions);
+  push(@commands,"Dimensions @$dimensions") if ref($dimensions);
   push(@commands,map { "mouseclick @{$_}" } @$clicks) if ref($clicks);
   push(@commands,"gifdump -");
   
@@ -831,7 +889,7 @@ sub right (\$;$) {
 
   my $node = $self;
   while ($pos--) {
-    $node = $node->right or return undef;
+    defined($node = $node->right) || return undef;
   }
   $node;
 }
@@ -843,7 +901,7 @@ sub down (\$) {
   return $self->{'down'} unless defined $pos;
   my $node = $self;
   while ($pos--) {
-    $node = $node->down or return undef;
+    defined($node = $node->down) || return undef;
   }
   $node;
 }
@@ -866,6 +924,29 @@ sub delete (\$$;$) {
   $oldvalue =~ s/([^a-zA-Z0-9_-])/\\$1/g;
   push(@{$self->{'delete'}},join(' ',split('\.',$tag),$oldvalue));
   delete $self->{'.PATHS'}; # uncache cached values
+  1;
+}
+
+################# kill an object ################
+# Removes the object from the database immediately.
+sub kill (\$) {
+  my $self = shift;
+  my $name = $self->name();
+  $name =~ s/([^a-zA-Z0-9_-])/\\$1/g;
+  my $cmd = "kill $self->{'class'} $name";
+  warn "$cmd\n" if $self->debug;
+  return undef unless my $db = $self->db;
+  my $result = $db->raw_query($cmd);
+  if ($result =~ /you do not have Write Access/im) {
+    $Ace::ERR = "Write access to database denied.";
+    return undef;
+  }
+  # uncache cached values and clear the object out
+  # as best we can
+  delete $self->{'.PATHS'}; 
+  delete $self->{'right'};
+  delete $self->{'raw'};
+  delete $self->{'down'};
   1;
 }
 
@@ -958,31 +1039,32 @@ sub replace (\$$$$) {
 
 sub commit (\$) {
     my $self = shift;
-    my (@cmd);
-    my $name = $self->{'name'};
-    $name =~ s/([^a-zA-Z0-9_-])/\\$1/g;
-    push(@cmd,"parse = $self->{'class'} $name ; " . join(' ; ',@{$self->{'add'}}))
-	if defined $self->{'add'};
-    push(@cmd,"parse = $self->{'class'} $name ; -D " . join(' ; -D ',@{$self->{'delete'}}))
-	if defined $self->{'delete'};
-    warn join("\n",@cmd),"\n" if $self->debug && @cmd;
     return undef unless my $db = $self->db;
 
-    foreach my $cmd (@cmd) {
-	my $result = $db->raw_query($cmd);
-	my ($errors) = $result =~ /(\d+) errors\/\/ \d+ Active Objects/;
-	if (defined($errors) and $errors > 0) {
-	    $ACE::ERR = "Error during commit().  Object $self->{'name'} not correctly written.";
-	    return undef;
-	}
-	if ($result =~ /you do not have Write Access/im) {
-	  $ACE::ERR = "Write access to database denied.";
-	  return undef;
-	}
+    my ($retval,@cmd);
+    my $name = $self->{'name'};
+    $name =~ s/([^a-zA-Z0-9_-])/\\$1/g;
+    push(@cmd,"$self->{'class'} : $name");
+    push(@cmd,@{$self->{'add'}}) if $self->{'add'};
+    push(@cmd,map { "-D $_" } @{$self->{'delete'}}) if $self->{'delete'};
+    my $cmd = join('; ',@cmd);
+    if (@cmd > 1) {
+      warn $cmd if $self->debug;
+      my $result = $db->raw_query("parse = $cmd");
+
+      $Ace::ERR = '';
+      foreach (split("\n",$result)) {
+	tr/\0//d;   # get rid of nulls
+	s!^//\s+!!; # get rid of comment marks
+	$Ace::ERR .= "$_" if /error|sorry/i;
+      }
+      $retval = !$Ace::ERR;
+    } else {
+      $retval = 1;
     }
     undef $self->{'add'};
     undef $self->{'delete'};
-    return 1;
+    return $retval;
 }
 
 sub rollback (\$) {
@@ -1009,7 +1091,7 @@ sub date_style (\$;$) {
 
 # return the most recent error message
 sub error {
-    return $ACE::ERR;
+    return $Ace::ERR;
 }
 
 #####################################################################
@@ -1052,7 +1134,7 @@ sub _parse {
     my $obj_right = $self->_fromRaw($raw,$current_row,$col+1,$r-1,$db);
 
     # timestamp and comment handling
-    if ($obj_right) {
+    if ( defined($obj_right) ) {
       my ($t,$i);
       my $row = $current_row+1;
       while ($obj_right->isTimestamp or $obj_right->isComment) {
@@ -1061,15 +1143,15 @@ sub _parse {
 	last unless $obj_right = $self->_fromRaw($raw,$row++,$col+1,$r-1,$db);
 	$obj_right->timestamp($t)   if $t->isTimestamp;
       } 
-      $obj_right->timestamp($time) if $ts and $obj_right and !$obj_right->{'timestamp'};
+      $obj_right->timestamp($time) if $ts && defined($obj_right) && !$obj_right->{'timestamp'};
     }
     $current_obj->{'right'} = $obj_right;
 
-    my $obj_down = $self->new(_ace_split($raw->[$r][$col]),$db);
+    my $obj_down = $self->new(Ace::AceDB->split($raw->[$r][$col]),$db);
 
     # timestamp handling / comments never occur at down pointers
-    if ($ts && $obj_down) {
-      ($time,$obj_down) = ($obj_down,$self->new(_ace_split($raw->[++$r][$col]),$db))
+    if ($ts && defined($obj_down) ) {
+      ($time,$obj_down) = ($obj_down,$self->new(Ace::AceDB->split($raw->[++$r][$col]),$db))
 	if $obj_down->isTimestamp;
       $obj_down->timestamp($time) if defined $time;
     }
@@ -1079,22 +1161,22 @@ sub _parse {
 
   my $obj_right = $self->_fromRaw($raw,$current_row,$col+1,$self->{'end_row'},$db);
   # timestamp and comment handling
-  if ($obj_right) {
+  if (defined($obj_right)) {
     my ($t,$i);
     my $row = $current_row + 1;
     while ($obj_right->isTimestamp || $obj_right->isComment) {
       $current_obj->comment($obj_right)   if $obj_right->isComment;
       $t = $obj_right;
-      last unless $obj_right = $self->_fromRaw($raw,$row++,$col+1,$self->{'end_row'},$db);
+      last unless defined($obj_right = $self->_fromRaw($raw,$row++,$col+1,$self->{'end_row'},$db));
       $obj_right->timestamp($t)   if $t->isTimestamp;
     }
-    $obj_right->timestamp($time) if $ts and $obj_right and !$obj_right->{'timestamp'};
+    $obj_right->timestamp($time) if $ts && defined($obj_right) && !$obj_right->{'timestamp'};
   }
   $current_obj->{'right'} = $obj_right;
 
   # unstamped nodes take the timestamp on their right
   $self->timestamp($self->{'right'}->{'timestamp'})
-    if $ts && !$self->{'timestamp'} && $self->{'right'} && $self->{'right'}->{'timestamp'};
+    if $ts && !$self->{'timestamp'} && defined($self->{'right'}) && $self->{'right'}->{'timestamp'};
 
   foreach (qw/raw start_row end_row col/) {
     delete $self->{$_};
@@ -1106,7 +1188,7 @@ sub _fromRaw ($$$$$;$) {
   $pack = ref($pack) if ref($pack);
   my ($raw,$start_row,$col,$end_row,$db) = @_;
   return undef unless $raw->[$start_row][$col];
-  my ($class,$name) = _ace_split($raw->[$start_row][$col]);
+  my ($class,$name) = Ace::AceDB->split($raw->[$start_row][$col]);
   my $self = $pack->new($class,$name,$db);
   @{$self}{qw/raw start_row end_row col db/} = ($raw,$start_row,$end_row,$col,$db);
   return $self;
@@ -1123,8 +1205,8 @@ sub _asTable (\%\$$$;) {
       my @to_append = map { join("\t",@{$_}[$a..$#{$_}]) } @{$self->{'raw'}}[$start..$end];
       my $new_row;
       foreach (@to_append) {
-
-	s/$SPLIT_PATTERN/$self->_ace_format($1,$2)/eog;
+	# hack alert
+	s/(\?.*?[^\\]\?.*?[^\\]\?)/$self->_ace_format(Ace::AceDB->split($1))/eg;
 	if ($new_row++) {
 	  $$out .= "\n";
 	  $$out .= "\t" x ($level-1) 
@@ -1156,15 +1238,15 @@ sub _asHTML (\%\$$$;$$) {
   $$out .= "<TR ALIGN=LEFT VALIGN=TOP>" unless $position;
   
   $$out .= "<TD></TD>" x ($level-$position-1);
-  my ($cell,$prune) = $morph_code->($self);
-  $$out .= "<TD>$cell</TD>";
+  my ($cell,$prune,$did_it_myself) = $morph_code->($self);
+  $$out .= $did_it_myself ? $cell : "<TD>$cell</TD>";
   if ($self->comment) {
-    my ($cell) = $morph_code->($self->comment);
-    $$out .= "<TD>$cell</TD>";
-    $$out .= "</TR>\n" . "<TD></TD>" x $level unless $self->down && !$self->right;
+    my ($cell,$p,$d) = $morph_code->($self->comment);
+    $$out .= $d ? $cell : "<TD>$cell</TD>";
+    $$out .= "</TR>\n" . "<TD></TD>" x $level unless $self->down && !defined($self->right);
   }
-  $level = $self->right->_asHTML($out,$level,$level+1,$morph_code) if $self->right and !$prune;
-  if ($self->down) {
+  $level = $self->right->_asHTML($out,$level,$level+1,$morph_code) if defined($self->right) && !$prune;
+  if (defined($self->down)) {
     $$out .= "</TR>\n";
     $level = $self->down->_asHTML($out,0,$level,$morph_code);
   } else {
@@ -1244,8 +1326,8 @@ sub _asAce (\%\$$\@) {
       $$out .= join("\t",@$tags) . "\t" if ($level==0) && (@$tags);
       my (@to_modify) = @{$_}[$a..$#{$_}];
       foreach (@to_modify) {
-	my ($class,$name) = _ace_split($_);
-	if ($name) {
+	my ($class,$name) =Ace::AceDB->split($_);
+	if (defined($name)) {
 	  $name = $self->_ace_format($class,$name);
 	  if (_isObject($class) || $name=~/[^\w.-]/) {
 	    $name=~s/"/\\"/g; #escape quotes with slashes
@@ -1289,11 +1371,6 @@ sub _to_ace_date {
   return "$yr-$MO{$mo}-$day";
 }
 
-# split a -j string into class and name types
-sub _ace_split {
-  return $_[0]=~/^${SPLIT_PATTERN}$/o;
-}
-
 # Used to munge special data types.  Right now dates are the
 # only examples.
 sub _ace_format {
@@ -1323,10 +1400,10 @@ Ace - Object-Oriented Access to ACEDB Databases
     use Ace;
     $db = Ace->connect(-host => 'sapiens.wustl.edu',
                        -port => 2000525);
-    $sequence = $db->fetch('Sequence,'D12345');
+    $sequence = $db->fetch('Sequence','D12345');
     $count = $db->count('Sequence','D*');
     @sequences = $db->fetch('Sequence','D*');
-    $i = $db->fetch_many(Sequence,'*');  # fetch a cursor
+    $i = $db->fetch_many('Sequence','*');  # fetch a cursor
     while ($obj = $i->next) {
        print $obj->asTable;
     }
@@ -1400,11 +1477,13 @@ full syntax is as follows:
                        -port  =>  $port,
 		       -path  =>  $database_path,
 		       -program =>$local_connection_program
-                       -class =>  $object_class);
+                       -class =>  $object_class,
+		       -timeout => $timeout,
+		       -query_timeout => $query_timeout);
 
 The connect() method uses a named argument calling style, and
-recognizes the arguments B<-host>, B<-port>, B<-path>, B<-program> and
-B<-class>.  
+recognizes the arguments B<-host>, B<-port>, B<-path>, B<-program>,
+B<-class>, B<-timeout> and B<-query_timeout>.
 
 =over 4
 
@@ -1448,15 +1527,34 @@ return this subclass by default by connecting this way:
   $db = Ace->connect(-host=>'sapiens.wustl.edu',-port=>123456,
 	             -class=>'Ace::Object::Graphics');
 
+=item B<-timeout>
+
+If no response from the server is received within $timeout seconds,
+the call will return an undefined value.  Internally timeout sets an
+alarm and temporarily intercepts the ALRM signal.  You should be aware
+of this if you use ALRM for your own purposes.
+
+NOTE: this feature is temporarily disabled (as of version 1.40)
+because it is generating unpredictable results when used with
+Apache/mod_perl.
+
+=item B<-query_timeout>
+
+If any query takes longer than $query_timeout seconds, will return an
+undefined value.  This value can only be set at connect time, and cannot
+be changed once set.
+
 =back
 
 If arguments are omitted, they will default to the following values:
 
-    -host         localhost
-    -port         23456
-    -path         <no default>
-    -program      tace
-    -class        Ace::Object
+    -host          localhost
+    -port          23456
+    -path          no default
+    -program       tace
+    -class         Ace::Object
+    -timeout       25
+    -query_timeout 120
 
 If you prefer to use a more Smalltalk-like message-passing syntax, you
 can open a connection this way too:
@@ -1498,6 +1596,7 @@ retrieve certain objects.
 			  -offset=>$offset,
                           -fill=>$fill,
 	                  -total=>\$total);
+    @objects = $db->fetch(-query=>$query);
 
 Ace::fetch() retrieves objects from the database based on their class
 and name.  You may retrieve a single object by requesting its name, or
@@ -1569,8 +1668,16 @@ Sequences in $total:
 Notice that if you leave out the B<-name> argument the "*" wildcard is 
 assumed.
 
+You may also pass an arbitrary Ace query string with the B<-query>
+argument.  This will supersede any name and class you provide.
+Example: 
+
+  @ready_dnas= $db->fetch(-query=>
+      'find Annotation Ready_for_submission ; follow gene ; 
+       follow derived_sequence ; >DNA');
+
 If your request is likely to retrieve very many objects, fetch() many
-consume a lot of memory, even if B<-fill> is calse.  Consider using
+consume a lot of memory, even if B<-fill> is false.  Consider using
 B<fetch_many()> instead (see below).
 
 =head2 list() method
@@ -1609,7 +1716,8 @@ find() below.
 
 This allows you to pass arbitrary Ace query strings to the server and
 retrieve all objects that are returned as a result.  For example, this
-code fragment retrieves all papers written by author "Meyer BF":
+code fragment retrieves all papers written by Jean and Danielle
+Thierry-Mieg.
 
     @papers = $db->find('author IS "Thierry-Mieg *" ; >Paper');
 
@@ -1622,10 +1730,13 @@ B<-fill> have the same meanings as in B<fetch()>.
 =head2 fetch_many() method
 
     $obj = $db->fetch_many($class,$pattern);
+
     $obj = $db->fetch_many(-class=>$class,
                            -name =>$pattern,
                            -fill =>$filled,
                            -chunksize=>$chunksize);
+
+    $obj = $db->fetch_many(-query=>$query);
 
 If you expect to retrieve many objects, you can fetch an iterator
 across the data set.  This is friendly both in terms of network
@@ -1650,7 +1761,14 @@ B<fetch_many()> retrieves objects from the database in groups of a
 certain maximum size, 40 by default.  This can be tuned using the
 optional B<-chunksize> argument.  Chunksize is only a hint to the
 database.  It may return fewer objects per transaction, particularly
-if the objects are large. 
+if the objects are large.
+
+You may provide raw Ace query string with the B<-query> argument.  If
+present the B<-name> and B<-class> arguments will be ignored.
+
+=head2 find_many() method
+
+This is an alias for fetch_many().  It is now deprecated.
 
 =head2 grep() method
 
@@ -1725,6 +1843,24 @@ This method transiently uses a lot of memory.  It should not be used
 with Ace 4.5 servers, as they contain a memory leak in the counting
 routine.
 
+=head2 status() method
+
+    %status = $db->status;
+    $status = $db->status;
+
+Returns various bits of status information from the server.  In an
+array context, returns a hash.  In a scalar context, returns a hash
+reference.  The keys in the hash are as follows:
+
+   version       Ace server version number
+   date          Ace server link date
+   directory     Path to database directory
+   blocks        Number of disk blocks used by database
+   classes       Number of defined classes
+   keys          Number of defined keys
+   memory        Memory usage, in kb
+   write         Whether write access has been granted
+
 =head2 date_style() method
 
   $style = $db->date_style();
@@ -1772,6 +1908,8 @@ For your convenience, you can call error() in any of several ways:
     print Ace->error();
     print $db->error();  # $db is an Ace database handle
     print $obj->error(); # $object is an Ace::Object
+
+There's also a global named $Ace::ERR that you are free to use.
 
 =head1 MANIPULATING ACEDB OBJECTS
 
@@ -1844,8 +1982,9 @@ described below.
 You can create a new Ace::Object from scratch by calling the new()
 routine with the object's class, its identifier and a handle to the
 database to create it in.  The object won't actually be created in the
-database until you commit() it (see below).  If you do not provide a
-database handle, the object will be created in memory only.
+database until you add() one or more tags to it and commit() it (see
+below).  If you do not provide a database handle, the object will be
+created in memory only.
 
 Arguments can be passed positionally, or as named parameters, as shown
 above.
@@ -2076,6 +2215,44 @@ For example:
           --> ('CRBM duCNRS','BP 5051','34033 Montpellier','FRANCE',
                'mieg@kaa.cnrs-mop.fr,'33-67-613324','33-67-521559')
 
+It is important to note that B<search()> only traverses tags.  It will
+not traverse nodes that aren't tags, such as strings, integers or
+objects.  This is in keeping with the behavior of the Ace query
+language "show" command.
+
+This restriction can lead to confusing results.  For example, consider
+the following object:
+
+ Clone: B0280  Position    Map            Sequence-III  Ends   Left   3569
+                                                               Right  3585
+                           Pmap           ctg377        -1040  -1024
+               Positive    Positive_locus nhr-10
+               Sequence    B0280
+               Location    RW
+               FingerPrint Gel_Number     0
+                           Canonical_for  T20H1
+                                          K10E5
+                           Bands          1354          18
+
+
+The following naive attempt to fetch the left and right positions of
+the clone will fail, because the search for the "Left" and "Right" tags
+cannot traverse "Sequence-III", which is an object, not a tag:
+
+  my $left = $clone->search('Left');    # will NOT work
+  my $right = $clone->search('Right');  # neither will this one
+
+You must explicitly step over the non-tag node in order to make this
+query work.  This syntax will work:
+
+  my $left = $clone->search('Map',1)->search('Left');  # works
+  my $left = $clone->search('Map',1)->search('Right');  # works
+
+Or, for readability, use a combination of autogenerated access methods
+and the tag[2] syntax:
+
+  my($left,$right) = $clone->Map(1)->Ends(2);
+
 =head2 Autogenerated Access Methods
 
      $scalar = $object->Name_of_tag;
@@ -2285,6 +2462,15 @@ some piece of information about the object in question.  You can
 display it in the status bar of the browser or in a popup window if
 your browser provides that facility.
 
+=head2 asDNA() and asPeptide() methods
+
+    $dna = $object->asDNA();
+    $peptide = $object->asPeptide();
+
+If you are dealing with a sequence object of some sort, these methods
+will return strings corresponding to the DNA or peptide sequence in
+FASTA format.
+
 =head2 add() method
 
     $result_code = $object->add($tag,$value);    
@@ -2318,8 +2504,11 @@ You may create objects that reference other objects this way:
     $author->commit();
 
 The result code indicates whether the addition was syntactically
-correct.  Currently it is always true, since the database model is not
-checked.
+correct.  An add() will fail if you attempt to add a duplicate entry
+(that is, one with exactly the same tag and value).  In this case, use
+replace() instead.  Currently there is no checking for an attempt to
+add multiple values to a single-valued (UNIQUE) tag.  The error will
+be detected and reported at commit() time however.
 
 =head2 delete() method
 
@@ -2374,6 +2563,22 @@ rollback() works by deleting the object from Perl memory and fetching
 the object anew from AceDB.  If someone has changed the object in the
 database while you were working with it, you will see this version,
 ot the one you originally fetched.
+
+If you are creating an entirely new object, you I<must> add at least
+one tag in order to enter the object into the database.
+
+=head2 kill() method
+
+    $result_code = $object->kill;
+
+This will remove the object from the database immediately and
+completely.  It does not wait for a commit(), and does not respond to
+a rollback().  If successful, you will be left with an empty object
+that contains just the class and object names.  Use with care!
+
+In the case of failure, which commonly happens when the database is
+not open for writing, this method will return undef.  A description of
+the problem can be found by calling the error() method.
 
 =head2 date_style() method
 
@@ -2439,10 +2644,11 @@ The following methods are available in Ace::AceDB:
 
 =over 4
 
-=item new($host,$port,$timeout)
+=item new($host,$port,$query_timeout)
 
-Connect to the host $host at port $port. Timeout after $timeout
-seconds.  If timeout is not specified, it defaults to 25.
+Connect to the host $host at port $port. Queries will time out after
+$query_timeout seconds.  If timeout is not specified, it defaults to
+120 (two minutes).
 
 If successful, this call returns an Ace::AceDB connection object.
 Otherwise, it returns undef.  Example:
