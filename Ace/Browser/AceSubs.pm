@@ -859,11 +859,11 @@ sub Toggle {
     my $img;
     if (exists $open{$section}) {
 	delete $open{$section};
-	$img =  img({-src=>'/icons/triangle_down.gif',-alt=>'^',
+	$img =  img({-src=>'/ico/triangle_down.gif',-alt=>'^',
 			-height=>6,-width=>11,-border=>0}),
     } else {
 	$open{$section}++;
-	$img =  img({-src=>'/icons/triangle_right.gif',-alt=>'&gt;',
+	$img =  img({-src=>'/ico/triangle_right.gif',-alt=>'&gt;',
 			-height=>11,-width=>6,-border=>0}),
 	my $plural = ($addplural and $label !~ /s$/) ? "${label}s" : "$label";
 	$label = font({-class=>'toggle'},!$addcount ? $plural : "$count $plural");

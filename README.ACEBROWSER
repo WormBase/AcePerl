@@ -194,12 +194,12 @@ This is the root (top level) for all of Acebrowser's static HTML files
 and images.  You will need to change this if the static files are
 installed somewhere else.
 
- $ICONS = "$DOCROOT/icons";
+ $ICONS = "$DOCROOT/ico";
 
-This is where Acebrowser expects to find its "icons" subdirectory.
-This subdirectory holds icons and other small static images.  Note how
-the previously-defined $DOCROOT variable is used.  You will probably
-not need to change this.
+This is where Acebrowser expects to find its icons. This subdirectory
+holds icons and other small static images.  Note how the
+previously-defined $DOCROOT variable is used.  You will probably not
+need to change this.
 
  $IMAGES = "$DOCROOT/images";
 
