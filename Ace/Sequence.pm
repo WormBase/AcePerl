@@ -596,6 +596,8 @@ sub _traverse {
 
   # invoke seqget to find the top-level container for this sequence
   my ($tl,$tl_start,$tl_end) = _get_toplevel($prev);
+  $tl_start ||= 0;
+  $tl_end ||= 0;
 
   # make it an object
   $tl = ref($obj)->new(-name=>$tl,-class=>'Sequence',-db=>$obj->db);
@@ -613,7 +615,8 @@ sub _get_toplevel {
   my $gff = $seq->db->raw_query("gif seqget $seq -coords 1 2 ; seqfeatures -version 2 -feature Sequence");
   my $seq_strand = $gff =~ /^\#\#sequence-region.+\(reversed\)/m ? '-' : '+';
 
-  my ($tl,$tl_strand,$tl_start,$tl_end);
+  my ($tl,$tl_strand);
+  my ($tl_start,$tl_end) = (0,0);
   my $tl_length = 0;
   my $length    = 0;
 
@@ -627,6 +630,12 @@ sub _get_toplevel {
       ($tl_start,$tl_end) = ($s,$e);
       $tl = $ref;
     }
+  }
+
+  unless ($tl) {  # oops, not genomic, so it refers to itself
+    $tl = $seq;
+    $tl_length = $seq->DNA(2);
+    return ($tl,1,$tl_length);
   }
 
   return ($tl,$tl_end,$tl_end - $length + 1)         if $seq_strand eq '-';
