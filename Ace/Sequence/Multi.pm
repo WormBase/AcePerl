@@ -106,6 +106,12 @@ sub _make_features {
   my %dbs = map { $_->asString => $_ } @dbs;
 
   my ($r,$r_offset,$r_strand) = $self->refseq;
+  my $abs = $self->absolute;
+  if ($abs) {
+    $r_offset  = 0;
+    $r = $self->parent;
+    $r_strand = '+1';
+  }
   my @features;
   foreach (split("\n",$gff)) {
     next if m[^(?:\#|//)];
@@ -113,7 +119,7 @@ sub _make_features {
     next unless my ($dbname) = /\t(\S+)$/;
     next unless my $db = $dbs{$dbname};
     next unless my $parent = $self->parent;
-    push @features,Ace::Sequence::Feature->new($parent,$r,$r_offset,$r_strand,$_,$db);
+    push @features,Ace::Sequence::Feature->new($parent,$r,$r_offset,$r_strand,$abs,$_,$db);
   }
 
   return @features;

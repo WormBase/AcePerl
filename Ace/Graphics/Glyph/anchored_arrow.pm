@@ -46,7 +46,7 @@ sub draw_label {
   my ($gd,$left,$top) = @_;
   my $label = $self->label or return;
   my $start = $self->left + ($self->right - $self->left - length($label) * $self->font->width)/2;
-  $gd->string($self->font,$left + $start,$top + $self->top,$label,$self->fgcolor);
+  $gd->string($self->font,$left + $start,$top + $self->top,$label,$self->fontcolor);
 }
 
 1;

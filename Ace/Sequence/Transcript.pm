@@ -31,8 +31,9 @@ sub new {
 #  my $exons    = $args{exon};
 #  my $sequence = $args{base};  # this is the Ace::Sequence::Feature object
 #  return bless {base => $sequence,
-#		introns  => $introns,
-#		exons    => $exons},$class;
+#		intron  => $introns,
+#		exon    => $exons,
+#               cds     => $cds,},$class;
 
 }
 
@@ -68,6 +69,15 @@ sub exons {
   # otherwise, we have to handle relative coordinates
   my $base   = $self->{base};
   my @e = map {Ace::Sequence->new(-refseq=>$base,-seq=>$_)} @{$self->{exon}};
+  return $self->strand < 0  ? reverse @e : @e;
+}
+
+sub cds {
+  my $self = shift;
+  return $self->{cds} ? @{$self->{cds}} : () unless $self->relative;
+  # otherwise, we have to handle relative coordinates
+  my $base   = $self->{base};
+  my @e = map {Ace::Sequence->new(-refseq=>$base,-seq=>$_)} @{$self->{cds}};
   return $self->strand < 0  ? reverse @e : @e;
 }
 

@@ -8,6 +8,7 @@ Ace/Browser/AceSubs.pm
 Ace/Browser/SearchSubs.pm
 Ace/Browser/SiteDefs.pm
 Ace/Browser/TreeSubs.pm
+Ace/Graphics/Fk.pm
 Ace/Graphics/Glyph.pm
 Ace/Graphics/GlyphFactory.pm
 Ace/Graphics/Panel.pm

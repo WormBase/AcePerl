@@ -107,6 +107,7 @@ sub new {
 		    refseq     => [$source,$r_offset,$r_strand],
 		    strand     => $strand,
 		    absolute   => 0,
+		    automerge  => 1,
 		   },$pack;
 
   # set the reference sequence
@@ -134,8 +135,15 @@ sub length {
 
 sub reversed {  return shift->strand < 0; }
 
+sub automerge {
+  my $self = shift;
+  my $d = $self->{automerge};
+  $self->{automerge} = shift if @_;
+  $d;
+}
+
 # return reference sequence
-sub refseq { 
+sub refseq {
   my $self = shift;
   my $prev = $self->{refseq};
   if (@_) {
@@ -178,6 +186,7 @@ sub refseq {
     $self->{refseq} = $arrayref;
   }
   return unless $prev;
+  return $self->parent if $self->absolute;
   return wantarray ? @{$prev} : $prev->[0];
 }
 
@@ -185,13 +194,13 @@ sub refseq {
 sub strand { return $_[0]->{strand} }
 
 # return reference strand
-sub r_strand { 
+sub r_strand {
   my $self = shift;
-  return "+" if $self->absolute;
+  return "+1" if $self->absolute;
   if (my ($ref,$r_offset,$r_strand) = $self->refseq) {
     return $r_strand;
   } else {
-    return $self->{strand} 
+    return $self->{strand}
   }
 }
 
@@ -250,7 +259,6 @@ sub asString {
   my $self = shift;
   if ($self->absolute) {
     return join '',$self->parent,'/',$self->start,',',$self->end;
-
   } elsif (my $ref = $self->refseq){
     my $label = $ref->isa('Ace::Sequence::Feature') ? $ref->info : "$ref";
     return join '',$label,'/',$self->start,',',$self->end;
@@ -276,7 +284,7 @@ sub dna {
   my $self = shift;
   return $self->{dna} if $self->{dna};
   my $raw = $self->_query('seqdna');
-  $raw=~s/^>.*\n//;
+  $raw=~s/^>.*\n//m;
   $raw=~s/^\/\/.*//mg;
   $raw=~s/\n//g;
   $raw =~ s/\0+\Z//; # blasted nulls!
@@ -328,17 +336,19 @@ sub features {
   # turn it into a list of features
   my @features = $self->_make_features($gff,$filter);
 
-  # fetch out constructed transcripts and clones
-  my %types = map {lc($_)=>1} (@$opt,@_);
-  if ($types{'transcript'}) {
-    push @features,$self->_make_transcripts(\@features);
-  }
-  if ($types{'clone'}) {
-    push @features,$self->_make_clones(\@features);
-  }
-  if ($types{'similarity'}) {
-    push @features,$self->_make_alignments(\@features);
-    @features = grep {$_->type ne 'similarity'} @features;
+
+  if ($self->automerge) {  # automatic merging
+    # fetch out constructed transcripts and clones
+    my %types = map {lc($_)=>1} (@$opt,@_);
+    if ($types{'transcript'}) {
+      push @features,$self->_make_transcripts(\@features);
+      @features = grep {$_->type !~ /^(intron|exon)$/ } @features;
+    }
+    push @features,$self->_make_clones(\@features)      if $types{'clone'};
+    if ($types{'similarity'}) {
+      push @features,$self->_make_alignments(\@features);
+      @features = grep {$_->type ne 'similarity'} @features;
+    }
   }
 
   return wantarray ? @features : \@features;
@@ -367,7 +377,7 @@ sub _make_transcripts {
 
   for my $feature (@$features) {
     my $transcript = $feature->info;
-    if ($feature->type =~ /^(exon|intron)$/) {
+    if ($feature->type =~ /^(exon|intron|cds)$/) {
       my $type = $1;
       push @{$transcripts{$transcript}{$1}},$feature;
     } elsif ($feature->type eq 'Sequence') {
@@ -375,8 +385,8 @@ sub _make_transcripts {
     }
   }
   # get rid of transcripts without exons
-  foreach (keys %transcripts) { 
-    delete $transcripts{$_} unless exists $transcripts{$_}{exon} 
+  foreach (keys %transcripts) {
+    delete $transcripts{$_} unless exists $transcripts{$_}{exon}
   }
 
   # map the rest onto Ace::Sequence::Transcript objects
@@ -419,6 +429,12 @@ sub _make_clones {
   my @features;
   my ($r,$r_offset,$r_strand) = $self->refseq;
   my $parent = $self->parent;
+  my $abs = $self->absolute;
+  if ($abs) {
+    $r_offset  = 0;
+    $r = $parent;
+    $r_strand = '+1';
+  }
 
   # BAD HACK ALERT.  WE DON'T KNOW WHERE THE LEFT END OF THE CLONE IS SO WE USE
   # THE MAGIC NUMBER -99_999_999 to mean "off left end" and
@@ -427,7 +443,7 @@ sub _make_clones {
     my $start = $clones{$clone}{start} || -99_999_999;
     my $end   = $clones{$clone}{end}   || +99_999_999;
     my $phony_gff = join "\t",($parent,'Clone','structural',$start,$end,'.','.','.',qq(Clone "$clone"));
-    push @features,Ace::Sequence::Feature->new($parent,$r,$r_offset,$r_strand,$phony_gff);
+    push @features,Ace::Sequence::Feature->new($parent,$r,$r_offset,$r_strand,$abs,$phony_gff);
   }
   return @features;
 }
@@ -572,6 +588,9 @@ sub _traverse {
   # invoke seqget to find the top-level container for this sequence
   my ($tl,$tl_start,$tl_end) = _get_toplevel($prev);
 
+  # make it an object
+  $tl = ref($obj)->new(-name=>$tl,-class=>'Sequence',-db=>$obj->db);
+
   $offset += $tl_start - 1;  # offset to beginning of toplevel
   $length ||= abs($tl_end - $tl_start) + 1;
   $phase  *= $tl_start < $tl_end ? +1 : -1;
@@ -614,7 +633,7 @@ sub _make_filter {
   foreach (@_) {
     my ($type,$filter) = split(':',$_,2);
     if (lc($type) eq 'transcript') {
-      @filter{'exon','intron','Sequence'} = ([undef],[undef],[undef]);
+      @filter{'exon','intron','Sequence','cds'} = ([undef],[undef],[undef],[undef]);
     } elsif (lc($type) eq 'clone') {
       @filter{'Clone_left_end','Clone_right_end','Sequence'} = ([undef],[undef],[undef]);
     } else {
@@ -662,7 +681,13 @@ sub _make_features {
 
   my ($r,$r_offset,$r_strand) = $self->refseq;
   my $parent = $self->parent;
-  my @features = map {Ace::Sequence::Feature->new($parent,$r,$r_offset,$r_strand,$_)}
+  my $abs    = $self->absolute;
+  if ($abs) {
+    $r_offset  = 0;
+    $r = $parent;
+    $r_strand = '+1';
+  }
+  my @features = map {Ace::Sequence::Feature->new($parent,$r,$r_offset,$r_strand,$abs,$_)}
                  grep !m@^(?:\#|//)@ && $filter->($_),split("\n",$gff);
 }
 
@@ -1146,17 +1171,29 @@ but it returns a I<GFF::GeneFeatureSet> object from the GFF.pm
 module.  If the GFF module is not installed, this method will generate 
 a fatal error.
 
-=head2 abs()
+=head2 absolute()
 
- $abs = $seq->abs;
- $abs = $seq->abs(1);
+ $abs = $seq->absolute;
+ $abs = $seq->absolute(1);
 
 This method controls whether the coordinates of features are returned
 in absolute or relative coordinates.  "Absolute" coordinates are
 relative to the underlying source or reference sequence.  "Relative"
 coordinates are relative to the I<Ace::Sequence> object.  By default,
 coordinates are relative unless new() was provided with a reference
-sequence.  This default can be examined and changed using abs().
+sequence.  This default can be examined and changed using absolute().
+
+=head2 automerge()
+
+  $merge = $seq->automerge;
+  $seq->automerge(0);
+
+This method controls whether groups of features will automatically be
+merged together by the features() call.  If true (the default), then
+the left and right end of clones will be merged into "clone" features,
+introns, exons and CDS entries will be merged into
+Ace::Sequence::Transcript objects, and similarity entries will be
+merged into Ace::Sequence::GappedAlignment objects.
 
 =head2 db()
 

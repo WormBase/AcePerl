@@ -48,9 +48,7 @@ sub asString {
   shift->{base}->info;
 }
 
-sub type {
-  return 'GappedAlignment';
-}
+sub type   { return 'similarity'; }
 
 sub relative {
   my $self = shift;

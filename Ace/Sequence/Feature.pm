@@ -18,7 +18,7 @@ use overload
 # parse a line from a sequence list
 sub new {
   my $pack = shift;
-  my ($parent,$ref,$r_offset,$r_strand,$gff_line,$db) = @_;
+  my ($parent,$ref,$r_offset,$r_strand,$abs,$gff_line,$db) = @_;
   my ($sourceseq,$method,$type,$start,$end,$score,$strand,$frame,$group) = split "\t",$gff_line;
   if (defined($strand)) {
     $strand = $strand eq '-' ? '-1' : '+1';
@@ -46,7 +46,7 @@ sub new {
 		   refseq   => [$ref,$r_offset,$r_strand],
 		   strand   => $r_strand,
 		   fstrand  => $strand,
-		   absolute => 0,
+		   absolute => $abs,
 		   info     => {
 				seqname=> $sourceseq,
 				method => $method,
