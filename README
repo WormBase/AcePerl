@@ -14,32 +14,25 @@ In addition to this package, you will need Perl 5.00503 or higher
 (5.6.0 or higher recommended), and the Digest::MD5 module.  Both are
 available on CPAN (http://www.cpan.org).
 
-If you wish to communicate with your own ACEDB database, you must use
-ACEDB version 4.7c or higher, available from this location:
+If you are using AcePerl to communicate with WormBase, a public server
+is running on host aceserver.cshl.org, port 2005.  You can open a
+connection to this server like this:
+
+   $db = Ace->connect('sace://aceserver.cshl.org:2005');
+
+Otherwise, if you wish to communicate with your own ACEDB database,
+you must use ACEDB version 4.8a or higher, available from this
+location:
 
 	ftp://ncbi.nlm.nih.gov/repository/acedb/
 	
 To take full advantage of the sequence annotation features in the
 Ace::Sequence and Ace::Sequence::Feature classes, you will need
-version 4.9r or higher.  As of April 11, 2003, it was not yet
-released, but when it is, it will be available from the Acedb web site
-at http://www.acdb.org.  In the meanwhile, you can download an
-unsupported alpha release from
-ftp://ftp.wormbase.org/pub/wormbase/software/acedb4.9r_prerelease.tar.gz
-
-Version 4.8 of Aceserver adds support for Berkeley sockets.  It is
-highly recommended that you use it if you are not already reliant on
-an earlier version of the server.  This release of AcePerl fully
-supports the new socket interface.
-
-This advice only applies to the aceserver, sgifaceserver and tace
-applications.  You may use older versions of the graphical xace
-application freely, as this does not interact with AcePerl.
+version 4.9r or higher.
 
 If you wish to use AcePerl in a client-server fashion, you must get
-sgifaceserver (or the older gifaceserver) up and running.  Some hints
-on installing the sgifaceserver application are given later in this
-README.
+sgifaceserver up and running.  Some hints on installing the
+sgifaceserver application are given later in this README.
 
 Follow these steps to unpack, build and install AcePerl:
 
@@ -197,6 +190,11 @@ a WebAce-like interface to Ace (it is not as feature-full as WebAce,
 but it is probably easier to set up and run).  This package is now part
 of the AcePerl distribution, but is not installed unless you specifically
 request it.  See README.ACEBROWSER for details.
+
+INSTALLING THE ACEDB SERVER
+
+See ACEDB.HOWTO in the docs/ directory for instructions on compiling
+acedb and installing the server application to start up when needed.
 
 Lincoln Stein
 lstein@cshl.org
