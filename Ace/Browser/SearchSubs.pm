@@ -85,7 +85,7 @@ sub AceSearchOffset {
   $offset;
 }
 
-=item AceSearchTable($title,@contents)
+=item AceSearchTable([{hash}],$title,@contents)
 
 Given a title and the HTML contents, this formats the search into a
 table and gives it the background and foreground colors used elsewhere
@@ -95,12 +95,16 @@ The HTML contents are usually a fill-out form.  For convenience, you
 can provide the contents in multiple parts (lines or elements) and
 they will be concatenated together.
 
+If the first argument is a hashref, then its contents will be passed
+to start_form() to override the form arguments.
+
 =cut
 
 sub AceSearchTable {
+  my %attributes = %{shift()} if ref($_[0]) eq 'HASH';
   my ($title,@body) = @_;
   print
-    start_form(-action=>url(-absolute=>1,-path_info=>1).'#results'),
+    start_form(-action=>url(-absolute=>1,-path_info=>1).'#results',%attributes),
     a({-name=>'search'},''),
     table({-border=>0,-width=>'100%'},
 	  TR(th({-class=>'searchtitle'},$title),
