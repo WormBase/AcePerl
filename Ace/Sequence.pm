@@ -384,7 +384,7 @@ sub _make_transcripts {
 # Reassemble clones from clone left and right ends
 sub clones {
   my $self = shift;
-  my @clones = $self->features('Clone_left_end','Clone_right_end');
+  my @clones = $self->features('Clone_left_end','Clone_right_end','Sequence');
   my %clones;
   return unless @clones;
   return $self->_make_clones(\@clones);
@@ -392,21 +392,27 @@ sub clones {
 
 sub _make_clones {
   my $self = shift;
-  my $clones = shift;
+  my $features = shift;
 
-  my %clones;
+  my (%clones,@canonical_clones);
   my $start_label = $self->strand eq '-' ? 'end' : 'start';
   my $end_label   = $self->strand eq '-' ? 'start' : 'end';
-  for my $clone (@$clones) {
-    $clones{$clone->info}{$start_label} = $clone->start if $clone->type eq 'Clone_left_end';
-    $clones{$clone->info}{$end_label}   = $clone->start if $clone->type eq 'Clone_right_end';
+  for my $feature (@$features) {
+    $clones{$feature->info}{$start_label} = $feature->start if $feature->type eq 'Clone_left_end';
+    $clones{$feature->info}{$end_label}   = $feature->start if $feature->type eq 'Clone_right_end';
+
+    if ($feature->type eq 'Sequence') {
+      my $info = $feature->info;
+      next if $info =~ /LINK|CHROMOSOME|\.\w+$/;
+      if ($info->Genomic_canonical(0)) {
+	push (@canonical_clones,$info->Clone) if $info->Clone;
+      }
+    }
   }
-  my $main_clone = $self->source->Clone;
-  unless ($main_clone) {
-    my $grandp = $self->source->Source;
-    $main_clone = $grandp->Clone if $grandp;
+
+  foreach (@canonical_clones) {
+    $clones{$_} ||= {};
   }
-  $clones{$main_clone} = {} if $main_clone && !$clones{$main_clone};
 
   my @features;
   my ($r,$r_offset,$r_strand) = $self->refseq;
@@ -608,7 +614,7 @@ sub _make_filter {
     if (lc($type) eq 'transcript') {
       @filter{'exon','intron','Sequence'} = (undef,undef,undef);
     } elsif (lc($type) eq 'clone') {
-      @filter{'Clone_left_end','Clone_right_end'} = (undef,undef);
+      @filter{'Clone_left_end','Clone_right_end','Sequence'} = (undef,undef);
     } else {
       $filter{$type} = $filter;
     }
