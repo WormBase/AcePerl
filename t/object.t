@@ -37,7 +37,7 @@ my $DATA = q{Address  Mail    The Sanger Centre
 my @args  = (-host=>HOST,-port=>PORT,-timeout=>50);
 push @args,(-cache=>{}
 	   ) if TEST_CACHE || $ENV{TEST_CACHE};
-
+Ace->debug(0);
 test(2,$db = Ace->connect(@args),"connection failure");
 die "Couldn't establish connection to database.  Aborting tests.\n" unless $db;
 test(3,$obj = $db->fetch('Author','Sulston JE'),"fetch failure");

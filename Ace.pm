@@ -374,8 +374,9 @@ sub _create_cache {
 
   return unless eval {require Cache::SizeAwareFileCache};  # not installed
 
+  (my $namespace = "$self") =~ s!/!_!g;
   my %cache_params = (
-		      namespace    => "$self",
+		      namespace    => $namespace,
 		      %DEFAULT_CACHE_PARAMETERS,
 		      %$params,
 		     );
@@ -581,6 +582,7 @@ sub _list {
     unless ($obj) {
       $obj = $self->{'class'}->new($class,$name,$self,1);
       $self->memory_cache_store($obj);
+      $self->file_cache_store($obj);
     }
     push @result,$obj;
   }
