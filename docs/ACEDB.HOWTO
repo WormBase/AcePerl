@@ -1,0 +1,177 @@
+			ACEDB HOWTO
+
+ACeDB is poorly documented and very intimidating to the new user.
+Despite this, it is not hard to install the database and get it
+running.
+
+OBTAINING THE SOFTWARE
+
+ACeDB is available in both binary and source code form.  I strongly
+recommend that you install the server from source code. The source
+distributions tend to be more up to date than the binary
+distributions, and subtle differences between shared libraries can
+cause ACeDB binaries linked on one platform to behave differently on
+another.
+
+ACeDB distributions are available at:
+
+  http://stein.cshl.org/AcePerl/archive/acedb-latest.tar.gz
+  ftp://ncbi.nlm.nih.gov/repository/acedb/
+
+I recommend that you use the stein.cshl.org URL, as this contains the
+latest stable snapshot of ACeDB that I use for testing and debugging
+the current release of AcePerl.
+
+COMPILING THE SOFTWARE
+
+Unpack the software into its own directory:
+
+	1) mkdir acedb
+	2) gunzip -c acedb-latest.tar.gz | tar xvf -
+
+Compile the software.  The makefile requires that an environment
+variable named ACEDB_MACHINE be defined.  This environment variable is
+in turn used to select the makefile to be used to compile.  To figure
+out what to set this environment variable to, type "make". You will
+receive an error message listing the alternatives. Choose one for your 
+system, and run "make again".
+
+	3) cd acedb
+	4) make  (error message listing possibilities)
+	5) setenv ACEDB_MACHINE LINUX_4  (for example)
+	6) make
+
+This will create a subdirectory named bin.LINUX_4 (or whatever your
+operating system is), containing the executables along with a number
+of other files.
+
+INSTALLING THE SOFTWARE
+
+ACeDB runs as an Internet server.  As such, it should not be run as
+root, but as an unprivileged user.  My strategy has been to create a
+new user and group, both named "acedb".  The server runs as "acedb",
+and all database developers belong to the "acedb" group, giving them
+write access to the database files.
+
+After creating the acedb user, create a "bin" directory and copy the
+executables into it:
+
+	1) cd ~acedb
+	2) mkdir bin
+	3) cd ~/acedb (where the source code was compiled)
+	4) cd bin.LINUX_4 (or whatever)
+	5) cp xace tace giface gifaceserver ~acedb/bin/
+
+Now put ~acedb/bin on your path so that the Ace::Local module can find
+the giface and tace programs.
+
+CREATING DATABASES
+
+Each ACeDB database lives in a separate subdirectory, which I
+conventionally place under ~acedb/.  You will often be installing a
+compressed database archive, such as the C. elegans database (see the
+NCBI FTP site).  In this case, simply unpack the database into the
+~acedb/ directory.  Programs like xace, tace, and the servers will
+refer to the database by its path. Within the database directory
+should be the subdirectories databases/, wspec/, wdoc/, wgf/, wquery/,
+and possibly others.  If not, make sure that you unpacked the database
+package correctly.
+
+Now examine and edit the file ~acedb/wspec/passwd.wrm.  This contains
+the names of user accounts that are allowed to write to the database.
+Make this file readable by everyone, but only writable by you (and
+other trusted users).  If you will be running an ACeDB server, you
+should examine the file ~acedb/wspec/server.wrm.  This contains read
+and write policies for the server.  You can restrict who can read and
+write to the database, although currently you are limited to
+restricting read and write privileges to local users versus non-local
+users.
+
+Creating a new database from scratch is somewhat more difficult,
+because you have to create an appropriate models (schema) file.
+Please see NEW_DB.HOWTO for help.
+
+Now confirm that the database is correctly installed by running the
+xace program.
+
+	xace ~acedb/elegans  (or whatever)
+
+You should be able browse the data, view graphics, and so on.
+
+INSTALLING AN ACE SERVER
+
+ACEDB comes with two servers called "aceserver" and "gifaceserver".
+The difference between the two is that gifaceserver has the ability to
+serve graphical pictures.  Aceserver is text-only. In general, you
+will want to use gifaceserver unless you know you will never need to
+serve pictures.  If you download a binary distribution of ACEDB, the
+two executables may have the name of the operating system appended to
+them.  Never fear.  Just rename the files.
+
+A full description of installing (gif)aceserver is given in the ACEDB
+source distribution subdirectory wrpc/, in the file
+SERVER.INSTALLATION.  A copy of this file is also present in the docs/ 
+subdirectory of the AcePerl distribution.
+
+In order to get the server to start up automatically when it's needed,
+you must modify two system files, /etc/rpc, and /etc/inetd.conf.
+
+Here's my configuration, which assumes that the acedb home directory
+is /usr/local/acedb
+
+ * /etc/rpc: 
+ ... lots of existing entries...
+ elegans		200005
+
+ * /etc/inetd.conf:
+ ... lots of existing entries...
+ elegans/1  stream  rpc/tcp wait acedb  /usr/local/acedb/bin/gifaceserver 
+         aceserver /local/acedb/elegans 200005 1200:1200:0
+
+The line has been wrapped to fit on the page.  All inetd.conf entries
+should be on a single line.  Replace /usr/local/acedb/bin/gifaceserver
+with the location of your aceserver binary, and
+/usr/local/acedb/elegans with the location of your ACE database.
+
+The server needs to be able to open and write to a file named
+"server.log" located at the top level of its database directory.
+Either give the acedb user write permission for the database
+directory, or create the log file in advance and make it writable by
+acedb:
+
+	1) cd ~acedb/elegans      (or whatever)
+	2) touch server.log
+	3) chgrp acedb server.log (may need to be root to do this)
+	4) chmod g+w server.log
+
+Should you want to update (write to) the database via the server, you
+should make the database directory and its contents writable by the
+acedb user.
+
+After this you will need to send a HUP signal to the inetd daemon
+to make it reread its configuration file.  Some people have reported
+that they have also had to stop and restart the portmap daemon --
+however this should be performed in an emergency only!
+
+(gif)aceserver has a problem on many Solaris systems.  The symptom of
+this problem is that the server launches, but fails to respond to
+requests.  The solution to this problem is to install the binary
+distribution of ACEDB for solaris, or to follow the directions given
+in the SERVER_INSTALLATION.HOWTO file, a copy of which is included in
+the AcePerl docs subdirectory.
+
+If you have problems getting inetd to start the server for you, you
+can start it from the command line.  It will run under your own
+account:
+
+   1) ~acedb/bin/gifaceserver ~acedb/elegans 2000005 1200:1200:0
+
+Unfortunately the server will eventually time out (after 1200 seconds
+in this example) and will need to be relaunched.  Ultimately you will
+want to get automatically startup working.
+
+Lincoln Stein
+July 1999
+
+
+
