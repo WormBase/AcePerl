@@ -55,10 +55,10 @@ sub find_ace {
   # libraries.
   my $include = "$src/wh";
   my ($lib);
-  my (@bins) = <$src/bin*>;
+  my (@bins) = <$src/bin.*>;
   unshift (@bins,"$src/bin.$ENV{ACEDB_MACHINE}") if exists $ENV{ACEDB_MACHINE};
   foreach (@bins) {
-    return ($_,$include) if -e "$_/libacecl.a";
+    return ($_,$include) if -e "$_/libfree.a";
   }
 
   # if we get here, we go with the defaults again
@@ -75,6 +75,7 @@ sub readline_setup {
 	my ($prompt, $default) = @_ ;
 
 	$_ = $::term -> readline ("$prompt [$default] ") ;
+#	s!^~!$ENV{HOME}
 	if (!/^\s*$/) {
 	  s/\s+$//;
 	  return $_ ;

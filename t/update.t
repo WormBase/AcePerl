@@ -36,8 +36,8 @@ test(10,$me->replace('Address.Fax','1111111','2222222'));
 test(11,$me->add('Address.Phone','123456'));
 test(12,$me->delete('Address.Phone'));
 # Either the commit should succeed, or it should fail with a Write Access denied failure
-test(13,$me->commit || $me->error=~/you do not have write access/i,"commit failure $Ace::ERR"); 
-test(14,$me->kill   || $me->error=~/you do not have write access/i,"kill failure $Ace::ERR"); 
+test(13,$me->commit || $me->error eq 'Write access denied',"commit failure $Ace::ERR"); 
+test(14,$me->kill   || $me->error eq 'Write access denied',"kill failure $Ace::ERR"); 
 # Now we're going to test whether parse errors are correctly reported
 test(15,$me = Ace::Object->new('Author','Dent AD',$db),"couldn't create new object");
 test(16,$me->add('Address.VideoPhone','123456'));

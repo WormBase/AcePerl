@@ -12,7 +12,7 @@ extern "C" {
 #include "Ace.h"
 #define CHUNKSIZE 10
 
-#define metachar(c) (c == '\\' || c == '"' || c == '\t' || c == '\n' || c == '?')
+#define metachar(c) (c == '\\' || c == '"' || c == '\n')
 
 static int
 not_here(s)
@@ -322,7 +322,6 @@ CODE:
 	/* count the number of characters that need to be escaped */
 	for (cp = string; *cp; cp++ ) {
 	   count += metachar(*cp) ? 2 : 1;
-	   if (*cp == '\n') count += 2;
 	}
 
 	/* create a new char* large enough to hold the result */
@@ -333,7 +332,7 @@ CODE:
 	cp = string;
 	for (cp = string; *cp; *a++ = *cp++) {
 	   if (metachar(*cp)) *a++ = '\\';
-	   if (*cp == '\n') { *a++ = 'n' ; *a++ = '\\'; }
+	   if (*cp == '\n') { *a++ = 'n' ; cp++ ; }
 	}
 	*a++ = '"';
 	*a++ = '\0';

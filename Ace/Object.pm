@@ -209,8 +209,13 @@ sub search {
 					     $self->{'db'}
 					    );
 	  if ($subobject) {
-	    my $obj = $self->new('tag',$tag,$self->{'db'});
-	    $obj->{'right'} = $subobject->right;
+	    my $obj;
+	    if ($subobject->right eq $tag) { # new version of aceserver as of 11/30/98
+	      $obj = $subobject->right;
+	    } else { # old version of aceserver
+	      $obj = $self->new('tag',$tag,$self->{'db'});
+	      $obj->{'right'} = $subobject->right;
+	    }
 	    $self->{'.PATHS'}->{$lctag} = $obj;
 	  } else {
 	    $self->{'.PATHS'}->{$lctag} = undef;
@@ -476,12 +481,14 @@ sub _at {
 sub _ace_format {
   my $self = shift;
   my ($class,$name) = @_;
+  return undef unless defined $class && defined $name;
   return $class eq 'date' ? $self->_to_ace_date($name) : $name;
 }
 
 # It's an object unless it is one of these things
 sub _isObject {
-  $_[0] !~ /^(float|int|date|tag|txt|peptide|dna|scalar|[Tt]ext|comment)$/;
+    return unless defined $_[0];
+    $_[0] !~ /^(float|int|date|tag|txt|peptide|dna|scalar|[Tt]ext|comment)$/;
 }
 
 # utility routine used to split a tag path into individual components
@@ -1606,13 +1613,15 @@ sub delete {
 sub kill {
   my $self = shift;
   my $name = $self->name();
+  return unless defined $name;
+
   $name =~ s/([^a-zA-Z0-9_-])/\\$1/g;
   my $cmd = "kill $self->{'class'} $name";
   warn "$cmd\n" if $self->debug;
   return unless my $db = $self->db;
   my $result = $db->raw_query($cmd);
-  if ($result =~ /you do not have Write Access/im) {
-    $Ace::ERR = "Write access to database denied.";
+  if (defined($result) and $result=~/write access/im) {  # this keeps changing
+    $Ace::ERR = "Write access denied";
     return;
   }
   # uncache cached values and clear the object out
@@ -1735,8 +1744,10 @@ sub commit {
 
     my ($retval,@cmd);
     my $name = $self->{'name'};
+    return unless defined $name;
+
     $name =~ s/([^a-zA-Z0-9_-])/\\$1/g;
-    return 1 unless $self->{'update'};
+    return 1 unless exists $self->{'update'} && $self->{'update'};
 
     my $cmd = join('; ',"$self->{'class'} : $name",
 		   @{$self->{'update'}});
@@ -1744,7 +1755,11 @@ sub commit {
     my $result = $db->raw_query("parse = $cmd");
 
     $Ace::ERR = '';
-    $Ace::ERR = $result if $result =~ /sorry|parse error/mi;
+    if (defined($result) and $result=~/write access/im) {  # this keeps changing
+	$Ace::ERR = "Write access denied";
+    } elsif ($result =~ /sorry|parse error/mi) {
+	$Ace::ERR = $result;
+    }
     undef $self->{'update'};
     return !$Ace::ERR;
 }
