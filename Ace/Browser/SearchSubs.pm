@@ -48,12 +48,13 @@ These functions are exported:
 # Common constants and subroutines used by the various search scripts
 
 use strict;
-use vars qw(@ISA @EXPORT);
+use vars qw(@ISA @EXPORT $VERSION);
 use Ace::Browser::AceSubs qw(Configuration Url ResolveUrl);
 use CGI qw(:standard *table *Tr *td);
 
 require Exporter;
 @ISA = qw(Exporter);
+$VERSION = '1.30';
 
 ######################### This is the list of exported subroutines #######################
 @EXPORT = qw(
@@ -67,10 +68,11 @@ require Exporter;
 use constant ROWS           => 10;    # how many rows to allocate for search results
 use constant COLS           =>  5;    #  "   "   columns   "       "    "      "
 use constant MAXOBJECTS     => ROWS * COLS;  # total objects per screen
+use constant ICONS          => '/icons';
 use constant SEARCH_ICON    => '/icons/search.gif';
-use constant SPACER_ICON    => '/icons/spacer.gif';
-use constant LEFT_ICON      => '/icons/cylarrw.gif';
-use constant RIGHT_ICON     => '/icons/cyrarrw.gif';
+use constant SPACER_ICON    => 'spacer.gif';
+use constant LEFT_ICON      => 'cylarrw.gif';
+use constant RIGHT_ICON     => 'cyrarrw.gif';
 
 =item $offset = AceSearchOffset()
 
@@ -178,14 +180,16 @@ sub make_navigation_bar {
   my (@buttons);
   my ($page,$pages) =  (1+int($offset/MAXOBJECTS),1+int($count/MAXOBJECTS));
   my $c = Configuration();
-  my $left = $c->Arrowl_icon || LEFT_ICON;
-  my $right = $c->Arrowr_icon || RIGHT_ICON;
+  my $icons  = $c->Icons || '/icons';
+  my $spacer = "$icons/". SPACER_ICON;
+  my $left   = "$icons/". LEFT_ICON;
+  my $right  = "$icons/". RIGHT_ICON;
 
   push(@buttons,td({-align=>'RIGHT',-valign=>'MIDDLE'},
 		   $offset > 0 
 		               ? a({-href=>self_url() . '&scroll=-' . MAXOBJECTS},
-				      img({-src=>$left,-alt=>'< PREVIOUS',-border=>0}))
-                               : img({-src=>SPACER_ICON,-alt=>''})
+				      img({-src=>$left,-alt=>'&lt; PREVIOUS',-border=>0}))
+                               : img({-src=>$spacer,-alt=>''})
 		   )
       );
 
@@ -223,8 +227,8 @@ sub make_navigation_bar {
   push(@buttons,td({-align=>'LEFT',-valign=>'MIDDLE'},
 		   $offset + MAXOBJECTS <= $count 
 		   ? a({-href=>self_url() . '&scroll=+' . MAXOBJECTS},
-		       img({-src=>$right,-alt=>'NEXT >',-border=>0}))
-		   : img({-src=>SPACER_ICON,-alt=>''})
+		       img({-src=>$right,-alt=>'NEXT &gt;',-border=>0}))
+		   : img({-src=>$spacer,-alt=>''})
 		  )
       );
   @buttons;
