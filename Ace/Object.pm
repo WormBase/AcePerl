@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp qw(:DEFAULT cluck);
 
-# $Id: Object.pm,v 1.55 2005/01/17 01:32:46 lstein Exp $
+# $Id: Object.pm,v 1.56 2005/03/09 15:43:56 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -137,7 +137,7 @@ sub newFromText {
     push(@array,[split("\t")]);
   }
   my $obj = $pack->_fromRaw(\@array,0,0,$#array,$db);
-  $obj->_dirty(1) if $obj->isRoot;
+  $obj->_dirty(1);
   $obj;
 }
 
@@ -390,7 +390,7 @@ sub _attach_subtree {
 
 sub _dirty {
   my $self = shift;
-  $self->{'.dirty'} = shift if @_;
+  $self->{'.dirty'} = shift if @_ && $self->isRoot;
   $self->{'.dirty'};
 }
 
@@ -545,7 +545,7 @@ sub _fill {
 
     $new->{'.nocache'}++; # this line prevents the thing from being cached
 
-    $self->_dirty(1) if $self->isRoot;
+    $self->_dirty(1);
 }
 
 sub _parse {

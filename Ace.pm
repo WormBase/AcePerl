@@ -290,8 +290,15 @@ sub file_cache_fetch {
   my $key = join ':',$class,$name;
   my $cache = $self->cache or return;
   my $obj   = $cache->get($key);
+#   warn "cache ",$obj?'hit':'miss'," on '$key'\n";
+  if ($obj && !exists $obj->{'.root'}) {  # consistency checks
+    require Data::Dumper;
+    warn "CACHE BUG! Discarding inconsistent object $obj\n";
+    warn Data::Dumper->Dump([$obj],['obj']);
+    $cache->remove($key);
+    return;
+  }
   #carp "cache ",$obj?'hit':'miss'," on '$key'\n" if Ace->debug;
-  warn "cache ",$obj?'hit':'miss'," on '$key'\n";
   $self->memory_cache_store($obj) if $obj;
   $obj;
 }
@@ -305,7 +312,7 @@ sub file_cache_store {
   my $cache = $self->cache or return;
 
 #  carp "caching $key obj=",overload::StrVal($obj),"\n" if Ace->debug;
-  warn "caching $key obj=",overload::StrVal($obj),"\n";
+#   warn "caching $key obj=",overload::StrVal($obj),"\n";
   if ($key eq ':') {  # something badly wrong
     cluck "NULL OBJECT";
   }
@@ -493,6 +500,7 @@ sub read_object {
 # do a query, and return the result immediately
 sub raw_query {
   my ($self,$query,$no_alert,$parse) = @_;
+  warn "raw_query($query)\n" if $self->debug;
   $self->_alert_iterators unless $no_alert;
   $self->{database}->query($query, $parse ? ACE_PARSE : () );
   return $self->read_object;
