@@ -1,3 +1,6 @@
+1.81	1. Fixed bug in SiteDefs->displays() that was causing long delays
+	when fetching certain display lists.
+	
 1.80	1. Numerous small bug fixes in AceBrowser
 	
 1.78	9/28/2001
