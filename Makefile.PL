@@ -6,7 +6,7 @@ my ($lib,$include) = find_ace();
 my @OTHER_FLAGS;
 
 exit -1 unless
-  $location = _prompt('Location of libace.a and libacecl.a',$lib);
+  $location = _prompt('Location of libfree.a and libacecl.a',$lib);
 exit -1 unless
   $headers = _prompt('Location of aceclient.h',$include);
 

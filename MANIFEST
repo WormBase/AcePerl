@@ -5,9 +5,12 @@ ChangeLog
 MANIFEST
 Makefile.PL
 README
+DISCLAIMER.txt
 acedb_4_5e.patch
+Ace/Iterator.pm
 Ace/Local.pm
 Ace/Model.pm
+Ace/Object.pm
 examples/ace.pl
 examples/authors.pl
 examples/coauthors.pl

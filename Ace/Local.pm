@@ -2,11 +2,14 @@ package Ace::Local;
 
 require 5.004;
 
+use strict;
 use IPC::Open2;
 use Symbol;
 use Fcntl qw/F_SETFL O_NONBLOCK/;
 
-$VERSION = 1.02;
+use vars '$VERSION';
+
+$VERSION = '1.02';
 
 use Ace qw/rearrange STATUS_WAITING STATUS_PENDING STATUS_ERROR/;
 use constant DEFAULT_HOST=>'localhost';
@@ -287,7 +290,7 @@ Examples:
 
 =head1 SEE ALSO
 
-L<Ace>, L<Ace::Model>
+L<Ace>, L<Ace::Object>, L<Ace::Iterator>, L<Ace::Model>
 
 =head1 AUTHOR
 
@@ -296,7 +299,8 @@ Thierry-Mieg <mieg@kaa.crbm.cnrs-mop.fr>
 
 Copyright (c) 1997-1998, Lincoln D. Stein
 
-This library is free software; 
-you can redistribute it and/or modify it under the same terms as Perl itself. 
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.  See DISCLAIMER.txt for
+disclaimers of warranty.
 
 =cut

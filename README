@@ -1,10 +1,10 @@
-This is version 1.43 of AcePerl, a Perl interface for the ACEDB
+This is version 1.50 of AcePerl, a Perl interface for the ACEDB
 object-oriented database.  The code is currently in beta stage, which
 means the interface will not change.  However, it may still contain
 bugs.
 
 See the ChangeLog for important notices, including user interfaces
-changes.
+changes.  Please see DISCLAIMER.txt for disclaimers of warranty.
 
 INSTALLATION:
 
@@ -164,5 +164,5 @@ package at this URL:
 Lincoln Stein
 lstein@cshl.org
 
-October 20, 1998
+October 27, 1998
 

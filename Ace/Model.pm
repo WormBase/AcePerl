@@ -2,9 +2,12 @@ package Ace::Model;
 # file: Ace/Model.pm
 # This is really just a placeholder class.  It doesn't do  anything interesting.
 use strict;
+use vars '$VERSION';
 use overload
   '""' => 'asString',
   fallback => 'TRUE';
+
+$VERSION = '1.50';
 
 # construct a new Ace::Model
 sub new {
