@@ -352,7 +352,6 @@ sub features {
   # turn it into a list of features
   my @features = $self->_make_features($gff,$filter);
 
-
   if ($self->automerge) {  # automatic merging
     # fetch out constructed transcripts and clones
     my %types = map {lc($_)=>1} (@$opt,@_);
@@ -734,8 +733,8 @@ sub _feature_filter {
   my $features = shift;
   return '' unless $features;
   my $opt = '';
-  $opt = '-feature ' . join('|',@$features) if ref($features) eq 'ARRAY' && @$features;
-  $opt = "-feature $features" unless ref $features;
+  $opt = '+feature ' . join('|',@$features) if ref($features) eq 'ARRAY' && @$features;
+  $opt = "+feature $features" unless ref $features;
   $opt;
 }
 
