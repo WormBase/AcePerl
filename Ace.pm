@@ -25,7 +25,7 @@ use overload '""' => 'asString';
 
 # Optional exports
 @EXPORT_OK = qw(rearrange);
-$VERSION = '1.60';
+$VERSION = '1.61';
 
 # Return all objects (effectively infinity)
 use constant MAX => 1<<16;
@@ -62,27 +62,37 @@ $Ace::ERR = '';
 
 sub connect {
     my $class = shift;
-    my ($host,$port,$path,$program,$objclass,$timeout,$query_timeout) = 
-      rearrange(['HOST','PORT','PATH',
-		 'PROGRAM','CLASS','TIMEOUT',
-		'QUERY_TIMEOUT'],@_);
-    $host ||= 'localhost';
-    $port ||= defined(&ACE_PORT) ? &ACE_PORT : 200001;
-    $timeout = 25 unless defined $timeout;
-
-    my $database;
-
-    # open up a connection to a local database
-    if ($path || $program) {
-      require Ace::Local;
-      $database = Ace::Local->connect(@_);
+    my ($host,$port,$path,$program,$objclass,$timeout,$query_timeout,$database);
+    if (@_ == 1) {  # look for host:port
+      if (($host,$port) = $_[0] =~ /^(?:aceserver:\/\/)?([^:]+):(\d+)$/) {
+	$database = Ace::AceDB->new($host,$port);
+      } else {
+	require Ace::Local;
+	($path = $_[0]) =~ s!^\w+://!!;
+	$database = Ace::Local->connect(-path=>$path);
+      }
     } else {
-      my @p = ($host,$port);
-      push(@p,$query_timeout) if defined $query_timeout;
-#      local($SIG{ALRM}) = sub { die "timed out" } ;
-#      $database = eval "alarm($timeout) if $timeout; my \$d = Ace::AceDB->new(\@p);alarm(0); \$d";
-      $database = Ace::AceDB->new(@p);
+      ($host,$port,$path,$program,$objclass,$timeout,$query_timeout) = 
+	rearrange(['HOST','PORT','PATH',
+		   'PROGRAM','CLASS','TIMEOUT',
+		   'QUERY_TIMEOUT'],@_);
+      $host ||= 'localhost';
+      $port ||= defined(&ACE_PORT) ? &ACE_PORT : 200001;
+      $timeout = 25 unless defined $timeout;
+      
+      # open up a connection to a local database
+      if ($path || $program) {
+	require Ace::Local;
+	$database = Ace::Local->connect(@_);
+      } else {
+	my @p = ($host,$port);
+	push(@p,$query_timeout) if defined $query_timeout;
+	#      local($SIG{ALRM}) = sub { die "timed out" } ;
+	#      $database = eval "alarm($timeout) if $timeout; my \$d = Ace::AceDB->new(\@p);alarm(0); \$d";
+	$database = Ace::AceDB->new(@p);
+      }
     }
+
     unless ($database) {
 	$Ace::ERR = "Couldn't open database";
 	return;
@@ -141,6 +151,27 @@ sub fetch {
 
   my (@h) = $filled ? $self->_fetch($count,$offset) : $self->_list($count,$offset);
   return wantarray ? @h : $h[0];
+}
+
+# perform an AQL query
+sub aql {
+  my $self = shift;
+  my $query = shift;
+  my $db = $self->db;
+  my $baseclass = $self->{'class'};
+  my $r = $self->raw_query("aql -j $query");
+  if ($r =~ /(AQL error.*)/) {
+    $self->error($1);
+    return;
+  }
+  my @r;
+  foreach (split "\n",$r) {
+    next if m!^//!;
+    next if m!^\0!;
+    my @objects = map { $baseclass->new(Ace::AceDB->split($_),$self,1)} split "\t";
+    push @r,\@objects;
+  }
+  return @r;
 }
 
 # Return the contents of a keyset.  Pattern matches are allowed, in which case
@@ -642,6 +673,23 @@ Example:
 If your request is likely to retrieve very many objects, fetch() many
 consume a lot of memory, even if B<-fill> is false.  Consider using
 B<fetch_many()> instead (see below).
+
+=head2 aql() method
+
+    $count   = $db->aql($aql_query);
+    @objects = $db->aql($aql_query);
+
+Ace::aql() will perform an AQL query on the database.  In a scalar
+context it returns the number of rows returned.  In an array context
+it returns a list of rows.  Each row is an anonymous array containing
+the columns returned by the query as an Ace::Object.
+
+If an AQL error is encountered, will return undef or an empty list and
+set Ace->error to the error message.
+
+Note that this routine is not optimized -- there is no iterator
+defined.  All results are returned synchronously, leading to large
+memory consumption for certain queries.
 
 =head2 put() method
 

@@ -233,7 +233,7 @@ __END__
 
 =head1 NAME
 
-Ace::Local - use tace or aceclient to open a local connection to an Ace database
+Ace::Local - use giface, tace or gifaceclient to open a local connection to an Ace database
 
 =head1 SYNOPSIS
 
@@ -249,8 +249,8 @@ Ace::Local - use tace or aceclient to open a local connection to an Ace database
 =head1 DESCRIPTION
 
 This class is provided for low-level access to local (non-networked)
-Ace databases via the I<tace> program.  You will generally not need to
-access it directly.  Use Ace.pm instead.
+Ace databases via the I<giface> program.  You will generally not need
+to access it directly.  Use Ace.pm instead.
 
 For the sake of completeness, the method can also use the I<aceclient>
 program for its access.  However the Ace::AceDB class is more efficient
@@ -262,9 +262,9 @@ for this purpose.
 
   $accessor = Ace::Local->connect(-path=>$path_to_database);
 
-Connect to the database at the indicated path using I<tace> and return
-a connection object (an "accessor").  I<Tace> must be on the current
-search path.  Multiple accessors may be open simultaneously.
+Connect to the database at the indicated path using I<giface> and
+return a connection object (an "accessor").  I<Giface> must be on the
+current search path.  Multiple accessors may be open simultaneously.
 
 Arguments include:
 
@@ -276,16 +276,18 @@ Path to the database (location of the "wspec/" directory).
 
 =item B<-program>
 
-Used to indicate the location of the desired I<tace> or I<aceclient>
-executable.  Can be used to override the search path.
+Used to indicate the location of the desired I<giface> or
+I<gifaceclient> executable.  You may also use I<tace> or I<aceclient>,
+but in that case the asGIF() functionality will nog work.  Can be used
+to override the search path.
 
 =item B<-host>
 
-Used when invoking I<aceclient>.  Indicates the host to connect to.
+Used when invoking I<gifaceclient>.  Indicates the host to connect to.
 
 =item B<-port>
 
-Used when invoking I<aceclient>.  Indicates the port to connect to.
+Used when invoking I<gifaceclient>.  Indicates the port to connect to.
 
 =item B<-nosync>
 
@@ -320,7 +322,7 @@ entire result.  Canonical example:
 =head2 low_read()
 
 Read whatever data's available, or undef if none.  This is only used
-by the ace.pl replacement for tace.
+by the ace.pl replacement for giface/tace.
 
 =head2 status()
 

@@ -1,5 +1,6 @@
 #!/usr/local/bin/perl -w
 
+
 # Tests of Ace::Sequence and Ace::Sequence::Feature
 ######################### We start with some black magic to print on failure.
 use lib '../blib/lib','../blib/arch';
@@ -10,6 +11,8 @@ BEGIN {$| = 1; print "1..40\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Ace::Sequence;
 $loaded = 1;
+print STDERR "expect tests 14-16 to fail\n";
+
 print "ok 1\n";
 
 ######################### End of black magic.
