@@ -154,7 +154,7 @@ sub display_object {
   my $has_coords = defined $map_start && defined $map_stop;
 
   my $safe_name = $name;
-  $safe_name=~tr/[a-zA-Z0-9._-]/_/c;
+  $safe_name=~tr/[a-zA-Z0-9._\-]/_/c;
   my $db = Configuration->Name;
   $db=~s!^/!!;
   my $path = join('/',$db,$class);

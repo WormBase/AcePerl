@@ -59,7 +59,12 @@ sub to_href {
   my $obj = shift;
 
   unless ($obj->isObject or $obj->isTag) {
-    $obj =~s/\\n/<BR>/g;
+    if ($obj=~/\S{50}/){         # if you have >50 chars without a space
+      $obj=~s/(\S{50})/$1\n/g; # add some
+      $obj = "<pre>$obj</pre>";# and assume preformatted (e.g. seq)
+    } else {
+      $obj =~s/\\n/<BR>/g;
+    }
     return ($obj,0);
   }
 
