@@ -112,7 +112,7 @@ sub offset { return $_[0]->{'offset'}; }
 sub end  {  
   return $_[0]->{'offset'} + CORE::abs($_[0]->{'length'}) if $_[0]->{'source_reversed'}; #special case
   my $end = $_[0]->{'offset'} + $_[0]->{'length'};
-#  $end +=2 if $_[0]->reversed;
+  $end +=2 if $_[0]->reversed;
   return $end;
 }
 
@@ -333,7 +333,7 @@ sub _get_refseq {
       $length = $obj->abs_end - $obj->abs_start + 1;
     } else {
       $offset = $obj->abs_end - 1;
-      $length = $obj->abs_start - $obj->abs_end + 1;
+      $length = $obj->abs_start - $obj->abs_end - 1;
     }
   } elsif ($obj->isa('Ace::Object')) {
     ($parent,$offset,$length) = _traverse($obj);
@@ -914,6 +914,9 @@ L<Ace::Sequence::FeatureList>, L<GFF>
 
 Lincoln Stein <lstein@w3.org> with extensive help from Jean
 Thierry-Mieg <mieg@kaa.crbm.cnrs-mop.fr>
+
+Many thanks to David Block <dblock@gene.pbi.nrc.ca> for finding and
+fixing the nasty off-by-one errors.
 
 Copyright (c) 1999, Lincoln D. Stein
 

@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.20 2000/06/14 19:45:38 lstein Exp $
+# $Id: Object.pm,v 1.21 2000/06/15 22:16:50 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -11,6 +11,13 @@ use overload
     'fallback' =>' TRUE';
 use vars qw($AUTOLOAD $DEFAULT_WIDTH %MO $VERSION);
 use Ace 1.50 qw(:DEFAULT rearrange);
+
+# if set to 1, will conflate tags in XML output
+use constant XML_COLLAPSE_TAGS => 1;
+use constant XML_SUPPRESS_CONTENT=>1;
+use constant XML_SUPPRESS_CLASS=>1;
+use constant XML_SUPPRESS_VALUE=>0;
+use constant XML_SUPPRESS_TIMESTAMPS=>0;
 
 require AutoLoader;
 
@@ -565,70 +572,6 @@ sub _split_tags {
   $tag =~ s/\\\./$;/g; # protect backslashed dots
   return map { (my $x=$_)=~s/$;/./g; $x } split(/\./,$tag);
 }
-
-
-
-### Return an XML syntax representation                      ###
-### Unfortunately, this is not yet true XML because the same ###
-### tag may appear in different contexts                     ###
-sub asXML {
-    my $self = shift;
-    return unless defined($self->right);
-    my $name = $self->escapeXML($self->name);
-    my $class = $self->class;
-    my $string = '';
-    $self->_asXML(\$string,0,0,'',0);
-    return $string;
-}
-
-use constant COLLAPSE_TAGS => 0;
-
-sub _asXML {
-  my($self,$out,$position,$level,$current_tag,$tag_level) = @_;
-  my $name = $self->escapeXML($self->name);
-  my $class = $self->class;
-  my ($tagname,$attributes) = ('',''); # prevent uninitialized variable warnings
-  my $tab = "    " x ($level-$position); # four spaces
-  $current_tag ||= 'Object';
-
-  if ($self->isTag) {
-    $current_tag = $tagname = $name;
-    $tag_level = 0;
-  } else {
-    $tagname = $tag_level > 0 ? sprintf "%s-%d",$current_tag,$tag_level : $current_tag;
-    $class = "#$class" unless $self->isObject;
-    $attributes = qq( class="$class" value="$name");
-  }
-
-  if (my $c = $self->comment) {
-    $c = $self->escapeXML($c);
-    $attributes .= qq( comment="$c");
-  }
-
-  unless (defined $self->right) { # lone tag
-    $$out .= $self->isTag ? qq($tab<$tagname$attributes />\n) : qq($tab<$tagname$attributes>$name</$tagname>\n);
-  } elsif ($self->isTag) { # most tags are implicit in the XML tag names
-    if (!COLLAPSE_TAGS or $self->right->isTag) {
-      $$out .= qq($tab<$tagname$attributes>\n);
-      $level = $self->right->_asXML($out,$position,$level+1,$current_tag,$tag_level + !COLLAPSE_TAGS);
-      $$out .= qq($tab</$tagname>\n);
-    } else {
-      $level = $self->right->_asXML($out,$position+1,$level+1,$current_tag,$tag_level);
-    }
-  } else {
-    $$out .= qq($tab<$tagname$attributes>$name\n);
-    $level = $self->right->_asXML($out,$position,$level+1,$current_tag,$tag_level+1);
-    $$out  .= qq($tab</$tagname>\n);
-  }
-
-  if (defined($self->down)) {
-    $level = $self->down->_asXML($out,$position,$level,$current_tag,$tag_level);
-  } else {
-    $level--;
-  }
-  return $level;
-}
-
 
 1;
 
@@ -1263,6 +1206,14 @@ Here's a complete example:
    }
 
    $object->asHTML(\&process_cell);
+
+=head2 asXML() method
+
+   $result = $object->asXML;
+
+asXML() returns a well-formed XML representation of the object.  The
+particular representation is still under discussion, so this feature
+is primarily for demonstration.
 
 =head2 asGIF() method
 
@@ -2146,6 +2097,75 @@ sub _to_ace_date {
   my ($day,$mo,$yr) = split(" ",$string);
   return "$yr-$MO{$mo}-$day";
 }
+
+
+
+### Return an XML syntax representation  ###
+### Consider this feature experimental   ###
+sub asXML {
+    my $self = shift;
+    return unless defined($self->right);
+    my $name = $self->escapeXML($self->name);
+    my $class = $self->class;
+    my $string = '';
+    $self->_asXML(\$string,0,0,'',0);
+    return $string;
+}
+
+sub _asXML {
+  my($self,$out,$position,$level,$current_tag,$tag_level) = @_;
+  my $name = $self->escapeXML($self->name);
+  my $class = $self->class;
+  my ($tagname,$attributes,$content) = ('','',''); # prevent uninitialized variable warnings
+  my $tab = "    " x ($level-$position); # four spaces
+  $current_tag ||= $class;
+  $content = $name unless XML_SUPPRESS_CONTENT;
+
+  if ($self->isTag) {
+    $current_tag = $tagname = $name;
+    $tag_level = 0;
+  } else {
+    $tagname = $tag_level > 0 ? sprintf "%s-%d",$current_tag,$tag_level + 1 : $current_tag;
+    $class = "#$class" unless $self->isObject;
+    $attributes .= qq( class="$class") unless XML_SUPPRESS_CLASS;
+    $attributes .= qq( value="$name")  unless XML_SUPPRESS_VALUE;
+  }
+
+  if (my $c = $self->comment) {
+    $c = $self->escapeXML($c);
+    $attributes .= qq( comment="$c");
+  }
+
+  if (!XML_SUPPRESS_TIMESTAMPS && my $timestamp = $self->timestamp) {
+    $timestamp = $self->escapeXML($c);
+    $attributes .= qq( timestamp="$timestamp");
+  }
+
+  unless (defined $self->right) { # lone tag
+    $$out .= $self->isTag || XML_SUPPRESS_CONTENT ? qq($tab<$tagname$attributes />\n) 
+                                                  : qq($tab<$tagname$attributes>$content</$tagname>\n);
+  } elsif ($self->isTag) { # most tags are implicit in the XML tag names
+    if (!XML_COLLAPSE_TAGS or $self->right->isTag) {
+      $$out .= qq($tab<$tagname$attributes>\n);
+      $level = $self->right->_asXML($out,$position,$level+1,$current_tag,$tag_level + !XML_COLLAPSE_TAGS);
+      $$out .= qq($tab</$tagname>\n);
+    } else {
+      $level = $self->right->_asXML($out,$position+1,$level+1,$current_tag,$tag_level);
+    }
+  } else {
+    $$out .=  qq($tab<$tagname$attributes>$content\n);
+    $level = $self->right->_asXML($out,$position,$level+1,$current_tag,$tag_level+1);
+    $$out  .= qq($tab</$tagname>\n);
+  }
+
+  if (defined($self->down)) {
+    $level = $self->down->_asXML($out,$position,$level,$current_tag,$tag_level);
+  } else {
+    $level--;
+  }
+  return $level;
+}
+
 
 sub escapeXML {
   my ($self,$string) = @_;
