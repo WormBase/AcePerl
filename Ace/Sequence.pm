@@ -23,6 +23,8 @@ use overload
 *stop = \&end;
 *abs = \&absolute;
 *source_seq = \&source;
+*source_tag = \&subtype;
+*primary_tag = \&type;
 
 # internal keys
 #    parent    => reference Sequence in "+" strand
@@ -209,6 +211,8 @@ sub p_offset { $_[0]->{p_offset} }
 
 sub smapped { 1; }
 sub type    { 'Sequence' }
+sub subtype { }
+
 
 # return the database this sequence is associated with
 sub db {
@@ -475,7 +479,6 @@ sub _make_alignments {
   # map onto Ace::Sequence::GappedAlignment objects
   return map {Ace::Sequence::GappedAlignment->new($homol{$_})} keys %homol;
 }
-
 
 # return list of features quickly
 sub feature_list {

@@ -76,6 +76,7 @@ sub introns {
   my $self = shift;
   return;
 }
+sub source_tag { 'dummy' }
 
 
 

@@ -53,10 +53,10 @@ sub filled_box {
   # if the left end is off the end, then cover over
   # the leftmost line
   my ($width) = $gd->getBounds;
-  $gd->line($x1,$y1,$x1,$y2,$self->fillcolor)
+  $gd->line($x1,$y1,$x1,$y2,$color)
     if $x1 < 0;
 
-  $gd->line($x2,$y1,$x2,$y2,$self->fillcolor)
+  $gd->line($x2,$y1,$x2,$y2,$color)
     if $x2 > $width;
 }
 
@@ -76,9 +76,8 @@ sub draw {
   my $gray = $self->factory->translate($implied_intron_color);
   my $fg     = $self->fgcolor;
   my $fill   = $self->fillcolor;
-  my $curated_exon   = $self->color('curatedexon')   || $fill;
-  my $curated_intron = $self->color('curatedintron') || $fg;
-
+  my $curated_exon   = $self->option('curatedexon')   ? $self->color('curatedexon') : $fill;
+  my $curated_intron = $self->option('curatedintron') ? $self->color('curatedintron') : $fg;
 
   my @exons   = sort {$a->start<=>$b->start} $self->feature->segments;
   my @introns = $self->feature->introns if $self->feature->can('introns');
