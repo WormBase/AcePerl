@@ -1,3 +1,10 @@
+1.67	9/5/2000
+	1. Many updates to support socket server.
+	2. find_many() will now be much faster for complex queries.
+	3. Single-argument shortcut form for connect()
+	4. The Ace->find_many() and Ace->models() methods, formerly deprecated,
+		are now no longer supported.
+	
 1.62	5/18/2000
 	1. **NOTE** Redid the automatic accessors.  There is now always an implicit 
 	move to the *right* of a tag when you fetch it as a method.  Use

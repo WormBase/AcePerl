@@ -5,7 +5,7 @@
 ######################### We start with some black magic to print on failure.
 use lib '../blib/lib','../blib/arch';
 use constant HOST => $ENV{ACEDB_HOST} || 'stein.cshl.org';
-use constant PORT => $ENV{ACEDB_PORT} || 200005;
+use constant PORT => $ENV{ACEDB_PORT} || 2005;
 
 BEGIN {$| = 1; print "1..40\n"; }
 END {print "not ok 1\n" unless $loaded;}

@@ -4,7 +4,7 @@
 ######################### We start with some black magic to print on failure.
 use lib '../blib/lib','../blib/arch';
 use constant HOST => $ENV{ACEDB_HOST} || 'stein.cshl.org';
-use constant PORT => $ENV{ACEDB_PORT} || 200005;
+use constant PORT => $ENV{ACEDB_PORT} || 2005;
 
 BEGIN {$| = 1; print "1..17\n"; }
 END {print "not ok 1\n" unless $loaded;}
@@ -36,8 +36,8 @@ test(10,$me->replace('Address.Fax','1111111','2222222'));
 test(11,$me->add('Address.Phone','123456'));
 test(12,$me->delete('Address.Phone'));
 # Either the commit should succeed, or it should fail with a Write Access denied failure
-test(13,$me->commit || $me->error eq 'Write access denied',"commit failure $Ace::ERR"); 
-test(14,$me->kill   || $me->error eq 'Write access denied',"kill failure $Ace::ERR"); 
+test(13,$me->commit || $me->error eq 'Write access denied',"commit failure:\n $Ace::Error"); 
+test(14,$me->kill   || $me->error eq 'Write access denied',"kill failure:\n $Ace::Error"); 
 # Now we're going to test whether parse errors are correctly reported
 test(15,$me = Ace::Object->new('Author','Dent AD',$db),"couldn't create new object");
 test(16,$me->add('Address.VideoPhone','123456'));

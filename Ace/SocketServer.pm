@@ -9,8 +9,6 @@ use Digest::MD5 'md5_hex';
 use vars '$VERSION';
 $VERSION = '1.00';
 
-use constant DEFAULT_SERVER  => 'localhost';
-use constant DEFAULT_PORT    => 23100;
 use constant DEFAULT_USER    => 'anonymous';  # anonymous user
 use constant DEFAULT_PASS    => 'guest';      # anonymous password
 use constant DEFAULT_TIMEOUT => 120;          # two minute timeout on queries
@@ -35,10 +33,8 @@ use constant ACESERV_SERVER_HELLO => "et bonjour a vous";
 sub connect {
   my $class = shift;
   my ($host,$port,$timeout,$user,$pass) = rearrange(['HOST','PORT','TIMEOUT','USER','PASS'],@_);
-  $host ||= DEFAULT_SERVER;
-  $port ||= DEFAULT_PORT;
-  $user ||= DEFAULT_USER;
-  $pass ||= DEFAULT_PASS;
+  $user    ||= DEFAULT_USER;
+  $pass    ||= DEFAULT_PASS;
   $timeout ||= DEFAULT_TIMEOUT;
   my $s = IO::Socket::INET->new("$host:$port") || 
     return _error("Couldn't establish connection");
@@ -58,7 +54,7 @@ sub DESTROY {
   $self->_send_msg('quit');
   my ($msg,$body) = $self->_recv_msg('strip');
   warn "Did not get expected ACESERV_MSGKILL message, got $msg instead" 
-    unless $msg eq ACESERV_MSGKILL;
+    if defined($msg) and $msg ne ACESERV_MSGKILL;
 }
 
 sub encore { return shift->{encoring} }
@@ -82,7 +78,7 @@ sub query {
 sub read {
   my $self = shift;
   return _error("No pending query") unless $self->status == STATUS_PENDING;
-  return $self->_do_encore if $self->encore;
+  $self->_do_encore || return if $self->encore;
   # call select() here to time out
   if ($self->{timeout}) {
     my $rdr = '';
@@ -90,6 +86,7 @@ sub read {
     return _error("Query timed out") unless select($rdr,undef,undef,$self->{timeout});
   }
   my ($msg,$body) = $self->_recv_msg;
+  $msg =~ s/\0.+$//;  # socketserver bug workaround: get rid of junk in message
   if ($msg eq ACESERV_MSGOK or $msg eq ACESERV_MSGFAIL) {
     $self->{status}   = STATUS_WAITING;
     $self->{encoring} = 0;
@@ -120,6 +117,9 @@ sub _error {
   return;
 }
 
+# return socket (read only)
+sub socket { $_[0]->{socket} }
+
 # ----------------------------- low level -------------------------------
 sub _do_encore {
   my $self = shift;
@@ -149,8 +149,13 @@ sub _send_msg {
   my ($self,$msg,$parse) = @_;
   return unless my $sock = $self->{socket};
   $msg .= "\0";  # add terminating null
-  my $request = $parse ? ACESERV_MSGDATA : ACESERV_MSGREQ;
-  my $header = pack HEADER,WORDORDER_MAGIC,length($msg),0,$self->{client_id},0,$request;
+  my $request;
+  if ($parse) {
+    $request = ACESERV_MSGDATA;
+  } else {
+    $request = $msg eq "encore\0" ? ACESERV_MSGENCORE : ACESERV_MSGREQ;
+  }
+  my $header  = pack HEADER,WORDORDER_MAGIC,length($msg),0,$self->{client_id},0,$request;
   print $sock $header,$msg;
 }
 

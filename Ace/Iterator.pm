@@ -18,16 +18,16 @@ sub new {
 	      'chunksize' => ($chunksize || 40),
 	      'current' => 0
 	     };
+  bless $self,$pack;
   $db->_register_iterator($self) if $db && ref($db);
-  return bless $self,$pack;
+  $self;
 }
 
 sub next {
   my $self = shift;
   croak "Attempt to use an expired iterator" unless $self->{db};
-  $self->{db}->select_iterator($self);  # make us active
   $self->_fill_cache() unless @{$self->{'cached_answers'}};
-  my $cache = $self->{'cached_answers'};
+  my $cache = $self->{cached_answers};
   my $result = shift @{$cache};
   $self->{'current'}++;
   unless ($result) {
@@ -37,20 +37,45 @@ sub next {
   return $result;
 }
 
-sub _invalidate {
+sub invalidate {
   my $self = shift;
-  undef $self->{'valid'};
+  return unless $self->_active;
+  $self->save_context;
+  $self->_active(0);
+}
+
+sub save_context {
+  my $self = shift;
+  return unless my $db = $self->{db};
+  return unless $self->_active;
+  $self->{saved_ok} = $db->_save_iterator($self);
 }
 
 # Fill up cache for iterator
 sub _fill_cache {
   my $self = shift;
-  my $db = $self->{'db'};
-  $db->_query($self->{'query'}) unless $self->{'valid'};
-  my @objects = $self->{'filled'} ? $db->_fetch($self->{'chunksize'},$self->{'current'}) :
-                                    $db->_list($self->{'chunksize'},$self->{'current'});
-  $self->{'valid'}++;
-  $self->{'cached_answers'} = \@objects;
+  return unless my $db = $self->{db};
+  $self->restore_context() if !$self->{active};
+  my @objects = $self->{filled} ? $db->_fetch($self->{'chunksize'},$self->{'current'}) :
+                                  $db->_list($self->{'chunksize'},$self->{'current'});
+  $self->{cached_answers} = \@objects;
+  $self->_active(1);
+}
+
+# prevent reentry
+sub _active {
+  my $self = shift;
+  my $val = $self->{active};
+  $self->{active} = shift if @_;
+  return $val;
+}
+
+sub restore_context {
+  my $self = shift;
+  return unless my $db = $self->{db};
+  $db->raw_query($self->{query}) 
+    unless $self->{saved_ok} and $db->_restore_iterator($self);
+  undef $self->{saved_ok};   # no longer there!
 }
 
 1;

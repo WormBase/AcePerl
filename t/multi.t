@@ -22,6 +22,10 @@ sub test {
     print($true ? "ok $num\n" : "not ok $num $msg\n");
 }
 
+unless (eval 'require Ace::RPC' ) {
+  print "ok $_ # Skip, need Ace::RPC for this test\n" foreach (2..12);
+}
+
 test(2,$refdb = Ace->connect(-host=>HOST,-port=>REFDB,-timeout=>50),"connection failure to reference db");
 test(3,$db1 = Ace->connect(-host=>HOST,-port=>ANN1,-timeout=>50),"connection failure to first annotation db");
 test(4,$db2 = Ace->connect(-host=>HOST,-port=>ANN2,-timeout=>50),"connection failure to second annotation db");
