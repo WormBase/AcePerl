@@ -4,9 +4,9 @@
 ######################### We start with some black magic to print on failure.
 use lib '..','../blib/lib','../blib/arch';
 use constant HOST => 'stein.cshl.org';
-use constant REFDB => 300000;
-use constant ANN1  => 300001;
-use constant ANN2  => 300002;
+use constant REFDB => 3000;
+use constant ANN1  => 3001;
+use constant ANN2  => 3002;
 
 BEGIN {$| = 1; print "1..12\n"; }
 END {print "not ok 1\n" unless $loaded;}
@@ -20,10 +20,6 @@ sub test {
     local($^W) = 0;
     my($num, $true,$msg) = @_;
     print($true ? "ok $num\n" : "not ok $num $msg\n");
-}
-
-unless (eval 'require Ace::RPC' ) {
-  print "ok $_ # Skip, need Ace::RPC for this test\n" foreach (2..12);
 }
 
 test(2,$refdb = Ace->connect(-host=>HOST,-port=>REFDB,-timeout=>50),"connection failure to reference db");
@@ -41,7 +37,7 @@ test(6,$zk154 = Ace::Sequence::Multi->new(-seq => $clone,
 					 ),"new() failure");
 
 # fetch all intron features
-test(7,@introns = $zk154->features('intron'));
+test(7,@introns = $zk154->features('intron'),"didn't retrieve annot1 introns");
 
 # any intron of subtype "intuition" comes from annot2 database
 # any intron of subtype "Genefinder" comes from annot1 database
