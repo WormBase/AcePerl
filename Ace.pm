@@ -17,7 +17,7 @@ use overload
 
 # Optional exports
 @EXPORT_OK = qw(rearrange ACE_PARSE);
-$VERSION = '1.83';
+$VERSION = '1.84';
 
 use constant STATUS_WAITING => 0;
 use constant STATUS_PENDING => 1;
@@ -140,7 +140,7 @@ sub process_url {
   my ($host,$port,$user,$path,$server_type) = ('','','','','');
 
   if ($url) {  # look for host:port
-    $_ = $url;
+    local $_ = $url;
     if (m!^rpcace://([^:]+):(\d+)$!) {  # rpcace://localhost:200005
       ($host,$port) = ($1,$2);
       $server_type = 'Ace::RPC';
@@ -1518,8 +1518,12 @@ sub status {
 
 sub auto_save {
   my $self = shift;
-  $self->{'auto_save'} = $_[0] if defined $_[0];
-  return $self->{'auto_save'};
+  if ($self->db && $self->db->can('auto_save')) {
+    $self->db->auto_save;
+  } else {
+    $self->{'auto_save'} = $_[0] if defined $_[0];
+    return $self->{'auto_save'};
+  }
 }
 
 # Perform an ace query and return the result
