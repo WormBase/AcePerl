@@ -8,7 +8,7 @@ Ace::Browser::SearchSubs - Subroutines for AceBrowser search scripts
 
   use Ace;
   use Ace::Browser::AceSubs;
-  use Ace::Browser::SarchSubs;
+  use Ace::Browser::SearchSubs;
   use CGI qw(:standard);
 
   my $form = p(start_form,
