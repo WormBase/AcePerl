@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.41 2001/07/20 15:35:55 lstein Exp $
+# $Id: Object.pm,v 1.42 2001/07/25 16:26:27 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -22,7 +22,7 @@ use constant XML_SUPPRESS_TIMESTAMPS=>0;
 require AutoLoader;
 
 $DEFAULT_WIDTH=25;  # column width for pretty-printing
-$VERSION = '1.65';
+$VERSION = '1.66';
 
 # Pseudonyms and deprecated methods.
 *isClass        =  \&isObject;
@@ -1751,7 +1751,7 @@ sub asGif {
   }
 
   push(@commands,"gifdump -");
-  
+
   # do the query
   my $data = $self->{'db'}->raw_query(join(' ; ',@commands));
 
@@ -1762,7 +1762,7 @@ sub asGif {
   return unless ($bytes, $trim) = $data=~m!^// (\d+) bytes\n(.+)!sm;
 
   my $gif = substr($trim,0,$bytes);
-  
+
   # now process the boxes
   my @b;
   my @boxes = split("\n",substr($trim,$bytes));

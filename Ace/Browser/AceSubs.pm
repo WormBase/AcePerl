@@ -178,8 +178,11 @@ sub AceRedirect {
   my ($report,$object) = @_;
 
   my $url = Configuration->display($report,'url');
-  my $destination = ResolveUrl($url => "name=$object");
-  AceHeader(-Refresh => "1; URL=$destination");
+
+  my $args = ref($object) ? "name=$object&class=".$object->class
+                          : "name=$object";
+  my $destination = ResolveUrl($url => $args);
+  AceHeader(-Refresh => "2; URL=$destination");
   print start_html (
 			 '-Title' => 'Redirect',
 			 '-Style' => Style(),
