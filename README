@@ -1,4 +1,4 @@
-This is version 1.56 of AcePerl, a Perl interface for the ACEDB
+This is version 1.57 of AcePerl, a Perl interface for the ACEDB
 object-oriented database.  Designed specifically for use in genome
 sequencing projects, ACEDB provides powerful modeling and management
 services for biological and laboratory data.  For others, it is a good
@@ -181,5 +181,5 @@ package at this URL:
 Lincoln Stein
 lstein@cshl.org
 
-July 9, 1999
+July 22, 1999
 

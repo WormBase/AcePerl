@@ -1,3 +1,7 @@
+1.57	7/22/99
+	1. 1.56 was contaminated with leftover rpc* files in the ace/ subdirectory, this causes
+		builds on several architectures to fail.
+	2. Fixed "ambiguous variable" warnings in the regression tests.
 1.56	7/9/99
 	1. Added Ace::Sequence, Ace::Sequence::Feature and Ace::Sequence::Feature classes
 	2. Added Ace::Sequence::Multi class
