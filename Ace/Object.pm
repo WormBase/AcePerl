@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.45 2003/05/24 19:31:56 lstein Exp $
+# $Id: Object.pm,v 1.46 2003/09/05 14:02:42 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -1767,7 +1767,7 @@ sub asGif {
 
   # did this query succeed?
   my ($bytes, $trim);
-  return unless ($bytes, $trim) = $data=~m!^// (\d+) bytes\n(.+)!sm;
+  return unless ($bytes, $trim) = $data=~m!^// (\d+) bytes\n\0*(.+)!sm;
 
   my $gif = substr($trim,0,$bytes);
 

@@ -14,8 +14,8 @@ require Exporter;
 %EXPORT_TAGS = ();
 
 # Foreign URLs
-use constant ENTREZ      => 'http://www.ncbi.nlm.nih.gov/htbin-post/Entrez/query?db=n&form=1&field=Sequence+ID&term=';
-use constant ENTREZP     => 'http://www.ncbi.nlm.nih.gov/htbin-post/Entrez/query?db=p&form=1&field=Sequence+ID&term=';
+use constant ENTREZ      => 'http://www.ncbi.nlm.nih.gov:80/entrez/query.fcgi?cmd=Search&db=Nucleotide&doptcmdl=GenBank&term=';
+use constant ENTREZP     => 'http://www.ncbi.nlm.nih.gov:80/entrez/query.fcgi?cmd=Search&db=Protein&doptcmdl=GenPep&term=';
 use constant NCBI        => 'http://www.ncbi.nlm.nih.gov/htbin-post/Entrez/query';
 use constant PROTEOME    => 'http://www.proteome.com/WormPD/';
 use constant SWISSPROT   => 'http://www.ncbi.nlm.nih.gov/htbin-post/Entrez/query?db=p&form=1&field=Sequence+ID&term=';
