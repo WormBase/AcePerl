@@ -347,6 +347,7 @@ sub _fetch {
   my $self = shift;
   my ($count,$start,$tag) = @_;
   my (@result);
+  $tag = '' unless defined $tag;
   my $query = "show -j $tag";
   $query .= ' -T' if $self->{timestamps};
   $query .= " -b $start"  if defined $start;

@@ -52,10 +52,12 @@ sub DESTROY {
   my $self = shift;
   return if $self->{last_msg} eq ACESERV_MSGKILL;
   # this makes the server CRASH!!!!
-  #  $self->_send_msg('quit');
-  my ($msg,$body) = $self->_recv_msg('strip');
-  warn "Did not get expected ACESERV_MSGKILL message, got $msg instead" 
-    if defined($msg) and $msg ne ACESERV_MSGKILL;
+  if (0) {
+    $self->_send_msg('quit');
+    my ($msg,$body) = $self->_recv_msg('strip');
+    warn "Did not get expected ACESERV_MSGKILL message, got $msg instead" 
+      if defined($msg) and $msg ne ACESERV_MSGKILL;
+  }
 }
 
 sub encore { return shift->{encoring} }
