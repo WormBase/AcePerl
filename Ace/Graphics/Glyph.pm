@@ -47,7 +47,13 @@ sub length    { shift->{-factory}->length      }
 # this is a very important routine that dictates the
 # height of the bounding box.  We start with the height
 # dictated by the factory, and then adjust if needed
-sub height   {  
+sub height   {
+  my $self = shift;
+  return $self->{cache_height} if defined $self->{cache_height};
+  return $self->{cache_height} = $self->_height;
+}
+
+sub _height {
   my $self = shift;
   my $val = $self->{-factory}->height;
   $val += $self->labelheight if $self->option('label');
@@ -67,10 +73,23 @@ sub top    { shift->{top}                 }
 sub bottom { my $s = shift; $s->top + $s->height   }
 sub left {
   my $self = shift;
-  my $val = $self->{left} + $self->map_pt($self->{start} - 1);
-  return $val > 0 ? $val : 0;
+  return $self->{cache_left} if defined $self->{cache_left};
+  $self->{cache_left} = $self->_left;
 }
 sub right {
+  my $self = shift;
+  return $self->{cache_right} if defined $self->{cache_right};
+  return $self->{cache_right} = $self->_right;
+}
+
+
+sub _left {
+  my $self = shift;
+  my $val = $self->{left} + $self->map_pt($self->{start} - 1);
+  $val > 0 ? $val : 0;
+}
+
+sub _right {
   my $self = shift;
   my $val = $self->{left} + $self->map_pt($self->{end} - 1);
   $val = 0 if $val < 0;

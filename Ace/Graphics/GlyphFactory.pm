@@ -4,7 +4,10 @@ package Ace::Graphics::GlyphFactory;
 
 use strict;
 use Carp 'carp';
+use Ace::Graphics::Glyph;
 use GD;
+
+sub DESTROY { }
 
 sub new {
   my $class   = shift;
@@ -16,6 +19,7 @@ sub new {
 
   unless (eval "require $glyphclass") {
     # default to generic
+    carp $@;
     carp "$glyphclass could not be loaded, using default";
     $glyphclass = 'Ace::Graphics::Glyph';
   }

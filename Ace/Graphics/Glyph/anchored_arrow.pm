@@ -10,7 +10,7 @@ sub draw {
   my $self = shift;
   my $gd = shift;
   my ($x1,$y1,$x2,$y2) = $self->calculate_boundaries(@_);
-  
+
   my $fg = $self->fgcolor;
   my $a2 = ($y2-$y1)/2;
   my $center = $y1+$a2;
@@ -18,15 +18,19 @@ sub draw {
   $gd->line($x1,$center,$x2,$center,$fg);
 
   if ($self->feature->start < $self->offset) {  # off left end
-    $gd->line($x1,$center,$x1+$a2,$center-$a2,$fg);  # arrowhead
-    $gd->line($x1,$center,$x1+$a2,$center+$a2,$fg);
+    if ($x2 > $a2) {
+      $gd->line($x1,$center,$x1+$a2,$center-$a2,$fg);  # arrowhead
+      $gd->line($x1,$center,$x1+$a2,$center+$a2,$fg);
+    }
   } else {
     $gd->line($x1,$center-$a2,$x1,$center+$a2,$fg);  # tick/base
   }
 
-  if ($self->feature->end > $self->offset + $self->length) { # off right end
-    $gd->line($x2,$center,$x2-$a2,$center+$a2,$fg);  # arrowhead
-    $gd->line($x2,$center,$x2-$a2,$center-$a2,$fg);
+  if ($self->feature->end > $self->offset + $self->length) {# off right end
+    if ($x1 < $x2-$a2-1) {
+      $gd->line($x2,$center,$x2-$a2,$center+$a2,$fg);  # arrowhead
+      $gd->line($x2,$center,$x2-$a2,$center-$a2,$fg);
+    }
   } else {
     # problems occur right at the very end because of GD confusion
     $x2-- if $self->feature->end == $self->offset + $self->length;

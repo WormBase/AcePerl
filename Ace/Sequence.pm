@@ -23,6 +23,7 @@ use overload
 # synonym: stop = end
 *stop = \&end;
 *abs = \&absolute;
+*source_seq = \&source;
 
 # internal keys
 #    parent    => reference Sequence in "+" strand
@@ -370,6 +371,10 @@ sub clones {
     $clones{$clone->info}{end}   = $clone->start if $clone->type eq 'Clone_right_end';
   }
   my $main_clone = $self->source->Clone;
+  unless ($main_clone) {
+    my $grandp = $self->source->Source;
+    $main_clone = $grandp->Clone if $grandp;
+  }
   $clones{$main_clone} = {} if $main_clone && !$clones{$main_clone};
 
   my @features;
@@ -425,6 +430,11 @@ sub transformGFF {
 # return a name for the object
 sub name {
   return shift->source_seq->name;
+}
+
+# for compatibility with Ace::Sequence::Feature
+sub info {
+  return shift->source_seq;
 }
 
 ###################### internal functions #################

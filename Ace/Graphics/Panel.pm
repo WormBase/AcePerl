@@ -27,6 +27,8 @@ sub new {
   return bless {
 		tracks => [],
 		width  => $options{-width} || 600,
+		pad_top    => $options{-pad_top},
+		pad_bottom => $options{-pad_bottom},
 		length => $length,
 		offset => $offset,
 		height => 0, # AUTO
@@ -59,6 +61,20 @@ sub length {
   $d;
 }
 
+sub pad_top {
+  my $self = shift;
+  my $d = $self->{pad_top};
+  $self->{pad_top} = shift if @_;
+  $d || 0;
+}
+
+sub pad_bottom {
+  my $self = shift;
+  my $d = $self->{pad_bottom};
+  $self->{pad_bottom} = shift if @_;
+  $d || 0;
+}
+
 sub add_track {
   my $self = shift;
   my ($features,$glyph_type,@options) = @_;
@@ -80,7 +96,7 @@ sub height {
   my $height = 0;
   my $spacing = $self->spacing;
   $height += $_->height + $spacing foreach @{$self->{tracks}};
-  $height;
+  $height + $self->pad_top + $self->pad_bottom;
 }
 
 sub gd {
@@ -97,7 +113,7 @@ sub gd {
     $translation_table{$name} = $idx;
   }
 
-  my $offset = 0;
+  my $offset = $self->pad_top;
   for my $track (@{$self->{tracks}}) {
     $track->color_translations(\%translation_table);
     $track->draw($gd,0,$offset);
@@ -116,8 +132,9 @@ sub boxes {
   my $self = shift;
   my @boxes;
   my $offset = 0;
+  my $pad = $self->pad_top;
   for my $track (@{$self->{tracks}}) {
-    my $boxes = $track->boxes(0,$offset);
+    my $boxes = $track->boxes(0,$offset+$pad);
     push @boxes,@$boxes;
     $offset += $track->height + $self->spacing;
   }

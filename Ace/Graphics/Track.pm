@@ -121,7 +121,7 @@ sub layout {
   my $self = shift;
   my $force = shift || 0;
   return $self->{glyphs} if $self->{glyphs} && !$force;
-  
+
   my $f = $self->{features};
   my $factory = $self->factory;
   $factory->scale($self->scale);  # set the horizontal scale
@@ -163,6 +163,7 @@ sub _bump {
     $occupied{$pos} = $g;                           # remember where we are
     $g->move(0,$pos);
   }
+
 }
 
 # return list of glyphs -- only after they are laid out

@@ -10,17 +10,17 @@ use constant ARROW => 4;
 
 # override the left and right methods in order to
 # provide extra room for arrows at the end
-sub left {
+sub _left {
   my $self = shift;
-  my $val = $self->SUPER::left(@_);
+  my $val = $self->SUPER::_left(@_);
   $val -= ARROW if $self->feature->strand eq '-' && $val >= 4;
   $val;
 }
 
-sub right {
+sub _right {
   my $self = shift;
   my $left = $self->left;
-  my $val = $self->SUPER::right(@_);
+  my $val = $self->SUPER::_right(@_);
   $val = $left + ARROW if $left + ARROW > $val;
 
   if ($self->option('label') && (my $description = $self->description)) {
@@ -32,9 +32,9 @@ sub right {
 
 # override the bottom method in order to provide extra room for
 # the label
-sub height {
+sub _height {
   my $self = shift;
-  my $val = $self->SUPER::height(@_);
+  my $val = $self->SUPER::_height(@_);
   $val += $self->labelheight if $self->option('label') && $self->description;
   $val;
 }
