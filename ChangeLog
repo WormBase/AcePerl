@@ -1,3 +1,11 @@
+1.60	11/01/99
+	1. Fixed suspended giface processes when using iterators.
+	2. Added explicit close() method.
+1.59	9/8/99
+	1. Patches to Ace::Local & Ace::Object from Tim Cutts <tim.cutts@incyte.com> 
+		to improve efficiency.
+1.58	8/3/99
+	1. Tiny change in Model.pm to accomodate @tags.
 1.57	7/22/99
 	1. 1.56 was contaminated with leftover rpc* files in the ace/ subdirectory, this causes
 		builds on several architectures to fail.

@@ -4,7 +4,7 @@ use vars '$VERSION';
 use Carp;
 use Ace 1.50 qw(rearrange);
 
-$VERSION = '1.50';
+$VERSION = '1.51';
 
 sub new {
   my $pack = shift; 
@@ -24,11 +24,15 @@ sub new {
 
 sub next {
   my $self = shift;
+  croak "Attempt to use an expired iterator" unless $self->{db};
   $self->_fill_cache() unless @{$self->{'cached_answers'}};
   my $cache = $self->{'cached_answers'};
   my $result = shift @{$cache};
   $self->{'current'}++;
-  $self->{'db'}->_unregister_iterator unless $result;
+  unless ($result) {
+    $self->{db}->_unregister_iterator;
+    delete $self->{db};
+  }
   return $result;
 }
 
@@ -158,3 +162,4 @@ disclaimers of warranty.
 
 =cut
 
+__END__

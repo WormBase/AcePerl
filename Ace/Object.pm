@@ -25,14 +25,7 @@ sub AUTOLOAD {
     my($pack,$func_name) = $AUTOLOAD=~/(.+)::([^:]+)$/;
     my $self = $_[0];
 
-    # The following commented area works without the autoloader
-    #     my $error = "Can't locate object method \"$func_name\" via package \"$pack\"";
-    #     croak $error unless $self->db && $self->isObject;
-    #     $self = $self->fetch unless $self->isRoot;  # dereference, if need be
-    #     croak $error unless $self;
-    #     croak $error unless $self->model->valid_tag($func_name);
-
-     # This section works with Autoloader
+    # This section works with Autoloader
     my $presumed_tag = $func_name =~ /^[A-Z]/ && $self->isObject;  # initial_cap 
 
     if ($presumed_tag) {
@@ -68,8 +61,6 @@ sub AUTOLOAD {
       # otherwise return the thing itself
       return $obj;
     } else {
-#      $AutoLoader::AUTOLOAD = $AUTOLOAD;
-#      $AutoLoader::AUTOLOAD = $self->factory . "::$func_name";
       $AutoLoader::AUTOLOAD = __PACKAGE__ . "::$func_name";
       goto &AutoLoader::AUTOLOAD;
     }
@@ -78,6 +69,10 @@ sub AUTOLOAD {
 sub DESTROY { }
 
 ###################### object constructor #################
+# IMPORTANT: The _clone subroutine will copy all instance variables that
+# do NOT begin with a dot (.).  If you do not want an instance variable
+# shared with cloned copies, proceed them with a dot!!!
+#
 sub new {
   my $pack = shift;
   my($class,$name,$db,$isRoot) = rearrange([qw/CLASS NAME/,[qw/DATABASE DB/],'ROOT'],@_);
@@ -86,7 +81,7 @@ sub new {
 		     'class' =>  $class
 		   },$pack;
   $self->{'db'} = $db if $self->isObject;
-  $self->{'root'}++ if defined $isRoot && $isRoot;
+  $self->{'.root'}++ if defined $isRoot && $isRoot;
   return $self
 }
 
@@ -141,7 +136,7 @@ sub ne {
 
 ############ returns true if this is a top-level object #######
 sub isRoot {
-  return exists shift()->{'root'};
+  return exists shift()->{'.root'};
 }
 
 ################### handle to ace database #################
@@ -159,13 +154,15 @@ sub db {
 #### the parent object if you pass a true value as the second argument
 sub at {
     my $self = shift;
-    my($tag,$return_parent,$pos) = rearrange(['TAG','PARENT','POS'],@_);
+    my($tag,$pos,$return_parent) = rearrange(['TAG','POS','PARENT'],@_);
     return $self->right unless $tag;
     $tag = lc $tag;
 
-    if (!defined($pos) and $tag=~/\[(\d+)\]$/) {
-      $pos = $1;
-      $tag=$`;
+    # Removed a $` here to increase speed -- tim.cutts@incyte.com 2 Sep 1999
+
+    if (!defined($pos) and $tag=~/(.*?)\[(\d+)\]$/) {
+      $pos = $2;
+      $tag = $1;
     }
 
     my $o = $self;
@@ -247,7 +244,7 @@ sub search {
 	      $obj = $subobject->right;
 	    } else { # old version of aceserver
 	      $obj = $self->new('tag',$tag,$self->{'db'});
-	      $obj->{'right'} = $subobject->right;
+	      $obj->{'.right'} = $subobject->right;
 	    }
 	    $self->{'.PATHS'}->{$lctag} = $obj;
 	  } else {
@@ -305,7 +302,7 @@ sub search {
 #### return true if tree is populated, without populating it #####
 sub filled {
   my $self = shift;
-  return exists($self->{'right'}) || exists($self->{'raw'});
+  return exists($self->{'.right'}) || exists($self->{'.raw'});
 }
 
 #### return true if you can follow the object in the database (i.e. a class ###
@@ -329,7 +326,7 @@ sub right {
 
   $self->_fill;
   $self->_parse;
-  return $self->{'right'} unless defined $pos;
+  return $self->{'.right'} unless defined $pos;
   croak "Position must be positive" unless $pos >= 0;
 
   my $node = $self;
@@ -343,7 +340,7 @@ sub right {
 sub down {
   my ($self,$pos) = @_;
   $self->_parse;
-  return $self->{'down'} unless defined $pos;
+  return $self->{'.down'} unless defined $pos;
   my $node = $self;
   while ($pos--) {
     defined($node = $node->down) || return;
@@ -414,10 +411,17 @@ sub factory {
 ############### mostly private functions from here down #############
 #####################################################################
 #####################################################################
+
 sub _clone {
     my $self = shift;
     my $pack = ref($self);
-    return $pack->new($self->class,$self->name,$self->db,1);
+    my @public_keys = grep {substr($_,0,1) ne '.'} keys %$self;
+    my %newobj;
+    @newobj{@public_keys} = @{$self}{@public_keys};
+
+    # Turn into a toplevel object
+    $newobj{'.root'}++;
+    return bless \%newobj,$pack;
 }
 
 sub _fill {
@@ -432,19 +436,19 @@ sub _fill {
 
 sub _parse {
   my $self = shift;
-  return unless my $raw = $self->{'raw'};
+  return unless my $raw = $self->{'.raw'};
   my $ts = $self->db->timestamps;
-  my $col = $self->{'col'};
+  my $col = $self->{'.col'};
   my $current_obj = $self;
-  my $current_row = $self->{'start_row'};
+  my $current_row = $self->{'.start_row'};
   my $db = $self->{'db'};
 
-  my $time = $self->{'timestamp'} if $ts;
+  my $time = $self->{'.timestamp'} if $ts;
 
-  for (my $r=$current_row+1; $r<=$self->{'end_row'}; $r++) {
+  for (my $r=$current_row+1; $r<=$self->{'.end_row'}; $r++) {
     next unless $raw->[$r][$col];
 
-    $time = $current_obj->{'timestamp'} if $ts;
+    $time = $current_obj->{'.timestamp'} if $ts;
 
     my $obj_right = $self->_fromRaw($raw,$current_row,$col+1,$r-1,$db);
 
@@ -458,9 +462,9 @@ sub _parse {
 	last unless $obj_right = $self->_fromRaw($raw,$row++,$col+1,$r-1,$db);
 	$obj_right->timestamp($t)   if $t->isTimestamp;
       } 
-      $obj_right->timestamp($time) if $ts && defined($obj_right) && !$obj_right->{'timestamp'};
+      $obj_right->timestamp($time) if $ts && defined($obj_right) && !$obj_right->{'.timestamp'};
     }
-    $current_obj->{'right'} = $obj_right;
+    $current_obj->{'.right'} = $obj_right;
 
     my $obj_down = $self->new(Ace::AceDB->split($raw->[$r][$col]),$db);
 
@@ -470,11 +474,11 @@ sub _parse {
 	if $obj_down->isTimestamp;
       $obj_down->timestamp($time) if defined $time;
     }
-    $current_obj = $current_obj->{'down'} = $obj_down;
+    $current_obj = $current_obj->{'.down'} = $obj_down;
     $current_row = $r;
   }
 
-  my $obj_right = $self->_fromRaw($raw,$current_row,$col+1,$self->{'end_row'},$db);
+  my $obj_right = $self->_fromRaw($raw,$current_row,$col+1,$self->{'.end_row'},$db);
   # timestamp and comment handling
   if (defined($obj_right)) {
     my ($t,$i);
@@ -482,33 +486,33 @@ sub _parse {
     while ($obj_right->isTimestamp || $obj_right->isComment) {
       $current_obj->comment($obj_right)   if $obj_right->isComment;
       $t = $obj_right;
-      last unless defined($obj_right = $self->_fromRaw($raw,$row++,$col+1,$self->{'end_row'},$db));
+      last unless defined($obj_right = $self->_fromRaw($raw,$row++,$col+1,$self->{'.end_row'},$db));
       $obj_right->timestamp($t)   if $t->isTimestamp;
     }
-    $obj_right->timestamp($time) if $ts && defined($obj_right) && !$obj_right->{'timestamp'};
+    $obj_right->timestamp($time) if $ts && defined($obj_right) && !$obj_right->{'.timestamp'};
   }
-  $current_obj->{'right'} = $obj_right;
+  $current_obj->{'.right'} = $obj_right;
 
   # unstamped nodes take the timestamp on their right
-  $self->timestamp($self->{'right'}->{'timestamp'})
-    if $ts && !$self->{'timestamp'} && defined($self->{'right'}) && $self->{'right'}->{'timestamp'};
+  $self->timestamp($self->{'.right'}->{'.timestamp'})
+    if $ts 
+      && !$self->{'.timestamp'} && defined($self->{'.right'}) 
+	&& $self->{'.right'}->{'.timestamp'};
 
-  foreach (qw/raw start_row end_row col/) {
+  foreach ( qw(.raw .start_row .end_row .col) ) {
     delete $self->{$_};
   }
 }
 
 sub _fromRaw {
   my $pack = shift;
-#  $pack = ref($pack) if ref($pack);
-# $pack = __PACKAGE__;
   $pack = $pack->factory();
 
   my ($raw,$start_row,$col,$end_row,$db) = @_;
   return unless $raw->[$start_row][$col];
   my ($class,$name) = Ace::AceDB->split($raw->[$start_row][$col]);
   my $self = $pack->new($class,$name,$db,!($start_row || $col));
-  @{$self}{qw/raw start_row end_row col db/} = ($raw,$start_row,$end_row,$col,$db);
+  @{$self}{qw(.raw .start_row .end_row .col db)} = ($raw,$start_row,$end_row,$col,$db);
   return $self;
 }
 
@@ -517,9 +521,12 @@ sub _fromRaw {
 sub _at {
     my ($self,$tag) = @_;
     my $pos=0;
-    if ($tag=~/\[(\d+)\]$/) {
-      $pos=$1;
-      $tag=$`;
+
+    # Removed a $` here to increase speed -- tim.cutts@incyte.com 2 Sep 1999
+
+    if ($tag=~/(.*?)\[(\d+)\]$/) {
+      $pos=$2;
+      $tag=$1;
     }
     my $p;
     my $o = $self->right;
@@ -810,7 +817,7 @@ The second line above is equivalent to:
 
 Called without a tag name, at() just dereferences the object,
 returning whatever is to the right of it, the same as
-$object->{'right'}.
+$object->right
 
 If a path component already has a dot in it, you may escape the dot
 with a backslash, as in:
@@ -1629,10 +1636,12 @@ sub asGif {
   # do the query
   my $data = $self->{'db'}->raw_query(join(' ; ',@commands));
 
+  # A $' has been removed here to improve speed -- tim.cutts@incyte.com 2 Sep 1999
+
   # did this query succeed?
-  return unless $data=~m!^// (\d+) bytes\n!m;
-  my $bytes = $1;
-  my $trim = $';  # everything after the match
+  my ($bytes, $trim);
+  return unless ($bytes, $trim) = $data=~m!^// (\d+) bytes\n((.|\n)*)!m;
+
   my $gif = substr($trim,0,$bytes);
   
   # now process the boxes
@@ -1657,22 +1666,22 @@ sub asGif {
 ############## timestamp and comment information ############
 sub timestamp {
     my $self = shift;
-    return $self->{'timestamp'} = $_[0] if defined $_[0];
-    if ($self->{'db'} && !$self->{'timestamp'}) {
+    return $self->{'.timestamp'} = $_[0] if defined $_[0];
+    if ($self->{'db'} && !$self->{'.timestamp'}) {
       $self->_fill;
       $self->_parse;
     }
-    return $self->{'timestamp'};
+    return $self->{'.timestamp'};
 }
 
 sub comment {
     my $self = shift;
-    return $self->{'comment'} = $_[0] if defined $_[0];
-    if ($self->{'db'} && !$self->{'comment'}) {
+    return $self->{'.comment'} = $_[0] if defined $_[0];
+    if ($self->{'db'} && !$self->{'.comment'}) {
       $self->_fill;
       $self->_parse;
     }
-    return $self->{'comment'};
+    return $self->{'.comment'};
 }
 
 ### Return list of all the tags in the object ###
@@ -1699,17 +1708,17 @@ sub delete {
   @values = map { ref($_) && ref($_) eq 'ARRAY' ? @$_ : $_ } ($oldvalue,@rest) 
     if defined($oldvalue);
   my $row = join(".",($tag,map { (my $x = $_) =~s/\./\\./g; $x } @values));
-  my $subtree = $self->at($row,1);  # returns the parent
+  my $subtree = $self->at($row,undef,1);  # returns the parent
 
   if (@values
-      && defined($subtree->{'right'})
-      && "$subtree->{'right'}" eq $oldvalue) {
-    $subtree->{'right'} = $subtree->{'right'}->down;
+      && defined($subtree->{'.right'})
+      && "$subtree->{'.right'}" eq $oldvalue) {
+    $subtree->{'.right'} = $subtree->{'.right'}->down;
   } else {
-    $subtree->{'down'} = $subtree->{'down'}->{'down'}
+    $subtree->{'.down'} = $subtree->{'.down'}->{'.down'}
   }
 
-  push(@{$self->{'update'}},join(' ','-D',
+  push(@{$self->{'.update'}},join(' ','-D',
 				 map { Ace::AceDB->freeprotect($_) } ($self->_split_tags($tag),@values)));
   delete $self->{'.PATHS'}; # uncache cached values
   1;
@@ -1729,9 +1738,9 @@ sub kill {
   # uncache cached values and clear the object out
   # as best we can
   delete $self->{'.PATHS'}; 
-  delete $self->{'right'};
-  delete $self->{'raw'};
-  delete $self->{'down'};
+  delete $self->{'.right'};
+  delete $self->{'.raw'};
+  delete $self->{'.down'};
   1;
 }
 
@@ -1770,9 +1779,9 @@ sub add_row {
     } else {
       $_ = $self->new('scalar',$_);
     }
-    $previous->{'right'} = $_ if $previous;
+    $previous->{'.right'} = $_ if $previous;
     $previous = $_;
-    $_->{'right'} = undef; # make sure it doesn't automatically expand!
+    $_->{'.right'} = undef; # make sure it doesn't automatically expand!
   }
 
   # position at the indicated tag (creating it if necessary)
@@ -1781,18 +1790,18 @@ sub add_row {
   foreach (@tags) {
     $p = $p->_insert($_);
   }
-  if ($p->{'right'}) {
-    $p = $p->{'right'};
+  if ($p->{'.right'}) {
+    $p = $p->{'.right'};
     while (1) { 
-      last unless $p->{'down'};
-      $p = $p->{'down'};
+      last unless $p->{'.down'};
+      $p = $p->{'.down'};
     }
-    $p->{'down'} = $values[0];
+    $p->{'.down'} = $values[0];
   } else {
-    $p->{'right'} = $values[0];
+    $p->{'.right'} = $values[0];
   }
 
-  push(@{$self->{'update'}},join(' ',map { Ace::AceDB->freeprotect($_) } (@tags,@values)));
+  push(@{$self->{'.update'}},join(' ',map { Ace::AceDB->freeprotect($_) } (@tags,@values)));
   delete $self->{'.PATHS'}; # uncache cached values
   1;
 }
@@ -1811,17 +1820,17 @@ sub add_tree {
     $p = $p->_insert($_);
   }
   # Copy the subtree too
-  if ($p->{'right'}) {
-    $p = $p->{'right'};
+  if ($p->{'.right'}) {
+    $p = $p->{'.right'};
     while (1) { 
-      last unless $p->{'down'};
-      $p = $p->{'down'};
+      last unless $p->{'.down'};
+      $p = $p->{'.down'};
     }
-    $p->{'down'} = $value->{'right'};
+    $p->{'.down'} = $value->{'.right'};
   } else {
-    $p->{'right'} = $value->{'right'};
+    $p->{'.right'} = $value->{'.right'};
   }
-  push(@{$self->{'update'}},map { join(' ',@tags,$_) } split("\n",$value->asAce));
+  push(@{$self->{'.update'}},map { join(' ',@tags,$_) } split("\n",$value->asAce));
   delete $self->{'.PATHS'}; # uncache cached values
   1;
 }
@@ -1850,10 +1859,10 @@ sub commit {
     return unless defined $name;
 
     $name =~ s/([^a-zA-Z0-9_-])/\\$1/g;
-    return 1 unless exists $self->{'update'} && $self->{'update'};
+    return 1 unless exists $self->{'.update'} && $self->{'.update'};
 
     my $cmd = join('; ',"$self->{'class'} : $name",
-		   @{$self->{'update'}});
+		   @{$self->{'.update'}});
     warn $cmd if $self->debug;
     my $result = $db->raw_query("parse = $cmd");
 
@@ -1863,22 +1872,22 @@ sub commit {
     } elsif ($result =~ /sorry|parse error/mi) {
 	$Ace::ERR = $result;
     }
-    undef $self->{'update'};
+    undef $self->{'.update'};
     return !$Ace::ERR;
 }
 
 sub rollback {
     my $self = shift;
-    undef $self->{'update'};
+    undef $self->{'.update'};
     # this will force object to be reloaded from database
     # next time it is needed.
-    delete $self->{'right'};
+    delete $self->{'.right'};
     1;
 }
 
 sub debug {
     my $self = shift;
-    return defined($_[0]) ? $self->{debug}=$_[0] : $self->{debug};
+    return defined($_[0]) ? $self->{'.debug'}=$_[0] : $self->{'.debug'};
 }
 
 ### Get or set the date style (actually calls through to the database object) ###
@@ -1893,9 +1902,9 @@ sub date_style {
 sub _asTable {
     my($self,$out,$position,$level) = @_;
 
-    if ($self->{raw} and !$self->db->timestamps) {  # we still have raw data, so we can optimize
-      my ($a,$start,$end) = @{$self}{qw/col start_row end_row/};
-      my @to_append = map { join("\t",@{$_}[$a..$#{$_}]) } @{$self->{'raw'}}[$start..$end];
+    if ($self->{'.raw'} and !$self->db->timestamps) {  # we still have raw data, so we can optimize
+      my ($a,$start,$end) = @{$self}{ qw(.col .start_row .end_row) };
+      my @to_append = map { join("\t",@{$_}[$a..$#{$_}]) } @{$self->{'.raw'}}[$start..$end];
       my $new_row;
       foreach (@to_append) {
 	# hack alert
@@ -1973,17 +1982,17 @@ sub _default_makeHTML {
 # tag, if already there.
 sub _insert {
     my ($self,$tag) = @_;
-    my $p = $self->{'right'};
-    return $self->{'right'} = $self->new('tag',$tag)
+    my $p = $self->{'.right'};
+    return $self->{'.right'} = $self->new('tag',$tag)
 	unless $p;
     while ($p) {
 	return $p if "$p" eq $tag;
-	last unless $p->{'down'};
-	$p = $p->{'down'};
+	last unless $p->{'.down'};
+	$p = $p->{'.down'};
     }
     # if we get here, then we didn't find it, so
     # insert at the bottom
-    return $p->{'down'} = $self->new('tag',$tag);
+    return $p->{'.down'} = $self->new('tag',$tag);
 }
 
 # This is unsatisfactory because it duplicates much of the code
@@ -1992,10 +2001,10 @@ sub _asAce {
   my($self,$out,$level,$tags) = @_;
 
   # ugly optimization for speed
-  if ($self->{raw}){
-    my ($a,$start,$end) = @{$self}{qw/col start_row end_row/};
+  if ($self->{'.raw'}){
+    my ($a,$start,$end) = @{$self}{qw(.col .start_row .end_row)};
     my (@last);
-    foreach (@{$self->{'raw'}}[$start..$end]){
+    foreach (@{$self->{'.raw'}}[$start..$end]){
       my $j=1;
       $$out .= join("\t",@$tags) . "\t" if ($level==0) && (@$tags);
       my (@to_modify) = @{$_}[$a..$#{$_}];

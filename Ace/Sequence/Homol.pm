@@ -4,11 +4,12 @@ package Ace::Sequence::Homol;
 use vars '@ISA';
 @ISA = 'Ace::Object';
 
-use overload '""' => 'asString';
+# this was a mistake!
+# use overload '""' => 'asString';
 
 sub new {
-  my ($pack,$db,$tclass,$tname,$start,$end) = @_;
-  return unless my $obj = Ace::Object->new(-class=>$tclass,-name=>$tname,-db=>$db);
+  my ($pack,$tclass,$tname,$db,$start,$end) = @_;
+  return unless my $obj = Ace::Object->new($tclass,$tname,$db,1);
   @$obj{'start','end'} = ($start,$end);
   return bless $obj,$pack;
 }
@@ -17,10 +18,16 @@ sub start  {  return $_[0]->{'start'};  }
 
 sub end    {  return $_[0]->{'end'};    }
 
-sub asString { 
-  my $n = $_[0]->name;
-  "$n/$_[0]->{'start'}-$_[0]->{'end'}";
-}
+# sub _clone {
+#     my $self = shift;
+#     my $pack = ref($self);
+#     return $pack->new($self->db,$self->class,$self->name,$self->start,$self->end);
+# }
+
+#sub asString { 
+#  my $n = $_[0]->name;
+#  "$n/$_[0]->{'start'}-$_[0]->{'end'}";
+#}
 
 1;
 

@@ -59,11 +59,11 @@ sub new {
     return;
   }
 
-  $len +=2 if defined $len && $len < 0 && $p_length > 0; # to correct for 1-based coordinates
-  $len -=2 if defined $len && $len > 0 && $p_length < 0; # to correct for 1-based coordinates
+#  $len +=2 if defined $len && $len < 0 && $p_length > 0; # to correct for 1-based coordinates
+#  $len -=2 if defined $len && $len > 0 && $p_length < 0; # to correct for 1-based coordinates
   my $native_length = 0;
 
-  if ($p_length > 0 || $source_reversed) {  # We are oriented positive relative to parent
+  if ($p_length >= 0 || $source_reversed) {  # We are oriented positive relative to parent
     $native_length = $p_length if $source_reversed; # bug in Ace?
     $p_offset += $offset if defined $offset;
     $p_length =  $len if defined $len;
@@ -139,7 +139,7 @@ sub gff_reversed {
 # human readable string (for debugging)
 sub asString {
   my $self = shift;
-  return join '',$self->{'parent'},'/',$self->start,'-',$self->end;
+  return join '',$self->{'parent'},'/',$self->start,',',$self->end;
 }
 
 # return reference sequence
@@ -173,6 +173,7 @@ sub gff {
   $abs = $self->abs unless defined $abs;
 
   # can provide list of feature names, such as 'similarity', or 'all' to get 'em all
+  #  !THIS IS BROKEN; IT SHOULD LOOK LIKE FEATURE()!
   my $opt = $self->_feature_filter($features);
 
   $db ||= $self->db;
@@ -184,6 +185,7 @@ sub gff {
 # return a GFF object using the optional GFF.pm module
 sub GFF {
   my $self = shift;
+  my ($filter,$converter) = @_;  # anonymous subs
   croak "GFF module not installed" unless require GFF;
   require GFF::Filehandle;
 
@@ -192,7 +194,7 @@ sub GFF {
   local ($^W) = 0;  # prevent complaint by GFF module
   tie *IN,'GFF::Filehandle',\@lines;
   my $gff = GFF::GeneFeatureSet->new;
-  $gff->read(\*IN) if $gff;
+  $gff->read(\*IN,$filter,$converter) if $gff;
   return $gff;
 }
 

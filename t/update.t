@@ -26,7 +26,7 @@ test(2,$db = Ace->connect(-host=>HOST,-port=>PORT,-timeout=>50),
      "couldn't establish connection");
 die "Couldn't establish connection to database.  Aborting tests.\n" unless $db;
 test(3,$me = Ace::Object->new('Author','Dent AD',$db),"couldn't create new object");
-test(4,$me->add('Full_name','Arthur D. Dent'));
+test(4,$me->add('Also_known_as','Arthur D. Dent'));
 test(5,$me->add('Laboratory','FF'));
 test(6,$me->add('Address.Mail','Heart of Gold'));
 test(7,$me->add('Address.Mail','Western End'));

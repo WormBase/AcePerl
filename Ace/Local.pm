@@ -15,7 +15,13 @@ use Ace qw/rearrange STATUS_WAITING STATUS_PENDING STATUS_ERROR/;
 use constant DEFAULT_HOST=>'localhost';
 use constant DEFAULT_PORT=>200005;
 use constant DEFAULT_DB=>'/usr/local/acedb';
-use constant READSIZE   => 1024 * 5;  # read 5k units
+
+# Changed readsize to be 4k rather than 5k.  Most flavours of UNIX
+# have a page size of 4kb or a multiple thereof.  It improves
+# efficiency to read an integer number of pages
+# -- tim.cutts@incyte.com 08 Sep 1999
+
+use constant READSIZE   => 1024 * 4;  # read 4k units
 
 # this seems gratuitous, but don't delete it just yet
 # $SIG{'CHLD'} = sub { wait(); } ;
@@ -144,28 +150,56 @@ sub read {
   my $self = shift;
   return undef unless $self->{'status'} == STATUS_PENDING;
   my $rdr = $self->{'read'};
+  my $len = length($self->{'buffer'});
+  my $plen = length($self->{'prompt'});
+  my ($result, $bytes, $pos, $searchfrom);
 
   while (1) {
-    my $data;
-    my $bytes = sysread($rdr,$data,READSIZE);
+
+    # Read the data directly onto the end of the buffer
+
+    $bytes = sysread($rdr, $self->{'buffer'},
+		     READSIZE, $len);
+
     unless ($bytes > 0) {
       $self->{'status'} = STATUS_ERROR;
       return;
     }
-    $self->{'buffer'} .= $data;
 
     # check for prompt
-    if ($self->{'buffer'}=~/$self->{'prompt'}/so) {
+
+    # The following checks were implemented using regexps and $' and
+    # friends.  I have changed this to use {r}index and substr (a)
+    # because they're much faster than regexps and (b) because using
+    # $' and $` causes all regexps in a program to execute
+    # very slowly due to excessive and unnecessary pre/post-match
+    # copying -- tim.cutts@incyte.com 08 Sep 1999
+
+    # Note, don't need to search the whole buffer for the prompt;
+    # just need to search the new data and the prompt length from
+    # any previous data.
+
+    $searchfrom = ($len <= $plen) ? 0 : ($len - $plen);
+
+    if (($pos = index($self->{'buffer'},
+		      $self->{'prompt'},
+		      $searchfrom)) > 0) {
       $self->{'status'} = STATUS_WAITING;
+      $result = substr($self->{'buffer'}, 0, $pos);
       $self->{'buffer'} = '';
-      return $`;
+      return $result;
     }
 
     # return partial results for paragraph breaks
-    if ($self->{'buffer'} =~ /\A(.*\n\n)/s) {
-      $self->{'buffer'} = $';
-      return $1;
+
+    if (($pos = rindex($self->{'buffer'}, "\n\n")) > 0) {
+      $result = substr($self->{'buffer'}, 0, $pos + 2);
+      $self->{'buffer'} = substr($self->{'buffer'},
+				 $pos + 2);
+      return $result;
     }
+
+    $len += $bytes;
 
   }
 

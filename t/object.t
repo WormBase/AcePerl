@@ -41,9 +41,9 @@ print STDERR "\n  ...Failed to get test object. Wrong database?\n     Expect mor
 test(4,defined($obj) && $obj eq 'Sulston JE',"string overload failure");
 test(5,@obj = $db->fetch('Author','Sulston*'),"wildcard failure");
 test(6,@obj==2,"failed to recover two authors from Sulston*");
-test(7,defined($obj) && $obj->right eq 'Full_name',"auto fill failure");
-test(8,defined($obj) && $obj->Full_name->at eq 'John Sulston',"automatic method generation failure");
-test(9,defined($obj) && $obj->Full_name->pick eq 'John Sulston',"pick failure");
+test(7,defined($obj) && $obj->right eq 'Also_known_as',"auto fill failure");
+test(8,defined($obj) && $obj->Also_known_as->at eq 'John Sulston',"automatic method generation failure");
+test(9,defined($obj) && $obj->Also_known_as->pick eq 'John Sulston',"pick failure");
 test(10,defined($obj) && (@obj = $obj->Address(2)) == 9,"col failure");
 test(11,defined($obj) && ($lab = $obj->Laboratory),"fetch failure");
 test(12,defined($lab) && join(' ',sort($lab->tags)) eq 'Address CGC Staff',"tags failure");

@@ -137,7 +137,7 @@ sub tag2ace {
 	my $db = $self->db;;
 	my ($objname,$start,$end) = @data;
 	my ($class,$name) = $objname =~ /^(\w+):(.+)/;
-	return Ace::Sequence::Homol->new($db,$class,$name,$start,$end);
+	return Ace::Sequence::Homol->new($class,$name,$db,$start,$end);
     }
 
     # General case:
