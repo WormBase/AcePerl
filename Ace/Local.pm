@@ -85,6 +85,13 @@ sub connect {
 	       },$class;
 }
 
+sub debug {
+  my $self = shift;
+  my $d = $self->{debug};
+  $self->{debug} = shift if @_;
+  $d;
+}
+
 sub DESTROY {
   my $self = shift;
   return unless kill 0,$self->{'pid'};
@@ -124,6 +131,12 @@ sub error {
 sub query {
   my $self = shift;
   my $query = shift;
+
+  if ($self->debug) {
+    my $msg = $query || '';
+    warn "\tquery($msg)";
+  }
+
   return undef if $self->{'status'} == STATUS_ERROR;
   do $self->read() until $self->{'status'} != STATUS_PENDING;
   my $wtr = $self->{'write'};

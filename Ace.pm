@@ -19,7 +19,7 @@ use overload
 
 # Optional exports
 @EXPORT_OK = qw(rearrange ACE_PARSE);
-$VERSION = '1.89';
+$VERSION = '1.90';
 
 use constant STATUS_WAITING => 0;
 use constant STATUS_PENDING => 1;
@@ -345,7 +345,7 @@ sub fetch {
       && defined $pattern
       && $pattern !~ /[\?\*]/
       && !wantarray) {
-    return $self->get($class,$pattern);
+    return $self->get($class,$pattern,$filled);
   }
 
   $offset += 0;

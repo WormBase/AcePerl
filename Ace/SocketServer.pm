@@ -49,6 +49,13 @@ sub connect {
   return $self;
 }
 
+sub debug {
+  my $self = shift;
+  my $d = $self->{debug};
+  $self->{debug} = shift if @_;
+  $d;
+}
+
 sub DESTROY {
   my $self = shift;
   return if $self->{last_msg} eq ACESERV_MSGKILL;
@@ -68,6 +75,13 @@ sub error { $Ace::Error; }
 sub query {
   my $self = shift;
   my ($request,$parse) = @_;
+
+  if ($self->debug) {
+    my $msg = $request || '';
+    $msg   .= ", $parse" if defined $parse;
+    warn "\tquery($msg)";
+  }
+
   unless ($self->_send_msg($request,$parse)) {
     $self->{status} = STATUS_ERROR;
     return _error("Write to socket server failed: $!");
