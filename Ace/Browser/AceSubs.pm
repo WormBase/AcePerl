@@ -632,18 +632,20 @@ This function is not exported by default.
 
 =cut
 
+use Carp 'cluck';
+
 ################ open a database #################
 sub OpenDatabase {
   my $name = shift || get_symbolic();
   AceInit();
   $name =~ s!/$!!;
   my $db = $DB{$name};
-  unless ($db and $db->ping) {
-    my ($host,$port,$name,$password) = getDatabasePorts($name);
-    my @auth = (-user=>$name,-pass=>$password) if $name && $password;
-    return $DB{$name} = Ace->connect(-host=>$host,-port=>$port,-timeout=>50,@auth);
-  }
-  return $db;
+  return $db if $db && $db->ping;
+
+  my ($host,$port,$user,$password) = getDatabasePorts($name);
+  my @auth = (-user=>$user,-pass=>$password) if $name && $password;
+  $DB{$name} = Ace->connect(-host=>$host,-port=>$port,-timeout=>50,@auth);
+  return $DB{$name};
 }
 
 =item PrintTop($object,$class,$title,@html_headers)
