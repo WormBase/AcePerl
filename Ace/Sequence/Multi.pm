@@ -9,6 +9,9 @@ use Ace::Sequence;
 use vars '@ISA';
 @ISA = 'Ace::Sequence';
 
+# backward compatibility
+*db_id = \&db;
+
 sub new {
   my $pack = shift;
   my ($secondary,$rest) = rearrange([['SECONDARY','DBS']],@_);
@@ -64,23 +67,23 @@ sub feature_list {
 sub gff {
   my $self = shift;
   my ($abs,$features) = rearrange([['ABS','ABSOLUTE'],'FEATURES'],@_);
+  my   $db = $self->db;
 
-  my $gff = $self->SUPER::gff(-Abs=>$abs,-Features=>$features,-Db=>$self->db);
+  my $gff = $self->SUPER::gff(-Abs=>$abs,-Features=>$features,-Db=>$db);
   return unless $gff;
   return $gff unless $self->secondary;
 
-  my(%seen,@lines,$db);
-  $db = $self->db;
+  my(%seen,@lines);
 
   foreach (grep !$seen{$_}++,split("\n",$gff)) {  #ignore duplicates
     next if m!^//!;  # ignore comments
-    push @lines,join "\t",$_,$db;
+    push @lines,/^\#/ ? $_ : join "\t",$_,$db;
   }
 
   my $opt = $self->_feature_filter($features);
 
   for my $db ($self->secondary) {
-    my $supplement = $self->_gff($db,$opt);
+    my $supplement = $self->_gff($opt,$db);
     $self->transformGFF(\$supplement) unless $abs;
 
     my $string = $db->asString;
@@ -92,6 +95,27 @@ sub gff {
   }
 
   return join("\n",@lines,'');
+}
+
+# turn a GFF file and a filter into a list of Ace::Sequence::Feature objects
+sub _make_features {
+  my $self = shift;
+  my ($gff,$filter) = @_;
+
+  my @dbs = ($self->db,$self->secondary);
+  my %dbs = map { $_->asString => $_ } @dbs;
+
+  my ($r,$r_offset,$r_strand) = $self->refseq;
+  my @features;
+  foreach (split("\n",$gff)) {
+    next if m[^(?:\#|//)];
+    next unless $filter->($_);
+    next unless my ($dbname) = /\t(\S+)$/;
+    next unless my $db = $dbs{$dbname};
+    push @features,Ace::Sequence::Feature->new($r,$r_offset,$r_strand,$_,$db);
+  }
+
+  return @features;
 }
 
 1;

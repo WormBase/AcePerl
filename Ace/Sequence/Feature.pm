@@ -17,7 +17,7 @@ use overload
 # parse a line from a sequence list
 sub new {
   my $pack = shift;
-  my ($ref,$r_offset,$r_strand,$gff_line) = @_;
+  my ($ref,$r_offset,$r_strand,$gff_line,$db) = @_;
   my ($sourceseq,$method,$type,$start,$end,$score,$strand,$frame,$group) = split "\t";
 
   # for efficiency/performance, we don't use superclass new() method, but modify directly
@@ -29,7 +29,7 @@ sub new {
   # handle negative strands
   $offset ||= 0;
   $offset *= -1 if $r_strand eq '-' && $strand ne $r_strand;
-  
+
   my $self= bless {
 		   obj      => $ref,
 		   offset   => $offset,
@@ -47,6 +47,7 @@ sub new {
 				score  => $score,
 				frame  => $frame,
 				group  => $group,
+				db     => $db,
 			       }
 		  },$pack;
   return $self;
@@ -58,7 +59,7 @@ sub _field {
   my $field = shift;
   my $v = $self->{info}{$field};
   $self->{info}{$field} = shift if @_;
-  return if $v eq '.';
+  return if defined $v && $v eq '.';
   return $v;
 }
 
@@ -89,7 +90,11 @@ sub info      {                  # returns Ace::Object(s) with info about the fe
   return wantarray ? @{$self->{group}} : $self->{group}->[0];
 }
 
-sub db_id { shift->_field('db_id',@_) }    # database identifier (from Ace::Sequence::Multi)
+sub db { # database identifier (from Ace::Sequence::Multi)
+  my $self = shift;
+  my $db = $self->_field('db',@_);
+  return $db || $self->SUPER::db;
+}    
 
 sub group  { $_[0]->info; }
 sub target { $_[0]->info; }

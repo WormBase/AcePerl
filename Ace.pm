@@ -6,7 +6,9 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK $Error);
 
 require Exporter;
 require AutoLoader;
-use overload '""' => 'asString';
+use overload 
+  '""'  => 'asString',
+  'cmp' => 'cmp';
 
 @ISA = qw(Exporter AutoLoader);
 
@@ -378,6 +380,17 @@ sub asString {
   my $server = $self->db->isa('Ace::SocketServer') ? 'sace' : 'rpcace';
   return "$server://$self->{host}:$self->{port}" if $self->{'host'};
   return ref $self;
+}
+
+sub cmp {
+  my ($self,$arg,$reversed) = @_;
+  my $cmp;
+  if (ref($arg) and $arg->isa('Ace')) {
+    $cmp = $self->asString cmp $arg->asString;
+  } else {
+    $cmp = $self->asString cmp $arg;
+  }
+  return reversed ? -$cmp : $cmp;
 }
 
 1;

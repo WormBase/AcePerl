@@ -2,13 +2,13 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.25 2000/09/05 13:50:58 lstein Exp $
+# $Id: Object.pm,v 1.26 2000/09/24 23:34:23 lstein Exp $
 
 use overload 
     '""'       => 'name',
     '=='       => 'eq',
     '!='       => 'ne',
-    'fallback' =>' TRUE';
+    'fallback' => 'TRUE';
 use vars qw($AUTOLOAD $DEFAULT_WIDTH %MO $VERSION);
 use Ace 1.50 qw(:DEFAULT rearrange);
 
@@ -143,6 +143,7 @@ sub eq {
 sub ne { 
     return !&eq;
 }
+
 
 ############ returns true if this is a top-level object #######
 sub isRoot {

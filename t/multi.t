@@ -44,6 +44,7 @@ test(7,@introns = $zk154->features('intron'),"didn't retrieve annot1 introns");
 foreach (@introns) {
   $subtypes{$_->subtype}++;
 }
+
 test(8,$subtypes{'Genefinder'},"didn't retrieve annot1 annotations");
 test(9,$subtypes{'intuition'},"didn't retrieve annot2 annotations");
 

@@ -306,42 +306,13 @@ sub GFF {
 # features('similarity:EST','annotation:assembly_tag')
 sub features {
   my $self = shift;
+  my ($filter,$opt) = $self->_make_filter(@_);
 
-  # parse out the filter
-  my %filter;
-  foreach (@_) {
-    my ($type,$filter) = split(':');
-    $filter{$type} = $filter;
-  }
-  
-  # create pattern-match sub
-  my $sub;
-  if (%filter) {
-    my $s = "sub { my \@d = split(\"\\t\",\$_[0]);\n";
-    for my $type (keys %filter) {
-      my $expr;
-      my $subtype = $filter{$type};
-      if (defined($type) && defined($subtype)) {
-	$expr = "return 1 if \$d[2]=~/$type/i && \$d[1]=~/$subtype/i;\n"
-      } else {
-	$expr = defined($subtype) ? "return 1 if \$d[1]=~/$subtype/i;\n" 
-                                  : "return 1 if \$d[2]=~/$type/i;\n" 
-      }
-      $s .= $expr;
-    }
-    $s .= "return;\n }";
-    $sub = eval $s;
-    croak $@ if $@;
-  } else {
-    $sub = sub { 1; }
-  }
   # get raw gff file
-  my $gff = $self->gff(-features=>[keys %filter]);
+  my $gff = $self->gff(-features=>$opt);
 
-  my ($r,$r_offset,$r_strand) = $self->refseq;
-  my @features = map {Ace::Sequence::Feature->new($r,$r_offset,$r_strand,$_)} 
-                 grep !m@^(?:\#|//)@ && $sub->($_),split("\n",$gff);
-
+  # turn it into a list of features
+  my @features = $self->_make_features($gff,$filter);
   return wantarray ? @features : \@features;
 }
 
@@ -349,7 +320,7 @@ sub features {
 sub feature_list {
   my $self = shift;
   return $self->{'feature_list'} if $self->{'feature_list'};
-  return unless my $raw = $self->_query(undef,'seqfeatures -version 2 -list');
+  return unless my $raw = $self->_query('seqfeatures -version 2 -list');
   return $self->{'feature_list'} = Ace::Sequence::FeatureList->new($raw);
 }
 
@@ -485,10 +456,57 @@ sub _get_toplevel {
   return ($tl,2 - $tl_start,1 - $tl_start + $length) if $seq_strand eq '+';
 }
 
+# create subroutine that filters GFF files for certain feature types
+sub _make_filter {
+  my $self = shift;
+
+  # parse out the filter
+  my %filter;
+  foreach (@_) {
+    my ($type,$filter) = split(':');
+    $filter{$type} = $filter;
+  }
+  
+  # create pattern-match sub
+  my $sub;
+  if (%filter) {
+    my $s = "sub { my \@d = split(\"\\t\",\$_[0]);\n";
+    for my $type (keys %filter) {
+      my $expr;
+      my $subtype = $filter{$type};
+      if (defined($type) && defined($subtype)) {
+	$expr = "return 1 if \$d[2]=~/$type/i && \$d[1]=~/$subtype/i;\n"
+      } else {
+	$expr = defined($subtype) ? "return 1 if \$d[1]=~/$subtype/i;\n" 
+	  : "return 1 if \$d[2]=~/$type/i;\n" 
+	}
+      $s .= $expr;
+    }
+    $s .= "return;\n }";
+    $sub = eval $s;
+    croak $@ if $@;
+  } else {
+    $sub = sub { 1; }
+  }
+  return ($sub,[keys %filter]);
+}
+
+# turn a GFF file and a filter into a list of Ace::Sequence::Feature objects
+sub _make_features { 
+  my $self = shift;
+  my ($gff,$filter) = @_;
+
+  my ($r,$r_offset,$r_strand) = $self->refseq;
+  my @features = map {Ace::Sequence::Feature->new($r,$r_offset,$r_strand,$_)} 
+                 grep !m@^(?:\#|//)@ && $filter->($_),split("\n",$gff);
+}
+
+
 # low level GFF call, no changing absolute to relative coordinates
 sub _gff {
   my $self = shift;
-  my $data = $self->_query("seqfeatures -version 2 @_");
+  my ($opt,$db) = @_;
+  my $data = $self->_query("seqfeatures -version 2 $opt",$db);
   $data =~ s/\0+\Z//;
   return $data; #blasted nulls!
 }
@@ -497,10 +515,9 @@ sub _gff {
 sub _query {
   my $self = shift;
   my $command = shift;
+  my $db      = shift || $self->db;
 
-  my $db     = $self->db;
   my $parent = $self->parent;
-
   my $start = $self->start(1);
   my $end   = $self->end(1);
   ($start,$end) = ($end,$start) if $start > $end;  #flippity floppity
