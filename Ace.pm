@@ -15,7 +15,7 @@ use overload '""' => 'asString';
 
 # Optional exports
 @EXPORT_OK = qw(rearrange ACE_PARSE);
-$VERSION = '1.67';
+$VERSION = '1.68';
 
 use constant STATUS_WAITING => 0;
 use constant STATUS_PENDING => 1;
@@ -326,7 +326,8 @@ sub _list {
   my $result = $self->raw_query($query);
   $result =~ s/\0//g;  # get rid of &$#&@( nulls
   foreach (split("\n",$result)) {
-    next unless my ($class,$name) = Ace->split($_);
+    my ($class,$name) = Ace->split($_);
+    next unless $class and $name;
     push(@result,$self->{'class'}->new($class,$name,$self,1));
   }
   return @result;

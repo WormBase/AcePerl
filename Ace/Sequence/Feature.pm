@@ -1,7 +1,7 @@
 package Ace::Sequence::Feature;
 use strict;
 
-use Ace;
+use Ace qw(:DEFAULT rearrange);
 use Ace::Sequence::Homol;
 use Carp;
 use AutoLoader 'AUTOLOAD';
@@ -10,112 +10,101 @@ use vars '@ISA','%REV';
 %REV = ('+' => '-', 
 	'-' => '+');  # war is peace, &c.
 
-
-use overload '""' => 'asString';
+use overload 
+  '""' => 'asString',
+  ;
 
 # parse a line from a sequence list
 sub new {
-  my $class = shift;
-  my ($gff_line,$src,$norelative,$db) = @_;
-  croak "must provide a line from a GFF file"  unless $gff_line;
-  return bless { parent     => $src,
-		 data       => [split("\t",$gff_line)],
-		 norelative => $norelative,
-		 db         => $db,
-	       },$class;
+  my $pack = shift;
+  my ($ref,$r_offset,$r_strand,$gff_line) = @_;
+  my ($sourceseq,$method,$type,$start,$end,$score,$strand,$frame,$group) = split "\t";
+
+  # for efficiency/performance, we don't use superclass new() method, but modify directly
+  # handling coordinates.  See SCRAPS below for what should be in here
+  ($start,$end) = ($end,$start) if $strand eq '-';
+  my $offset = $start - 1;
+  my $length = ($end > $start) ? $end - $offset : $end - $offset - 2;
+
+  # handle negative strands
+  $offset ||= 0;
+  $offset *= -1 if $r_strand eq '-' && $strand ne $r_strand;
+  
+  my $self= bless {
+		   obj      => $ref,
+		   offset   => $offset,
+		   length   => $length,
+		   parent   => $ref,
+		   p_offset => $r_offset,
+		   refseq   => [$ref,$r_offset,$r_strand],
+		   strand   => $r_strand,
+		   fstrand  => $strand,
+		   absolute => 0,
+		   info     => {
+				seqname=> $sourceseq,
+				method => $method,
+				type   => $type,
+				score  => $score,
+				frame  => $frame,
+				group  => $group,
+			       }
+		  },$pack;
+  return $self;
 }
 
-# $_[0] is field no, $_[1] is self, $_[2] is optional replacement value
+# $_[0] is field name, $_[1] is self, $_[2] is optional replacement value
 sub _field {
-    my $v = defined $_[2] ? $_[1]->{data}->[$_[0]] = $_[2] 
-                          : $_[1]->{data}->[$_[0]];
-    return if $v eq '.';
-    return $v;
+  my $self = shift;
+  my $field = shift;
+  my $v = $self->{info}{$field};
+  $self->{info}{$field} = shift if @_;
+  return if $v eq '.';
+  return $v;
 }
+
+sub strand { return $_[0]->{fstrand} }
 
 1;
 
 # __END__
 
-sub parent { $_[0]->{'parent'}; }
-sub source_seq { $_[0]->parent; }
-sub db     { return $_[0]->{'db'} ||= $_[0]->parent->db($_[0]->db_id); }
-sub abs2rel { 
-  # CURIOUS FEATURE WARNING: DB says that the 2+ here doesn't effect anything.
-  $_[0]->parent->gff_reversed ? 2 + $_[0]->parent->offset - $_[1] : $_[1] - $_[0]->parent->offset; 
+sub seqname   { 
+  my $self = shift;
+  my $seq = $self->_field('seqname');
+  $self->db->fetch(Sequence=>$seq); 
 }
 
-sub seqname   { $_[0]->db->fetch(Sequence=>_field(0,@_)); }
-sub source    { _field(1,@_); }  # I don't like this term...
-sub method    { _field(1,@_); }  # ... I prefer "method"
-sub subtype   { _field(1,@_); }  # ... or even "subtype"
-sub feature   { _field(2,@_); }  # I don't like this term...
-sub type      { _field(2,@_); }  # ... I prefer "type"
-sub abs_start { _field(3,@_); }  # start, absolute coordinates
-sub abs_end   { _field(4,@_); }  # end, absolute coordinates
-sub score     { _field(5,@_); }  # float indicating some sort of score
-sub strand    { !$_[0]->abs && $_[0]->parent->gff_reversed ? 
-		    $REV{_field(6,@_)} : 
-		    _field(6,@_); }  # one of +, - or undef
-sub frame     { _field(7,@_); }  # one of 1, 2, 3 or undef
+sub method    { shift->_field('method',@_) }  # ... I prefer "method"
+sub subtype   { shift->_field('method',@_) }  # ... or even "subtype"
+sub type      { shift->_field('type',@_)   }  # ... I prefer "type"
+sub score     { shift->_field('score',@_)  }  # float indicating some sort of score
+sub frame     { shift->_field('frame',@_)  }  # one of 1, 2, 3 or undef
 sub info      {                  # returns Ace::Object(s) with info about the feature
-  my ($self) = @_;
-  unless ($self->{'info'}) {
-    my $info = _field(8,@_);    # be prepared to get an array of interesting objects!!!!
-    return unless $info;
+  my $self = shift;
+  unless ($self->{group}) {
+    my $info = $self->{info}{group} or return;
     my @data = split(/\s*;\s*/,$info);
-    $self->{'info'} = [map {$_[0]->toAce($_)} @data];
+    $self->{group} = [map {$self->toAce($_)} @data];
   }
-  return wantarray ? @{$self->{'info'}} : $self->{'info'}->[0];
+  return wantarray ? @{$self->{group}} : $self->{group}->[0];
 }
 
-sub db_id { _field(9,@_); }    # database identifier (from Ace::Sequence::Multi)
- 
-sub reversed  { $_[0]->strand eq '-'; }
-sub abs_reversed { $_[0]->strand ne $_[0]->parent->strand; }
+sub db_id { shift->_field('db_id',@_) }    # database identifier (from Ace::Sequence::Multi)
 
 sub group  { $_[0]->info; }
 sub target { $_[0]->info; }
 
-# abs/relative adjustments
-sub start    {  
-  my $self = shift;
-  my $val = $self->parent->gff_reversed ? $self->abs_end : $self->abs_start; 
-  return $val if $self->abs;
-  return $self->abs2rel($val);
-}
-	
-sub end    {  
-  my $self = shift;
-  my $val = $self->parent->gff_reversed ? $self->abs_start : $self->abs_end; 
-  return $val if $self->abs;
-  return $self->abs2rel($val);
-}
-
-sub length { 
-  $_[0]->end - $_[0]->start + 1;
-}
-
-sub dna {
-  return Ace::Sequence->new($_[0])->dna;
-}
-
 sub asString {
   my $self = shift;
+  my $name = $self->SUPER::asString;
   my $type = $self->type;
-  my $name = _field(8,$self);
-  return $self->id unless $name;
-  ($name) = $name =~ /\"([^\"]+)\"/; # get rid of quote
-  my $start = $self->start;
-  my $end = $self->end;
-  return $self->strand eq '-' ? "$type:$name/$end,$start" 
-                              : "$type:$name/$start,$end";
+  return "$type:$name";
 }
 
 # unique ID
 sub id {
   my $self = shift;
-  my $source = $self->source_seq->name;
+  my $source = $self->source->name;
   my $start = $self->start;
   my $end = $self->end;
   return "$source/$start,$end";
@@ -375,3 +364,23 @@ disclaimers of warranty.
 
 
 __END__
+# SCRAPS
+# the new() code done "right"
+# sub new {
+#    my $pack = shift;
+#    my ($ref,$r_offset,$r_strand,$gff_line) = @_;
+#    my ($sourceseq,$method,$type,$start,$end,$score,$strand,$frame,$group) = split "\t";
+#    ($start,$end) = ($end,$start) if $strand eq '-';
+#    my $self = $pack->SUPER::new($source,$start,$end);
+#    $self->{info} = {
+#  				seqname=> $sourceseq,
+#  				method => $method,
+#  				type   => $type,
+#  				score  => $score,
+#  				frame  => $frame,
+#  				group  => $group,
+#  		  };
+#    $self->{fstrand} = $strand;
+#    return $self;
+#  }
+
