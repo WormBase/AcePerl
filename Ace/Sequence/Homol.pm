@@ -10,7 +10,7 @@ use vars '@ISA';
 
 # *stop = \&end;
 
-sub new {
+sub new_homol {
   my ($pack,$tclass,$tname,$db,$start,$end) = @_;
   return unless my $obj = $db->class->new($tclass,$tname,$db,1);
   @$obj{'start','end'} = ($start,$end);

@@ -69,16 +69,6 @@ sub draw_parallel {
   # turn on both if neither specified
   $ne = $sw = 1 unless defined($ne) || defined($sw);
 
-  $gd->line($x1,$center,$x2,$center,$fg);
-  if ($sw) {  # west arrow
-    $gd->line($x1,$center,$x1+$a2,$center-$a2,$fg);
-    $gd->line($x1,$center,$x1+$a2,$center+$a2,$fg);
-  }
-  if ($ne) {  # east arrow
-    $gd->line($x2,$center,$x2-$a2,$center+$a2,$fg);
-    $gd->line($x2,$center,$x2-$a2,$center-$a2,$fg);
-  }
-
   # turn on ticks
   if ($self->option('tick')) {
     my $left = shift;
@@ -97,6 +87,15 @@ sub draw_parallel {
     my $widest = 5 + (length($self->end) * $width);
     $mindist = $widest if $widest > $mindist;
 
+
+    my ($gcolor,$gtop,$gbottom);
+    if ($self->option('grid')) {
+      $gcolor = $self->color('grid');
+      my $panel_height = $self->factory->panel->height;
+      $gtop    = $self->factory->panel->pad_top;
+      $gbottom = $panel_height - $self->factory->panel->pad_bottom;
+    }
+
     while (1) {
       my $pixels = $interval * $scale;
       last if $pixels >= $mindist;
@@ -107,19 +106,36 @@ sub draw_parallel {
 
     for (my $i = $first_tick; $i < $self->end; $i += $interval) {
       my $tickpos = $left + $self->map_pt($i);
+      $gd->line($tickpos,$gtop,$tickpos,$gbottom,$gcolor) if defined $gcolor;
       $gd->line($tickpos,$center-$a2,$tickpos,$center+$a2,$fg);
-      my $middle = $tickpos - (length($i) * $width)/2;
-      $gd->string($font,$middle,$center+$a2-1,$i,$font_color)
-	if $middle > 0 && $middle < $self->factory->panel->width-($font->width * length $i);
     }
 
     if ($self->option('tick') >= 2) {
       my $a4 = $self->SUPER::height/4;
       for (my $i = $first_tick - $interval; $i < $self->end; $i += $interval/10) {
 	my $tickpos = $left + $self->map_pt($i);
+	$gd->line($tickpos,$gtop,$tickpos,$gbottom,$gcolor) if defined $gcolor;
 	$gd->line($tickpos,$center-$a4,$tickpos,$center+$a4,$fg);
       }
     }
+
+    for (my $i = $first_tick; $i < $self->end; $i += $interval) {
+      my $tickpos = $left + $self->map_pt($i);
+      my $middle = $tickpos - (length($i) * $width)/2;
+      $gd->string($font,$middle,$center+$a2-1,$i,$font_color)
+	if $middle > 0 && $middle < $self->factory->panel->width-($font->width * length $i);
+    }
+
+  }
+
+  $gd->line($x1,$center,$x2,$center,$fg);
+  if ($sw) {  # west arrow
+    $gd->line($x1,$center,$x1+$a2,$center-$a2,$fg);
+    $gd->line($x1,$center,$x1+$a2,$center+$a2,$fg);
+  }
+  if ($ne) {  # east arrow
+    $gd->line($x2,$center,$x2-$a2,$center+$a2,$fg);
+    $gd->line($x2,$center,$x2-$a2,$center-$a2,$fg);
   }
 
   # add a label if requested

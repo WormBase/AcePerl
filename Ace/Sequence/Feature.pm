@@ -148,13 +148,13 @@ sub tag2ace {
 
     # for Notes we just return a text, no database associated
     return $class->new(Text=>$data[0]) if $tag eq 'Note';
-    
+
     # for homols, we create the indicated Protein or Sequence object
     # then generate a bogus Homology object (for future compatability??)
     if ($tag eq 'Target') {
 	my ($objname,$start,$end) = @data;
 	my ($classe,$name) = $objname =~ /^(\w+):(.+)/;
-	return Ace::Sequence::Homol->new($classe,$name,$db,$start,$end);
+	return Ace::Sequence::Homol->new_homol($classe,$name,$db,$start,$end);
     }
 
     # General case:

@@ -154,7 +154,7 @@ sub draw {
 
   # draw background
   my $bgcolor = $self->factory->bgcolor;
-  $gd->filledRectangle($left,$top,$left+$self->width,$top+$self->height,$bgcolor);
+  # $gd->filledRectangle($left,$top,$left+$self->width,$top+$self->height,$bgcolor);
 
   if (my $label = $self->factory->option('track_label')) {
     my $font = $self->factory->font;

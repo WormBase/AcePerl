@@ -202,6 +202,50 @@ sub filled_oval {
   # and fill it
   $gd->fill($cx,$cy,$self->fillcolor);
 }
+
+# directional arrow
+sub filled_arrow {
+  my $self = shift;
+  my $gd  = shift;
+  my $orientation = shift;
+
+  my ($x1,$y1,$x2,$y2) = @_;
+  my ($width) = $gd->getBounds;
+  my $indent = ($y2-$y1);
+
+  if ($x2 - $x1 < $indent) {
+    $indent = ($x2-$x1)/2;
+  }
+
+  return $self->filled_box($gd,@_)
+    if ($orientation == 0)
+      or ($x1 < 0 && $orientation < 0)
+	or ($x2 > $width && $orientation > 0)
+	  or ($x2 - $x1 < $indent);
+
+  my $h = ($y2-$y1)/4;  # half height of terminal bar
+  my $c = ($y2+$y1)/2;  # vertical center
+  my $fg = $self->fgcolor;
+  my $fc = $self->fillcolor;
+  if ($orientation > 0) {
+    $gd->line($x1,$y1,$x2-$indent,$y1,$fg);
+    $gd->line($x2-$indent,$y1,$x2,$c,$fg);
+    $gd->line($x2,$c,$x2-$indent,$y2,$fg);
+    $gd->line($x2-$indent,$y2,$x1,$y2,$fg);
+    $gd->line($x1,$y2,$x1,$y1,$fg);
+    $gd->line($x2,$c-$h,$x2,$c+$h+1,$fg);
+    $gd->fillToBorder($x1+1,$c,$fg,$fc);
+  } else {
+    $gd->line($x1,$c,$x1+$indent+1,$y1,$fg);
+    $gd->line($x1+$indent+1,$y1,$x2,$y1,$fg);
+    $gd->line($x2,$y1,$x2,$y2,$fg);
+    $gd->line($x2,$y2,$x1+$indent+1,$y2,$fg);
+    $gd->line($x1+$indent+1,$y2,$x1,$c,$fg);
+    $gd->line($x1,$c-$h,$x1,$c+$h+1,$fg);
+    $gd->fillToBorder($x2-1,$c,$fg,$fc);
+  }
+}
+
 sub fill {
   my $self = shift;
   my $gd   = shift;
@@ -222,7 +266,12 @@ sub draw {
   # for nice thin lines
   $x2 = $x1 if $x2-$x1 < 1;
 
-  $self->filled_box($gd,$x1,$y1,$x2,$y2);
+  if ($self->option('strand_arrow')) {
+    my $orientation = $self->feature->strand;
+    $self->filled_arrow($gd,$orientation,$x1,$y1,$x2,$y2);
+  } else {
+    $self->filled_box($gd,$x1,$y1,$x2,$y2);
+  }
 
   # add a label if requested
   $self->draw_label($gd,@_) if $self->option('label');
