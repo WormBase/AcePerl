@@ -2,6 +2,7 @@ package Ace::Object;
 use Carp;
 use overload 
     '""'       => 'name',
+    '=='       => 'eq',
     'fallback' =>' TRUE';
 use vars qw($AUTOLOAD $DEFAULT_WIDTH %MO $VERSION);
 use Ace 1.50 qw(:DEFAULT rearrange);
@@ -9,7 +10,7 @@ use Ace 1.50 qw(:DEFAULT rearrange);
 require AutoLoader;
 
 $DEFAULT_WIDTH=25;  # column width for pretty-printing
-$VERSION = '1.50';
+$VERSION = '1.51';
 
 # Pseudonyms and deprecated methods.
 *isClass        =  \&isObject;
@@ -92,6 +93,17 @@ sub class {
     defined($_[0])
 	? $self->{class} = shift
 	: $self->{class};
+}
+
+############## return true if two objects are equivalent ##################
+# to be equivalent, they must have identical names, classes and databases #
+sub eq {
+    my ($a,$b,$rev) = @_;
+    return unless UNIVERSAL::isa($b,'Ace::Object');
+    return 1 if ($a->name eq $b->name) 
+      && ($a->class eq $b->class)
+	&& ($a->db eq $b->db);
+    return;
 }
 
 ############ returns true if this is a top-level object #######

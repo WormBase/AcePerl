@@ -3,8 +3,9 @@ object-oriented database.  The code is currently in beta stage, which
 means the interface will not change.  However, it may still contain
 bugs.
 
-See the ChangeLog for important notices, including user interfaces
-changes.  Please see DISCLAIMER.txt for disclaimers of warranty.
+See the ChangeLog for important notices, including recent user
+interfaces changes.  Please see DISCLAIMER.txt for disclaimers of
+warranty.
 
 INSTALLATION:
 

@@ -9,7 +9,7 @@ use Fcntl qw/F_SETFL O_NONBLOCK/;
 
 use vars '$VERSION';
 
-$VERSION = '1.02';
+$VERSION = '1.03';
 
 use Ace qw/rearrange STATUS_WAITING STATUS_PENDING STATUS_ERROR/;
 use constant DEFAULT_HOST=>'localhost';
@@ -19,7 +19,7 @@ $SIG{'CHLD'} = sub { wait(); } ;
 
 sub connect {
   my $class = shift;
-  my ($path,$program,$host,$port) = rearrange([PATH,PROGRAM,HOST,PORT],@_);
+  my ($path,$program,$host,$port) = rearrange(['PATH','PROGRAM','HOST','PORT'],@_);
   my $args;
   
   # some pretty insane heuristics to handle BOTH tace and aceclient
