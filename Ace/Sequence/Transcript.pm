@@ -19,6 +19,8 @@ sub AUTOLOAD {
   $self->{base}->$func_name(@_);
 }
 
+sub DESTROY { }
+
 sub new {
   my $class = shift;
   my $args = shift;
