@@ -6,7 +6,7 @@ use lib '../blib/lib','../blib/arch';
 use constant HOST => $ENV{ACEDB_HOST} || 'beta.crbm.cnrs-mop.fr';
 use constant PORT => $ENV{ACEDB_PORT} || 20000100;
 
-BEGIN {$| = 1; print "1..30\n"; }
+BEGIN {$| = 1; print "1..33\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Ace;
 $loaded = 1;
@@ -64,3 +64,10 @@ test(27,($obj3 = $iterator2->next) && $obj3->class eq 'Clone',"iterator failure 
 test(28,($obj4 = $iterator1->next) && $obj4->class eq 'Author',"iterator failure (4)");
 test(29,$iterator1 = $db->fetch_many(-class=>'Author',-name=>'S*',-filled=>1),"fetch_many(filled) failure");
 test(30,($obj1 = $iterator1->next) && $obj1 && $obj1->filled,"expected filled object, got unfilled or null");
+# test scalar/array contexts
+$obj = $db->fetch('Author','S*');
+test(31,$obj=~/^\d+$/,"did not get object count in scalar context with wildcard");
+$obj = $db->fetch('Author','Sulston JE');
+test(32,$obj eq 'Sulston JE',"did not get object in scalar context without wildcard");
+(@obj) = $db->fetch('Author','Su*');
+test(33,@obj>1,"did not get list of objects in array context with wildcard");

@@ -24,7 +24,7 @@ require DynaLoader;
 @EXPORT_OK = qw(
 		rearrange
 		);
-$VERSION = '1.43';
+$VERSION = '1.44';
 
 sub AUTOLOAD {
     my $constname;
@@ -85,7 +85,8 @@ sub connect {
 		      'host'   => $host,
 		      'port'   => $port,
 		      'class'  => $objclass || 'Ace::Object',
-		      'date_style' => 'java'
+		      'date_style' => 'java',
+		      'auto_save' => 1,
     },$class;
     return $self;
 }
@@ -114,7 +115,7 @@ sub db {
 # (doesn't actually write into database until you do a commit)
 sub new (\$@) {
   my $self = shift;
-  my ($class,$name) = rearrange([qw/class name/],@_);
+  my ($class,$name) = rearrange([qw/CLASS NAME/],@_);
   return undef if $self->fetch($class,$name);
   my $obj = $self->{'class'}->new($class,$name,$self);
   return $obj;
@@ -225,7 +226,8 @@ sub count {
 # of retrieved objects in a list context.
 sub grep {
   my $self = shift;
-  my ($pattern,$count,$offset,$filled,$total) = rearrange(['PATTERN','COUNT','OFFSET',['FILL','FILLED'],'TOTAL'],@_);
+  my ($pattern,$count,$offset,$filled,$total) = rearrange(['PATTERN','COUNT','OFFSET',
+							   ['FILL','FILLED'],'TOTAL'],@_);
   $offset += 0;
   $count = wantarray ? -1 : 1 unless defined $count;
   # apparently grep doesn't like this!
@@ -342,8 +344,23 @@ sub status {
 
 # return the last error
 sub error {
-    return $Ace::ERR;
+  my $class = shift;
+  $Ace::ERR = shift() if defined($_[0]);
+  return $Ace::ERR;
 }
+
+sub auto_save {
+  my $self = shift;
+  $self->{'auto_save'} = $_[0] if defined $_[0];
+  return $self->{'auto_save'};
+}
+
+sub DESTROY { 
+  my $self = shift;
+  $self->raw_query('save')
+    if $self->auto_save;
+}
+
 
 #####################################################################
 ###################### private routines #############################
@@ -448,6 +465,7 @@ sub _alert_iterators {
   }
 }
 
+
 ##########################################################################
 ##########################################################################
 package Ace::Iterator;
@@ -456,7 +474,7 @@ package Ace::Iterator;
 
 sub new {
   my $pack = shift; 
-  my ($db,$query,$filled,$chunksize) = rearrange([qw/db query filled chunksize/],@_);
+  my ($db,$query,$filled,$chunksize) = rearrange([qw/DB QUERY FILLED CHUNKSIZE/],@_);
   my $self = {
 	      'db'    => $db,
 	      'query' => $query,
@@ -527,7 +545,7 @@ sub DESTROY { }
 ###################### object constructor #################
 sub new ($$$;\$) {
   my $pack = shift;
-  my($class,$name,$db) = rearrange([qw/class name/,[qw/database db/]],@_);
+  my($class,$name,$db) = rearrange([qw/CLASS NAME/,[qw/DATABASE DB/]],@_);
   $pack = ref($pack) if ref($pack);
   my $self = bless { 'name'  =>  $name,
 		     'class' =>  $class
@@ -1053,11 +1071,7 @@ sub commit (\$) {
       my $result = $db->raw_query("parse = $cmd");
 
       $Ace::ERR = '';
-      foreach (split("\n",$result)) {
-	tr/\0//d;   # get rid of nulls
-	s!^//\s+!!; # get rid of comment marks
-	$Ace::ERR .= "$_" if /error|sorry/i;
-      }
+      $Ace::ERR = $result if $result =~ /sorry|parse error/mi;
       $retval = !$Ace::ERR;
     } else {
       $retval = 1;
@@ -1894,6 +1908,17 @@ by calling the method with no arguments.
 Note that activating timestamps disables some of the speed
 optimizations in AcePerl.  Thus they should only be activated if you
 really need the information.
+
+=head2 auto_save()
+
+Sets or queries the I<auto_save> variable.  If true, the "save"
+command will be issued automatically before the connection to the
+database is severed.  The default is true.
+
+Examples:
+
+   $db->auto_save(1);
+   $flag = $db->auto_save;
 
 =head2 error() method
 

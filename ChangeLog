@@ -1,3 +1,6 @@
+1.44	1. Added the auto_save() routine to the API
+	2. Fixed problem of hanging tace processes after quitting local sessions
+	3. Fixed problem with creation of new objects in local sessions.
 1.43	1. Moved the unescape routine into the C level for performance reasons.
 	2. Should now escape \? correctly and handle most protection issues.
 1.42	1. Numerous small bug fixes

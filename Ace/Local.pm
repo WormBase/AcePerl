@@ -66,12 +66,18 @@ sub connect {
 		'write'  => $wtr,
 		'prompt' => $prompt,
 		'pid'    => $pid,
+		'auto_save' => 1,
 		'status' => STATUS_WAITING,
 	       },$class;
 }
 
 sub DESTROY {
   my $self = shift;
+  if ($self->auto_save) {
+    # save work for the user...
+    $self->query('save'); $self->synch;
+  }
+  $self->query('quit');
   # just for paranoid reasons. shouldn't be necessary
   close $self->{'write'} if $self->{'write'};  
   close $self->{'read'} if $self->{'read'};
@@ -81,6 +87,12 @@ sub DESTROY {
 sub encore {
   my $self = shift;
   return $self->status == STATUS_PENDING;
+}
+
+sub auto_save {
+  my $self = shift;
+  $self->{'auto_save'} = $_[0] if defined $_[0];
+  return $self->{'auto_save'};
 }
 
 sub status {
@@ -126,6 +138,12 @@ sub read {
   }
 
   # never get here
+}
+
+# just throw away everything
+sub synch {
+  my $self = shift;
+  $self->read() while $self->status == STATUS_PENDING;
 }
 
 # expand ~foo syntax
@@ -251,6 +269,17 @@ B<encore()> is functionally equivalent to:
    $encore = $accessor->status == STATUS_PENDING;
 
 In fact, this is how it's implemented.
+
+=head2 auto_save()
+
+Sets or queries the I<auto_save> variable.  If true, the "save"
+command will be issued automatically before the connection to the
+database is severed.  The default is true.
+
+Examples:
+
+   $accessor->auto_save(1);
+   $flag = $accessor->auto_save;
 
 =head1 SEE ALSO
 

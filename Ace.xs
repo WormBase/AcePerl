@@ -12,8 +12,7 @@ extern "C" {
 #include "Ace.h"
 #define CHUNKSIZE 10
 
-#define metachar(c) (c == '\\' || c == '"' || c == '/' || c == '%' || \
-			c == '\t' || c == '\n')
+#define metachar(c) (c == '\\' || c == '"' || c == '\t' || c == '\n' || c == '?')
 
 static int
 not_here(s)
