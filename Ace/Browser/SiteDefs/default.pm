@@ -29,7 +29,7 @@ $STYLESHEET = 'http://stein.cshl.org/stylesheets/aceperl.css';
 	       'searches/browser'  => 'Class Browser',
 	       'searches/query'   => 'Acedb Query',
 	       );
-$SEARCH_ICON = '/icons/unknown.gif';
+$SEARCH_ICON = '/ico/unknown.gif';
 
 # ========= %HOME  =========
 # Home page URL
@@ -43,11 +43,11 @@ $SEARCH_ICON = '/icons/unknown.gif';
 	     tree => { 
 		      'url'     => "generic/tree",
 		      'label'   => 'Tree Display',
-		      'icon'    => '/icons/text.gif' },
+		      'icon'    => '/ico/text.gif' },
 	     pic => { 
 		     'url'     => "generic/pic",
 		     'label'   => 'Graphic Display',
-		     'icon'    => '/icons/image2.gif' },
+		     'icon'    => '/ico/image2.gif' },
 	    );
 
 # ========= %CLASSES =========

@@ -8,7 +8,7 @@ $ROOT = '/cgi-bin/ace';
 $DOCROOT = '/ace';
 
 # base of our icons
-$ICONS = "$DOCROOT/icons";
+$ICONS = "$DOCROOT/ico";
 
 # base of our images
 $IMAGES = "$DOCROOT/images";
@@ -68,7 +68,7 @@ $PASSWORD = '';
 			 },
 	       );
 
-$SEARCH_ICON = '/icons/unknown.gif';
+$SEARCH_ICON = '/ico/unknown.gif';
 
 # ========= %HOME  =========
 # Home page URL
@@ -82,20 +82,20 @@ $SEARCH_ICON = '/icons/unknown.gif';
 	     tree => { 
 		      'url'     => "generic/tree",
 		      'label'   => 'Tree Display',
-		      'icon'    => '/icons/text.gif' },
+		      'icon'    => '/ico/text.gif' },
 	     pic => {
 		     'url'     => "generic/pic",
 		     'label'   => 'Graphic Display',
-		     'icon'    => '/icons/image2.gif' },
+		     'icon'    => '/ico/image2.gif' },
 	     xml => {
 		     'url'     => "generic/xml",
 		     'label'   => 'XML Display',
-		     'icon'    => '/icons/text.gif' },
+		     'icon'    => '/ico/text.gif' },
 
 	     model => {
 		     'url'     => "generic/model",
 		     'label'   => 'AceDB Schema',
-		     'icon'    => '/icons/text.gif' },
+		     'icon'    => '/ico/text.gif' },
 	    );
 
 # ========= %CLASSES =========

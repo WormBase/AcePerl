@@ -288,11 +288,11 @@ of each Acebrowser-generated page.  By default, the home will point to
 	     tree => {
 		      'url'     => "generic/tree",
 		      'label'   => 'Tree Display',
-		      'icon'    => '/icons/text.gif' },
+		      'icon'    => '/ico/text.gif' },
 	     pic => {
 		     'url'     => "generic/pic",
 		     'label'   => 'Graphic Display',    
-		     'icon'    => '/icons/image2.gif' },
+		     'icon'    => '/ico/image2.gif' },
 	    );
 
 As described in EXTENDING ACEBROWSER, the %DISPLAYS hash declares a
@@ -461,7 +461,7 @@ file, by adding a hash entry like the following:
 	     newdisplay => {
 		 url   => "/cgi-bin/ace/newscript",
 		 label => 'New Display',
-		 icon  => '/icons/layout.gif',
+		 icon  => '/ico/layout.gif',
 		 },
 
 The hash key, in this case "newdisplay", is a symbolic name for the

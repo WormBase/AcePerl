@@ -68,8 +68,8 @@ $VERSION = '1.30';
 use constant ROWS           => 10;    # how many rows to allocate for search results
 use constant COLS           =>  5;    #  "   "   columns   "       "    "      "
 use constant MAXOBJECTS     => ROWS * COLS;  # total objects per screen
-use constant ICONS          => '/icons';
-use constant SEARCH_ICON    => '/icons/search.gif';
+use constant ICONS          => '/ico';
+use constant SEARCH_ICON    => '/ico/search.gif';
 use constant SPACER_ICON    => 'spacer.gif';
 use constant LEFT_ICON      => 'cylarrw.gif';
 use constant RIGHT_ICON     => 'cyrarrw.gif';
@@ -179,7 +179,7 @@ sub make_navigation_bar {
   my (@buttons);
   my ($page,$pages) =  (1+int($offset/MAXOBJECTS),1+int($count/MAXOBJECTS));
   my $c = Configuration();
-  my $icons  = $c->Icons || '/icons';
+  my $icons  = $c->Icons || '/ico';
   my $spacer = "$icons/". SPACER_ICON;
   my $left   = "$icons/". LEFT_ICON;
   my $right  = "$icons/". RIGHT_ICON;

@@ -9,7 +9,7 @@ $ROOT = '/cgi-bin/ace';
 $DOCROOT = '/ace';
 
 # base of our icons
-$ICONS = "$DOCROOT/icons";
+$ICONS = "$DOCROOT/ico";
 
 # base of our images
 $IMAGES = "$DOCROOT/images";
@@ -50,7 +50,7 @@ $STYLESHEET = "$DOCROOT/stylesheets/moviedb.css";
 			 url  => "$ROOT/searches/query",
 			 },
 	       );
-$SEARCH_ICON = '/icons/unknown.gif';
+$SEARCH_ICON = '/ico/unknown.gif';
 
 # ========= %HOME  =========
 # Home page URL
