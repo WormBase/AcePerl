@@ -14,7 +14,7 @@ $VERSION = '1.51';
 
 # Pseudonyms and deprecated methods.
 *isClass        =  \&isObject;
-*pick = *follow =  \&fetch;
+*pick           =  \&fetch;
 *get            =  \&search;
 *add            =  \&add_row;
 
@@ -319,13 +319,27 @@ sub down {
 }
 
 #############################################
-#  follow into database #
+#  fetch current node from the database     #
 sub fetch {
-    my $self = shift;
-    my $tag = shift;
+    my ($self,$tag) = @_;
     $self = $self->search($tag) || return if defined $tag;
     my $thing_to_pick = ($self->isTag && $self->right) ? $self->right : $self;
     return $thing_to_pick->_clone;
+}
+
+#############################################
+# follow a tag into the database, returning a
+# list of followed objects.
+sub follow {
+    my $self = shift;
+    my ($tag,$filled) =  rearrange(['TAG','FILLED'],@_);
+
+    return unless $self->db;
+    return $self->fetch() unless $tag;
+    my $class = $self->class;
+    my $name = Ace::AceDB->freeprotect($self->name);
+    return $self->db->fetch(-query=>"find $class $name ; follow $tag",
+			    '-filled'=>$filled);
 }
 
 # returns true if the object has a Model, i.e, can be followed into
@@ -984,12 +998,31 @@ argument allows you to combine the two operations into a single one:
 
     $laboratory = $object->fetch('Laboratory');
 
-=head2 pick() method
-
-Deprecated method.  This has the same semantics as fetch(), which
-should be used instead.
-
 =head2 follow() method
+
+    @papers        = $object->follow('Paper');
+    @filled_papers = $object->follow(-tag=>'Paper',-filled=>1);
+
+The follow() method will follow a tag into the database, dereferencing
+the column to its right and returning the objects resulting from this
+operation.  Beware!  If you follow a tag that points to an object,
+such as the Author "Paper" tag, you will get a list of all the Paper
+objects.  If you follow a tag that points to a scalar, such as
+"Full_name", you will get an empty string.  In a scalar context, this
+method will return the number of objects that would have been
+followed.
+
+The full named-argument form of this call accepts the arguments
+B<-tag> (mandatory) and B<-filled> (optional).  The former points to
+the tag to follow.  The latter accepts a boolean argument.  A true
+argument will return "filled" objects, increasing network and memory
+usage, but possibly boosting performance if you have a high database
+access latency.
+
+For backward compatability, if follow() is called without any
+arguments, it will act like fetch().
+
+=head2 pick() method
 
 Deprecated method.  This has the same semantics as fetch(), which
 should be used instead.
@@ -1107,7 +1140,8 @@ Here's a complete example:
 
   ($gif,$boxes) = $object->asGIF();
   ($gif,$boxes) = $object->asGIF(-clicks=>[[$x1,$y1],[$x2,$y2]...]
-	                         -dimensions=>[$width,$height]
+	                         -dimensions=>[$width,$height],
+				 -display => $display_type
 	                         );
 
 asGIF() returns the object as a GIF image.  The contents of the GIF
@@ -1124,6 +1158,11 @@ operations, or keystrokes.  You may also specify a B<-dimensions> to
 control the width and height of the returned GIF.  Since there is no
 way of obtaining the preferred size of the image in advance, this is
 not usually useful.
+
+The optional B<-display> argument allows you to specify an alternate
+display for the object.  For example, Clones can be displayed either
+with the PMAP display or with the TREE display.  If not specified, the
+default display is used.
 
 asGIF() returns a two-element array.  The first element is the GIF
 data.  The second element is an array reference that indicates special 
@@ -1513,8 +1552,11 @@ sub asString {
 #                                   -dimensions=>[$x,$y]);
 sub asGif {
   my $self = shift;
-  my ($clicks,$dimensions) = rearrange(['CLICKS',['DIMENSIONS','DIM']],@_);
-  my @commands = "gif display @{[$self->class]} \"@{[$self->name]}\"";
+  my ($clicks,$dimensions,$display) = rearrange(['CLICKS',
+						 ['DIMENSIONS','DIM'],
+						 'DISPLAY'],@_);
+  $display = "-D $display" if $display;
+  my @commands = "gif display $display @{[$self->class]} \"@{[$self->name]}\"";
   push(@commands,"Dimensions @$dimensions") if ref($dimensions);
   push(@commands,map { "mouseclick @{$_}" } @$clicks) if ref($clicks);
   push(@commands,"gifdump -");

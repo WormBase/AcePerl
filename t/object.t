@@ -6,7 +6,7 @@ use lib '../blib/lib','../blib/arch';
 use constant HOST => $ENV{ACEDB_HOST} || 'beta.crbm.cnrs-mop.fr';
 use constant PORT => $ENV{ACEDB_PORT} || 20000100;
 
-BEGIN {$| = 1; print "1..33\n"; }
+BEGIN {$| = 1; print "1..35\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Ace;
 $loaded = 1;
@@ -69,5 +69,8 @@ $obj = $db->fetch('Author','S*');
 test(31,$obj=~/^\d+$/,"did not get object count in scalar context with wildcard");
 $obj = $db->fetch('Author','Sulston JE');
 test(32,$obj eq 'Sulston JE',"did not get object in scalar context without wildcard");
-(@obj) = $db->fetch('Author','Su*');
+@obj = $db->fetch('Author','Su*');
 test(33,@obj>1,"did not get list of objects in array context with wildcard");
+@papers = $obj->follow('Paper');
+test(34,@papers>1,"did not get list of papers from follow()");
+test(35,@papers && $papers[0]->Title,"did not get title from first paper");
