@@ -56,10 +56,16 @@ sub draw {
     my ($start,$stop) = ($left + $self->map_pt($segments[$i]->start),
 			 $left + $self->map_pt($segments[$i]->end));
 
+    my $strand = 0;
+    my $target;
+    if (($target = $segments[$i]->target) && $target->can('start')) {
+      $strand = $target->start < $target->end ? 1 : -1;
+    }
+
     # probably unnecessary, but we do it out of paranaoia
     ($start,$stop) = ($stop,$start) if $start > $stop;
 
-    push @boxes,[$start,$stop];
+    push @boxes,[$start,$stop,$strand];
 
     if (my $next_segment = $segments[$i+1]) {
       my ($next_start,$next_stop) = ($left + $self->map_pt($next_segment->start),
@@ -79,10 +85,18 @@ sub draw {
   my $fill   = $self->fillcolor;
   my $center = ($y1 + $y2)/2;
 
+  my $stranded = $self->option('stranded');
+
   # each segment becomes a box
   for my $e (@boxes) {
     my @rect = ($e->[0],$y1,$e->[1],$y2);
-    $self->filled_box($gd,@rect);
+    if ($e->[2] == 0 || !$stranded) {
+      $self->filled_box($gd,@rect);
+    } elsif ($e->[2] > 0) {
+      $self->filled_arrow($gd,1,@rect);
+    } else {
+      $self->filled_arrow($gd,-1,@rect);
+    }
   }
 
   # each skip becomes a simple line
@@ -94,6 +108,42 @@ sub draw {
   # draw label
   $self->draw_label($gd,@_) if $self->option('label');
 }
+
+sub filled_arrow {
+  my $self = shift;
+  my $gd  = shift;
+  my $orientation = shift;
+
+  my ($x1,$y1,$x2,$y2) = @_;
+  my ($width) = $gd->getBounds;
+  my $indent = ($y2-$y1)/2;
+
+  return $self->filled_box($gd,@_)
+    if ($orientation == 0)
+      or ($x1 < 0 && $orientation < 0)
+	or ($x2 > $width && $orientation > 0)
+	  or ($x2 - $x1 < $indent);
+
+  my $fg = $self->fgcolor;
+  if ($orientation > 0) {
+    $gd->line($x1,$y1,$x2-$indent,$y1,$fg);
+    $gd->line($x2-$indent,$y1,$x2,($y2+$y1)/2,$fg);
+    $gd->line($x2,($y2+$y1)/2,$x2-$indent,$y2,$fg);
+    $gd->line($x2-$indent,$y2,$x1,$y2,$fg);
+    $gd->line($x1,$y2,$x1,$y1,$fg);
+    $gd->line($x2,$y1,$x2,$y2,$fg);
+    $gd->fill($x1+1,($y1+$y2)/2,$self->fillcolor);
+  } else {
+    $gd->line($x1,($y2+$y1)/2,$x1+$indent,$y1,$fg);
+    $gd->line($x1+$indent,$y1,$x2,$y1,$fg);
+    $gd->line($x2,$y1,$x2,$y2,$fg);
+    $gd->line($x2,$y2,$x1+$indent,$y2,$fg);
+    $gd->line($x1+$indent,$y2,$x1,($y1+$y2)/2,$fg);
+    $gd->line($x1,$y1,$x1,$y2,$fg);
+    $gd->fill($x2-1,($y1+$y2)/2,$self->fillcolor);
+  }
+}
+
 
 sub description {
   my $self = shift;
