@@ -19,22 +19,23 @@ sub AUTOLOAD {
 sub new {
   my $class = shift;
   my $segments = shift;
+  my @segments = sort {$a->start <=> $b->start} @$segments;
 
   # find the min and max for the alignment
   my ($offset,$len);
-  if ($segments->[0]->start < $segments->[-1]->start) {  # positive direction
-    $offset = $segments->[0]->{offset};
-    $len = $segments->[-1]->{offset} + $segments->[-1]->{length} - $segments->[0]->{offset};
+  if ($segments[0]->start < $segments[-1]->start) {  # positive direction
+    $offset = $segments[0]->{offset};
+    $len = $segments[-1]->end - $segments[0]->start + 1;
   } else {
-    $offset = $segments->[-1]->{offset};
-    $len = $segments->[0]->end - $segments->[-1]->start + 1;
+    $offset = $segments[-1]->{offset};
+    $len = $segments[0]->end - $segments[-1]->start + 1;
   }
 
-  my $base = { %{$segments->[0]} };
+  my $base = { %{$segments[0]} };
   $base->{offset} = $offset;
   $base->{length} = $len;
 
-  bless $base,ref($segments->[0]);
+  bless $base,ref($segments[0]);
   return bless {
 		base     => $base,
 		segments => $segments,

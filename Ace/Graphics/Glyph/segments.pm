@@ -47,20 +47,25 @@ sub draw {
   @segments   = $self->feature->merged_segments;
 
   for (my $i=0; $i < @segments; $i++) {
-    my ($start,$stop) = ($segments[$i]->start,$segments[$i]->stop);
+    my ($start,$stop) = ($self->map_pt($segments[$i]->start),
+			 $self->map_pt($segments[$i]->stop));
 
     # probably unnecessary, but we do it out of paranaoia
     ($start,$stop) = ($stop,$start) if $start > $stop;
 
-    push @boxes,[$self->map_pt($start),$self->map_pt($stop)];
+    push @boxes,[$start,$stop];
 
     if (my $next_segment = $segments[$i+1]) {
-      my ($next_start,$next_stop) = ($next_segment->start,$next_segment->stop);
-
+      my ($next_start,$next_stop) = ($self->map_pt($next_segment->start),
+				     $self->map_pt($next_segment->stop));
       # probably unnecessary, but we do it out of paranaoia
       ($next_start,$next_stop) = ($next_stop,$next_start) if $next_start > $next_stop;
 
-      push @skips,[$self->map_pt($stop+1),$self->map_pt($next_start-1)];
+      # fudge boxes that are within two pixels of each other
+      if ($next_start - $stop < 2) {
+	$boxes[-1][1] = $next_start;
+      }
+      push @skips,[$stop+1,$next_start-1];
     }
   }
 
@@ -76,7 +81,7 @@ sub draw {
 
   # each skip becomes a simple line
   for my $i (@skips) {
-    next unless $i->[1] - $i->[0] > 3;
+    next unless $i->[1] - $i->[0] >= 1;
     $gd->line($i->[0],$center,$i->[1],$center,$gray);
   }
 

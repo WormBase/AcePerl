@@ -67,30 +67,36 @@ sub draw {
   for (my $i=0; $i < @exons; $i++) {
     my ($start,$stop) = ($exons[$i]->start,$exons[$i]->stop);
     ($start,$stop) = ($stop,$start) if $start > $stop;
-    push @exon_boxes,[$self->map_pt($start),$self->map_pt($stop)];
+    push @exon_boxes,[$self->map_pt($start),my $stop_pos = $self->map_pt($stop)];
 
-    my $next_exon = $exons[$i+1];
-    if ($next_exon && !$istart{$stop+1}) {
-      my $next_start = $next_exon->start < $next_exon->stop ? 
-                              $next_exon->start : $next_exon->stop;
+    next unless my $next_exon = $exons[$i+1];
+
+    my $next_start = $next_exon->start < $next_exon->stop ?
+      $next_exon->start : $next_exon->stop;
+
+    my $next_start_pos = $self->map_pt($next_start);
+    # fudge boxes that are within two pixels of each other
+    if ($next_start_pos - $stop_pos < 2) {
+      $exon_boxes[-1][1] = $next_start_pos;
+
+    } elsif ($next_exon && !$istart{$stop+1}) {
       push @implied_introns,[$self->map_pt($stop+1),$self->map_pt($next_start-1)];
     }
-
-  }
+}
 
   my $fg     = $self->fgcolor;
   my $fill   = $self->fillcolor;
-  my $center = ($y1 + $y2)/2;
+  my $center  = ($y1 + $y2)/2;
+  my $quarter = $y1 + ($y2-$y1)/4;
 
   # each exon becomes a box
   for my $e (@exon_boxes) {
     my @rect = ($e->[0],$y1,$e->[1],$y2);
     $self->filled_box($gd,@rect);
-#    $gd->rectangle(@rect,$fg);
-#    $self->fill($gd,@rect);
   }
 
   # each intron becomes an angly thing
+
   foreach ([\@intron_boxes,$fg],[\@implied_introns,$gray]) {
     my ($i,$color) = @$_;
 
@@ -100,7 +106,7 @@ sub draw {
 	$gd->line($i->[0],$center,$middle,$y1,$color);
 	$gd->line($middle,$y1,$i->[1],$center,$color);
       } elsif ($i->[1]-$i->[0] > 1) { # no room, just connect
-	$gd->line($i->[0],$center,$i->[1],$center,$color);
+	$gd->line($i->[0],$quarter,$i->[1],$quarter,$color);
       }
     }
   }
