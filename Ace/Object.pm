@@ -3,6 +3,7 @@ use Carp;
 use overload 
     '""'       => 'name',
     '=='       => 'eq',
+    '!='       => 'ne',
     'fallback' =>' TRUE';
 use vars qw($AUTOLOAD $DEFAULT_WIDTH %MO $VERSION);
 use Ace 1.50 qw(:DEFAULT rearrange);
@@ -97,13 +98,22 @@ sub class {
 
 ############## return true if two objects are equivalent ##################
 # to be equivalent, they must have identical names, classes and databases #
+# We handle comparisons between objects and numbers ourselves, and let    #
+# Perl handle comparisons between objects and strings                     #
 sub eq {
     my ($a,$b,$rev) = @_;
-    return unless UNIVERSAL::isa($b,'Ace::Object');
+    unless (UNIVERSAL::isa($b,'Ace::Object')) {
+	return unless $b=~/^[0-9e.+-]+$/i;
+	return $a->name == $b;
+    }
     return 1 if ($a->name eq $b->name) 
       && ($a->class eq $b->class)
 	&& ($a->db eq $b->db);
     return;
+}
+
+sub ne { 
+    return !&eq;
 }
 
 ############ returns true if this is a top-level object #######

@@ -1,4 +1,6 @@
-1.51	11/28/98
+1.42	12/18/98
+	1. Numeric comparisons now behave as expected.
+1.51	12/14/98
 	1. Comparison between objects now is more sensible:
 	"eq" performs a string comparison on object names
 	"==" performs an object comparison.  Two objects are
