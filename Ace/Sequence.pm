@@ -217,6 +217,12 @@ sub smapped { 1; }
 sub type    { 'Sequence' }
 sub subtype { }
 
+sub debug {
+  my $self = shift;
+  my $d = $self->{_debug};
+  $self->{_debug} = shift if @_;
+  $d;
+}
 
 # return the database this sequence is associated with
 sub db {
@@ -581,29 +587,10 @@ sub _get_children {
 # get sequence, offset and strand of topmost container
 sub _traverse {
   my $obj = shift;
-  my ($offset,$length,$phase,$prev) = (0,0,1,undef);
-
-  # work our way through parents until we find a Sequence object that we can use for gif seqget calls
-  $prev = $obj;
-  if ($prev->class ne 'Sequence') {
-    for ( $prev=$obj, my $o=_get_parent($obj); $prev->class ne 'Sequence' && $o; $prev=$o,$o=_get_parent($o) ) {
-      my @subs = _get_children($o);
-      my ($seq) = grep $prev eq $_,@subs;
-      my ($start,$end) = $seq->row(1);
-      $length ||= abs($end - $start) + 1;
-      $offset += $start-1;    # offset to beginning of sequence
-      $phase  *= $start < $end ? +1 : -1;
-    }
-  }
-
-  # if we have not traversed up to a Sequence object, then we're screwed.
-  unless ($prev->class eq 'Sequence') {
-    Ace->error("$obj has no map position");
-    return;
-  }
+  my ($offset,$length);
 
   # invoke seqget to find the top-level container for this sequence
-  my ($tl,$tl_start,$tl_end) = _get_toplevel($prev);
+  my ($tl,$tl_start,$tl_end) = _get_toplevel($obj);
   $tl_start ||= 0;
   $tl_end ||= 0;
 
@@ -612,42 +599,22 @@ sub _traverse {
 
   $offset += $tl_start - 1;  # offset to beginning of toplevel
   $length ||= abs($tl_end - $tl_start) + 1;
-  $phase  *= $tl_start < $tl_end ? +1 : -1;
+  my $strand = $tl_start < $tl_end ? +1 : -1;
 
-  return ($tl,$offset,$phase < 0 ? ($length,'-1') : ($length,'+1') ) if $length;
+  return ($tl,$offset,$strand < 0 ? ($length,'-1') : ($length,'+1') ) if $length;
 }
 
 sub _get_toplevel {
-  my $seq = shift;
+  my $obj = shift;
+  my $class = $obj->class;
+  my $name  = $obj->name;
 
-  my $gff = $seq->db->raw_query("gif seqget $seq -coords 1 2 ; seqfeatures -version 2 -feature Sequence|structural");
-  my $seq_strand = $gff =~ /^\#\#sequence-region.+\(reversed\)/m ? '-' : '+';
+  my $smap = $obj->db->raw_query("gif smap -from $class:$name");
+  my ($parent,$pstart,$pstop,$tstart,$tstop,$map_type) = 
+    $smap =~ /^SMAP\s+(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(.+)/;
 
-  my ($tl,$tl_strand);
-  my ($tl_start,$tl_end) = (0,0);
-  my $tl_length = 0;
-  my $length    = 0;
-
-  foreach (split "\n",$gff) {  # find largest sequence to use as reference
-    next if /^(\000|\#|\/\/)/;
-    my (undef,undef,undef,$s,$e,undef,$str,undef,$info) = split "\t";
-    my ($ref) = $info =~ /"([^\"]+)"/;
-    $length = $e - $s + 1 if $ref eq $seq;  # capture length if we don't have it already
-    if (($e - $s + 1 > $tl_length) and ($str eq $seq_strand)) { # get longest sequence
-      $tl_length = $e - $s + 1;
-      ($tl_start,$tl_end) = ($s,$e);
-      $tl = $ref;
-    }
-  }
-
-  unless ($tl) {  # oops, not genomic, so it refers to itself
-    $tl = $seq;
-    $tl_length = $seq->DNA(2);
-    return ($tl,1,$tl_length);
-  }
-
-  return ($tl,$tl_end,$tl_end - $length + 1)         if $seq_strand eq '-';
-  return ($tl,2 - $tl_start,1 - $tl_start + $length) if $seq_strand eq '+';
+  $parent =~ s/^Sequence://;  # remove this in next version of Acedb
+  return ($parent,$pstart,$pstop);
 }
 
 # create subroutine that filters GFF files for certain feature types
@@ -744,9 +711,12 @@ sub _query {
   # BAD BAD HACK ALERT - CHECKS THE QUERY THAT IS PASSED DOWN
   # ALSO MAKES THINGS INCOMPATIBLE WITH PRIOR 4.9 servers.
 #  my $opt     = $command =~ /seqfeatures/ ? '-nodna' : '';
-  my $opt = '';
+  my $opt = '-noclip';
 
-  return $db->raw_query("gif seqget $parent $opt $coord ; $command $coord");
+  my $query = "gif seqget $parent $opt $coord ; $command";
+  warn $query if $self->debug;
+
+  return $db->raw_query("gif seqget $parent $opt $coord ; $command");
 }
 
 # utility function -- reverse complement

@@ -466,6 +466,9 @@ sub cmp {
   return $reversed ? -$cmp : $cmp;
 }
 
+
+
+
 1;
 
 __END__
@@ -1153,17 +1156,46 @@ routine.
     $status = $db->status;
 
 Returns various bits of status information from the server.  In an
-array context, returns a hash.  In a scalar context, returns a hash
-reference.  The keys in the hash are as follows:
+array context, returns a hash of hashes.  In a scalar context, returns a
+reference to a hash of hashes.  Keys and subkeys are as follows
 
-   version       Ace server version number
-   date          Ace server link date
-   directory     Path to database directory
-   blocks        Number of disk blocks used by database
-   classes       Number of defined classes
-   keys          Number of defined keys
-   memory        Memory usage, in kb
-   write         Whether write access has been granted
+   code
+           program     name of acedb binary
+           version     version of acedb binary
+           build       build date of acedb binary in format Jan 25 2003 16:21:24
+
+   database
+           title       name of the database
+           version     version of the database
+           dbformat    database format version number
+           directory   directory in which the database is stored
+           session     session number
+           user        user under which server is running
+           write       whether the server has write access
+           address     global address - not known if this is useful
+
+   resources
+           classes     number of classes defined
+           keys        number of keys defined
+           memory      amount of memory used by acedb objects (bytes)
+
+For example, to get the program version:
+
+   my $version = $db->status->{code}{version};
+
+=head2 title() method
+
+    my $title = $db->title
+
+Returns the version of the current database, equivalent
+to $db->status->{database}{title};
+
+=head2 version() method
+
+    my $version = $db->version;
+
+Returns the version of the current database, equivalent 
+to $db->status->{database}{version};
 
 =head2 date_style() method
 
@@ -1497,25 +1529,59 @@ sub status {
   my $self = shift;
   my $data = $self->raw_query('status');
   study $data;
-  my ($version)   = $data=~/ACEDB version (\S+),/m;
-  my ($date)      = $data=~/linked (.+)$/m;
-  my ($directory) = $data=~/Data directory (\S+),/m;
-  my ($blocks)    = $data=~/Disk: (\d+) blocks/m;
-  my ($classes)   = $data=~/Lexiques: (\d+) classes/m;
-  my ($keys)      = $data=~/(\d+) keys/;
-  my ($memory)    = $data=~/Messalloc: (\d+)/;
-  my ($write)     = $data=~/Write Access Yes/;
-  my %data = (
-	  'version'    => $version,
-	  'date'       => $date,
-	  'directory'  => $directory,
-	  'blocks'     => $blocks,
-	  'classes'    => $classes,
-	  'keys'       => $keys,
-	  'memory'     => $memory,
-	  'write'      => $write,
-	      );
-  return wantarray ? %data : \%data;
+
+  my %status;
+
+  # -Code section
+  my ($program)    = $data=~/Program:\s+(.+)/m;
+  my ($aceversion) = $data=~/Version:\s+(.+)/m;
+  my ($build)      = $data=~/Build:\s+(.+)/m;
+  $status{code}    = { program=>$program,
+		       version=>$aceversion,
+		       build  =>$build};
+
+  # -Database section
+  my ($title)      = $data=~/Title:\s+(.+)/m;
+  my ($name)       = $data=~/Name:\s+(.+)/m;
+  my ($release)    = $data=~/Release:\s+(.+)/m;
+  my ($directory)  = $data=~/Directory:\s+(.+)/m;
+  my ($session)    = $data=~/Session:\s+(\d+)/m;
+  my ($user)       = $data=~/User:\s+(.+)/m;
+  my ($write)      = $data=~/Write Access:\s+(.+)/m;
+  my ($address)    = $data=~/Global Address:\s+(\d+)/m;
+  $status{database} = {
+		       title     => $title,
+		       version   => $name,
+		       dbformat  => $release,
+		       directory => $directory,
+		       session   => $session,
+		       user      => $user,
+		       write     => $write,
+		       address   => $address,
+		       };
+
+  # other info - not all
+  my ($classes)   = $data=~/classes:\s+(\d+)/;
+  my ($keys)      = $data=~/keys:\s+(\d+)/;
+  my ($memory)    = $data=~/blocks:\s+\d+,\s+allocated \(kb\):\s+(\d+)/;
+  $status{resources} = {
+		      classes => $classes,
+		      keys    => $keys,
+		      memory  => $memory * 1024,
+		      };
+  return wantarray ? %status : \%status;
+}
+
+sub title {
+  my $self = shift;
+  my $status= $self->status;
+  $status->{database}{title};
+}
+
+sub version {
+  my $self = shift;
+  my $status= $self->status;
+  $status->{database}{version};
 }
 
 sub auto_save {
@@ -1633,6 +1699,8 @@ sub split {
   $text =~ s/\\n/\n/g;
   $text =~ s/\\t/\t/g;
   my ($class,$id,$ts) = $text=~m/^\?(.+)(?<!\\)\?(.+)(?<!\\)\?([^?]*)$/s;
+  $class ||= '';  # fix uninitialized variable warnings
+  $id    ||= '';
   $class =~ s/\\\?/?/g;
   $id =~  s/\\\?/?/g;
   return ($class,$id) unless $ts;
