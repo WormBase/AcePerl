@@ -37,6 +37,8 @@ sub draw {
     $gd->line($x2,$center-$a2,$x2,$center+$a2,$fg);  # tick/base
   }
 
+  $self->draw_ticks($gd,$center,$a2,@_) if $self->option('ticks');
+
   # add a label if requested
   $self->draw_label($gd,@_) if $self->option('label');
 }
@@ -48,6 +50,55 @@ sub draw_label {
   my $start = $self->left + ($self->right - $self->left - length($label) * $self->font->width)/2;
   $gd->string($self->font,$left + $start,$top + $self->top,$label,$self->fontcolor);
 }
+
+sub draw_ticks {
+  my $self  = shift;
+  my ($gd,$center,$a2,$left,$top) = @_;
+
+  my $scale = $self->scale;
+  my $fg = $self->fgcolor;
+
+  # figure out tick mark scale
+  # we want no more than 1 tick mark every 30 pixels
+  # and enough room for the labels
+  my $font = $self->font;
+  my $width = $font->width;
+  my $font_color = $self->fontcolor;
+
+  my $relative = $self->option('relative_coords');
+  my $start    = $relative ? 1 : $self->start;
+  my $stop     = $start + $self->length -1;
+
+  my $interval = 1;
+  my $mindist =  30;
+  my $widest = 5 + (length($stop) * $width);
+  $mindist = $widest if $widest > $mindist;
+
+  while (1) {
+    my $pixels = $interval * $scale;
+    last if $pixels >= $mindist;
+    $interval *= 10;
+  }
+
+  my $first_tick = $interval * int(0.5 + $start/$interval);
+
+  for (my $i = $first_tick; $i < $stop; $i += $interval) {
+    my $tickpos = $left + $self->map_pt(($i-1)+$self->start);
+    $gd->line($tickpos,$center-$a2,$tickpos,$center+$a2,$fg);
+    my $middle = $tickpos - (length($i) * $width)/2;
+    $gd->string($font,$middle,$center+$a2-1,$i,$font_color);
+  }
+
+  if ($self->option('tick') >= 2) {
+    my $a4 = $self->SUPER::height/4;
+    for (my $i = $start+$interval/10; $i < $stop; $i += $interval/10) {
+      my $tickpos = $left + $self->map_pt(($i-1)+$self->start);
+      $gd->line($tickpos,$center-$a4,$tickpos,$center+$a4,$fg);
+    }
+  }
+}
+
+
 
 1;
 
