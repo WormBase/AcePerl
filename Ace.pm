@@ -370,6 +370,7 @@ sub cache    {
 sub _create_cache {
   my $self   = shift;
   my $params = shift;
+  $params    = {} if $params and !ref $params;
 
   return unless eval {require Cache::SizeAwareFileCache};  # not installed
 

@@ -35,9 +35,8 @@ my $DATA = q{Address  Mail    The Sanger Centre
          Fax     1223-494919
 };
 my @args  = (-host=>HOST,-port=>PORT,-timeout=>50);
-push @args,(-cache=>{namespace=>'testing',
-		      max_size=>100_000}
-	   ) if TEST_CACHE;
+push @args,(-cache=>{}
+	   ) if TEST_CACHE || $ENV{TEST_CACHE};
 
 test(2,$db = Ace->connect(@args),"connection failure");
 die "Couldn't establish connection to database.  Aborting tests.\n" unless $db;

@@ -675,13 +675,14 @@ sub OpenDatabase {
   my $db = $DB{$name};
   return $db if $db && $db->ping;
 
-  my ($host,$port,$user,$password,$cache_root,$cache_size,$cache_expires) = getDatabasePorts($name);
+  my ($host,$port,$user,$password,
+      $cache_root,$cache_size,$cache_expires,$auto_purge_interval)
+    = getDatabasePorts($name);
   my @auth  = (-user=>$user,-pass=>$password) if $user && $password;
-  my @cache = (-cache => { namespace=>$name,
-			   cache_root=>$cache_root,
-			   max_size => $cache_size || 1_000_000,
-			   default_expires_in => $cache_expires || '1 day',
-			   auto_purge_interval => '6 h',
+  my @cache = (-cache => { cache_root=>$cache_root,
+			   max_size => $cache_size || $Cache::SizeAwareCache::NO_MAX_SIZE || -1,  # hardcoded $NO_MAX_SIZE constant
+			   default_expires_in  => $cache_expires       || '1 day',
+			   auto_purge_interval => $auto_purge_interval || '6 hours',
 			 } 
 	      ) if $cache_root;
   warn "cache args = @cache";
@@ -982,7 +983,7 @@ sub getDatabasePorts {
   my $config = Ace::Browser::SiteDefs->getConfig($name);
   return ($config->Host,$config->Port,
 	  $config->Username,$config->Password,
-	  $config->Cacheroot,$config->Cachesize,$config->Cacheexpires,
+	  $config->CacheRoot,$config->CacheSize,$config->CacheExpires,$config->CachePurge,
 	 ) if $config;
 
   # If we get here, then try getservbynam()
