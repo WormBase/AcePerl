@@ -1508,7 +1508,8 @@ integers produce progressively more verbose messages.
 
 =head1 SEE ALSO
 
-L<Ace>, L<Ace::Model>, L<Ace::Object>, L<Ace::Local>
+L<Ace>, L<Ace::Model>, L<Ace::Object>, L<Ace::Local>,
+L<Ace::Sequence>,L<Ace::Sequence::Multi>
 
 =head1 AUTHOR
 
