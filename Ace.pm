@@ -390,7 +390,7 @@ sub cmp {
   } else {
     $cmp = $self->asString cmp $arg;
   }
-  return reversed ? -$cmp : $cmp;
+  return $reversed ? -$cmp : $cmp;
 }
 
 1;
