@@ -28,27 +28,29 @@ sub find_ace {
   my @roots = qw(. .. ../.. ../../.. /usr/local);
   unshift(@roots,$ENV{ACEDB_SRC}) if exists $ENV{ACEDB_SRC};
   unshift(@roots,(getpwnam('acedb'))[7]);
+  unshift(@roots,(getpwnam('ace'))[7]);
   unshift(@roots,$ENV{HOME}) if exists $ENV{HOME};
   my @subs = qw(ace acedb ACE ACEDB);
   # look for a wh directory
   my ($src,$root,$sub);
  SEARCH:
   foreach $root (@roots) {
-    foreach $sub (@subs) {
-      $src = "$root",last SEARCH if -d "$root/wh";
-      $src = "$root/$sub",last SEARCH if -d "$root/$sub/wh";
-    }
+      next unless $root;
+      foreach $sub (@subs) {
+	  $src = "$root",last SEARCH if -d "$root/wh";
+	  $src = "$root/$sub",last SEARCH if -d "$root/$sub/wh";
+      }
   }
   if ($src) {
-    my $olddir;
-    chomp($olddir = `pwd`);
-    chdir $src;
-    chomp($src = `pwd`);
-    chdir $olddir;
-    warn "Found ACEDB source tree in $src.\n";
+      my $olddir;
+      chomp($olddir = `pwd`);
+      chdir $src;
+      chomp($src = `pwd`);
+      chdir $olddir;
+      warn "Found ACEDB source tree in $src.\n";
   } else {
-    warn "Couldn't find ACEDB source tree.\n";
-    return ('/usr/local/lib','/usr/local/include');
+      warn "Couldn't find ACEDB source tree.\n";
+      return ('/usr/local/lib','/usr/local/include');
   }
   # If we get here, then we have a source tree to rummage through.
   # Now we need to find the appropriate bin directory for the
@@ -74,8 +76,9 @@ sub readline_setup {
       sub main::_prompt {
 	my ($prompt, $default) = @_ ;
 
-	$_ = $::term -> readline ("$prompt [$default] ") ;
-#	s!^~!$ENV{HOME}
+	$_ = $::term -> readline ("$prompt: ",$default) ;
+	s!^~(?=/|$)!$ENV{HOME}!;  # change ~/ into home directory
+	s!^~([^/]+)!(getpwnam($1))[7]!e; # change ~foo into home directory
 	if (!/^\s*$/) {
 	  s/\s+$//;
 	  return $_ ;

@@ -1439,7 +1439,7 @@ sub asHTML {
     my $string = "<TABLE BORDER>\n<TR ALIGN=LEFT VALIGN=TOP><TH>$self</TH>";
     $modify_code = \&_default_makeHTML unless $modify_code;
     $self->right->_asHTML(\$string,1,2,$modify_code);
-    $string .= "</TR>\n</TABLE>";
+    $string .= "</TR>\n</TABLE>\n";
     return $string;
 }
 
