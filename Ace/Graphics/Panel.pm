@@ -1,7 +1,6 @@
 package Ace::Graphics::Panel;
 # This embodies the logic for drawing multiple tracks.
 
-use Ace::Sequence;
 use Ace::Graphics::Track;
 use GD;
 use Carp 'croak';

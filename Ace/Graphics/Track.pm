@@ -3,7 +3,6 @@ package Ace::Graphics::Track;
 # Features are of uniform style and are controlled by descendents of
 # the Ace::Graphics::Glyph class (eek!).
 
-use Ace::Sequence;
 use Ace::Graphics::GlyphFactory;
 use GD;  # maybe
 use Carp 'croak';

@@ -304,9 +304,9 @@ sub rearrange {
 
       %param = @param;                # convert into associative array
     }
-    
+
     my(@return_array);
-    
+
     local($^W) = 0;
     my($key)='';
     foreach $key (@$order) {

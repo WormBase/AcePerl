@@ -92,7 +92,7 @@ sub displays {
   return keys %$d unless defined $_[0];
   my $type = ucfirst(lc($_[0]));
   return  unless exists $d->{$type};
-  return wantarray ? @{$d->{$type}} : $d->{$type};  
+  return wantarray ? @{$d->{$type}} : $d->{$type};
 }
 
 sub class2displays {

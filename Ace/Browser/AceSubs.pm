@@ -362,7 +362,7 @@ sub TypeSelector {
     # use cookie information to select the URL for
     # the search icon
     my $db = get_symbolic();
-    my $search_bookmark;
+    my $search_bookmark = '';
     if (my $last_search_script   = cookie("ACEDB_$db")) {
       my $query_string = cookie("SEARCH_${db}_${last_search_script}");
       $search_bookmark = "$last_search_script";
