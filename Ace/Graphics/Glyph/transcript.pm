@@ -24,7 +24,7 @@ sub calculate_right {
   $val = $left + ARROW if $left + ARROW > $val;
 
   if ($self->option('label') && (my $description = $self->description)) {
-    my $description_width = $self->font->width * length $self->description;
+    my $description_width = $self->font->width * length $description;
     $val = $left + $description_width if $left + $description_width > $val;
   }
   $val;

@@ -377,10 +377,10 @@ sub _make_transcripts {
   my %transcripts;
 
   for my $feature (@$features) {
-    my $transcript = $feature->info;
+    my $transcript = $feature->info or next;
     if ($feature->type =~ /^(exon|intron|cds)$/) {
       my $type = $1;
-      push @{$transcripts{$transcript}{$1}},$feature;
+      push @{$transcripts{$transcript}{$type}},$feature;
     } elsif ($feature->type eq 'Sequence') {
       $transcripts{$transcript}{base} ||= $feature;
     }
