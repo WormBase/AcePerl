@@ -126,9 +126,9 @@ sub AceHeader {
 
   my $referer  = referer();
   $referer =~ s!^http://[^/]+!! if defined $referer;
-  my ($home) = Configuration->Home->[0];
+  my $home = Configuration->Home->[0] if Configuration->Home;
 
-  if ($referer && index($referer,$home) >= 0) {
+  if ($referer && $home && index($referer,$home) >= 0) {
     my $bookmark = cookie(
 			  -name=>"HOME_${db}",
 			  -value=>$referer,
@@ -153,7 +153,7 @@ sub AceHeader {
   print header(-cookie=>\@cookies,@_) if @cookies;
   print header(@_)               unless @cookies;
 
-  $HEADER++; ;
+  $HEADER++;
 }
 
 
@@ -254,11 +254,12 @@ sub getDatabasePorts {
 sub ResolveUrl {
     my ($url,$param) = @_;
     my ($main,$query,$frag) = $url =~ /^([^?\#]+)\??([^\#]*)\#?(.*)$/;
-    my $name = Configuration->Name;
 
     # search is relative to the Ace::Browser::SiteDefs.pm file
     $main = Ace::Browser::SiteDefs->resolvePath($main) unless $main =~ m!^/!;
-    $main .= "/$name" unless index($main,$name) >= 0;
+#    my $name = Configuration->Name;
+#    $main .= "/$name" unless index($main,$name) >= 0;
+    $main .= CGI::path_info() if CGI::path_info();
 
     $main .= "?$query" if $query; # put the query string back
     $main .= "?$param" if $param and !$query;
@@ -374,7 +375,8 @@ sub TypeSelector {
     # if there's a home page, then add it to the bar
     my $bookmark = cookie('HOME_'.get_symbolic());
     $bookmark=~s/ /+/g;  # some bug
-    my $home = Configuration->Home->[0];
+    my $home = Configuration->Home->[0] if Configuration->Home;
+
     if ($home) {
       my $url   = $bookmark || $home;
       my $label = Configuration->Home->[1];
@@ -384,7 +386,7 @@ sub TypeSelector {
 		img({-src=>$HOME_ICON,-alt=>'[image]',-border=>0}).
 		br().$label)
 	     ))
-	if defined $HOME_ICON;
+	if $HOME_ICON;
     }
 
     # everybody gets the standard search:
@@ -394,7 +396,7 @@ sub TypeSelector {
 		  img({-src=>$SEARCH_ICON,-alt=>'[image]',-border=>0}) . br().
 		  "Search")
 		))
-      if defined $SEARCH_ICON;
+      if $SEARCH_ICON;
 
     # add the special displays
     my @displays       = Configuration->class2displays($class);

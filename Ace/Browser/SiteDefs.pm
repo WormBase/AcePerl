@@ -30,6 +30,15 @@ sub getConfig {
   return $CONFIG{$name};
 }
 
+sub modtime {
+  my $package = shift;
+  my $name = shift;
+  if (!$name && ref($package)) {
+    $name = $package->Name;
+  }
+  return $CACHETIME{$name};
+}
+
 sub AUTOLOAD {
     my($pack,$func_name) = $AUTOLOAD=~/(.+)::([^:]+)$/;
     my $self = shift;

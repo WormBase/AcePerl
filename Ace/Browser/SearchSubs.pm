@@ -27,29 +27,6 @@ use constant SPACER_ICON    => '/icons/spacer.gif';
 use constant LEFT_ICON      => '/icons/cylarrw.gif';
 use constant RIGHT_ICON     => '/icons/cyrarrw.gif';
 
-# subroutines only used in the search scripts
-sub DisplayInstructions {
-  my ($title,@instructions) = @_;
-
-  my $images = Configuration->Random_picts;
-  my $script = Configuration->Pic_script;
-  my $cross   = Configuration->Cross_icon;
-
-  if ($images && $script) {
-    $script = ResolveUrl("$script$images");
-    print img({-src=>$script,-alt=>'[random picture]',-align=>'RIGHT'});
-  }
-
-  foreach (@instructions) { $_ = img({-src=>$cross,-alt=>'*'}). ' ' .$_; }
-  print 
-    h1($title),
-    font({-size=>-1},
-	 p(\@instructions)
-	 ),
-	 br({-clear=>'all'});
-}
-
-
 sub AceSearchOffset {
   my $offset = param('offset') || 0;
   $offset += param('scroll') if param('scroll');
@@ -107,7 +84,7 @@ sub AceSearchMenuBar {
   return unless @searches;
 
   my @cells;
-  my ($url,$home) = @{Configuration->Home};
+  my ($url,$home) = @{Configuration->Home} if Configuration->Home;
 
   if (my $bookmark = cookie('HOME_'.Configuration->Name)) {
     $bookmark=~s/ /+/g;  # some bug
