@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/local/bin/perl -w
 
 # Tests of object-level fetches and following
 ######################### We start with some black magic to print on failure.

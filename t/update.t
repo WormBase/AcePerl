@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/local/bin/perl -w
 
 # Tests of object-level fetches and following
 ######################### We start with some black magic to print on failure.
@@ -24,8 +24,8 @@ sub test {
 my ($db,$obj);
 test(2,$db = Ace->connect(-host=>HOST,-port=>PORT),
      "couldn't establish connection");
-test(3,$me = Ace::Object->new('Author','Stein LD',$db),"couldn't create new object");
-test(4,$me->add('Full_name','Lincoln Stein'));
+test(3,$me = Ace::Object->new('Author','Dent A',$db),"couldn't create new object");
+test(4,$me->add('Full_name','Arthur Dent'));
 test(5,$me->add('Laboratory','FF'));
 test(6,$me->add('Address.Mail','Cold Spring Harbor Laboratory'));
 test(7,$me->add('Address.Mail','One Bungtown Road'));

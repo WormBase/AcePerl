@@ -20,7 +20,7 @@ require DynaLoader;
         STATUS_PENDING
 	STATUS_ERROR
 );
-$VERSION = '1.28';
+$VERSION = '1.34';
 
 sub AUTOLOAD {
     # This AUTOLOAD is used to 'autoload' constants from the constant()
@@ -50,7 +50,7 @@ use vars qw/$ERR/;
 
 sub connect {
     my $class = shift;
-    my ($host,$port) = rearrange([qw/HOST PORT/],@_);
+    my ($host,$port,$objclass) = rearrange(['HOST','PORT','CLASS'],@_);
     $host ||= 'localhost';
     $port ||= 200001;
 
@@ -66,17 +66,25 @@ sub connect {
 	'database'=> $database,
 	'host'   => $host,
 	'port'   => $port,
+        'class'  => $objclass || 'Ace::Object'
     },$class;
 
     return $self;
 }
 
-# return true if the database is still connected
+# Return true if the database is still connected.  This is oddly convoluted
+# because there are numerous things that can go wrong, including:
+#   1. server has gone away
+#   2. server has timed out our connection! (grrrrr)
+#   3. communications channel contains unread garbage and is in an inconsistent state
 sub ping {
   my $self = shift;
   local($SIG{PIPE})='IGNORE';  # so we don't get a fatal exception during the check
-  $self->raw_query('') || return undef;
-  return !$self->{database}->status;
+  my $result = $self->raw_query('');
+  return undef unless $result;  # server has gone away
+  return undef if $result=~/broken connection|client time out/;  # server has timed us out  
+  return undef unless $self->{database}->status() == STATUS_WAITING(); #communications oddness
+  return 1;
 }
 
 # Return the low-level Ace::AceDB object
@@ -86,21 +94,48 @@ sub db {
 
 # Fetch one or a group of objects from the database
 sub fetch {
-    my ($self,$class,$pattern,$count,$offset) = @_;
-    ($offset,$count) = (0,-1) unless defined $count;
-    $count = 1 unless wantarray;
-    $self->query(qq{query find $class "$pattern"});
-    my (@h) = $self->_list($count,$offset);
-    return wantarray ? @h : $h[0];
+  my $self = shift;
+  my ($class,$pattern,$count,$offset,$filled) = 
+    rearrange(['CLASS',['NAME','PATTERN'],'COUNT','OFFSET',['FILL','FILLED']],@_);
+  ($offset,$count) = (0,-1) unless defined $count;
+  $count = 1 unless wantarray;
+  $self->_query(qq{query find $class "$pattern"});
+  my (@h) = $filled ? $self->_fetch($count,$offset) : $self->_list($count,$offset);
+  return wantarray ? @h : $h[0];
 }
 
+# Perform an ace query and return the result
+sub find {
+  my $self = shift;
+  my ($query,$count,$offset,$filled) = rearrange(['QUERY','COUNT','OFFSET',['FILL','FILLED']],@_);
+  ($offset,$count) = (0,-1) unless defined $count;
+  $count = 1 unless wantarray;
+  $query = "find $query" unless $query=~/^find/i;
+  $self->_query("query $query");
+  my (@h) = $filled ? $self->_fetch($count,$offset) : $self->_filled($count,$offset);
+  return wantarray ? @h : $h[0];
+}
+
+# Fetch many objects in iterative style
 sub fetch_many {
-  my ($self,$class,$pattern) = @_;
+  my $self = shift;
+  my ($class,$pattern) = rearrange(['CLASS',['PATTERN','NAME']],@_);
   my $iterator = Ace::Iterator->new($self,"find $class $pattern");
   $self->_register_iterator($iterator);
   return $iterator;
 }
 
+# Find many objects in iterative style
+sub find_many {
+  my $self = shift;
+  my ($query) = rearrange(['QUERY'],@_);
+  $query = "find $query" unless $query=~/^find/i;
+  my $iterator = Ace::Iterator->new($self,"query $query");
+  $self->_register_iterator($iterator);
+  return $iterator;
+}
+
+# Obtain a listing of the objects matching pattern.
 sub list {
     my ($self,$class,$pattern,$count,$offset) = @_;
     my @result;
@@ -108,6 +143,7 @@ sub list {
     $self->_list($count,$offset);
 }
 
+# Count the objects matching pattern without fetching them.
 sub count {
     my ($self,$class,$pattern) = @_;
     undef $ERR;
@@ -145,13 +181,13 @@ sub pick {
 
 # This is for low-level access only.
 sub show {
-    my ($self,$class,$pattern) = @_;
+    my ($self,$class,$pattern,$tag) = @_;
     undef $ERR;
     return () unless $self->count($class,$pattern);
     
     # if we get here, then we've got some data to return.
     my @result;
-    my $result = $self->raw_query("show -j");
+    my $result = $self->raw_query("show -j $tag");
     unless ($result =~ /(\d+) object dumped/m) {
 	$ERR = 'Unexpected close during show';
 	return undef;
@@ -169,13 +205,6 @@ sub read_object {
     return $result;
 }
 
-# do a query, but don't return the result
-sub query {
-  my ($self,$query) = @_;
-  $self->_alert_iterators;
-  $self->{'database'}->query($query);
-}
-
 # do a query, and return the result immediately
 sub raw_query {
     my ($self,$query) = @_;
@@ -188,7 +217,7 @@ sub raw_query {
 sub classes {
   my $self = shift;
   $self->_alert_iterators;
-  $self->query("query find class !buried");
+  $self->_query("query find class !buried");
   return $self->_list;
 }
 
@@ -234,6 +263,13 @@ sub rearrange {
     return @return_array;
 }
 
+# do a query, but don't return the result
+sub _query {
+  my ($self,$query) = @_;
+  $self->_alert_iterators;
+  $self->{'database'}->query($query);
+}
+
 # return a portion of the active list
 sub _list {
   my $self = shift;
@@ -241,8 +277,8 @@ sub _list {
   ($offset,$count) = (0,-1) unless $count;
   my (@result);
   my $result = $self->raw_query("list -j -b $offset -c $count");
-  while ($result =~ /^\?(\w+)\?(.+)\?/mg) {
-    push(@result,Ace::Object->new($1,$2,$self));
+  while ($result =~ /\?(\w+)\?(.+)\?$/mg) {
+    push(@result,$self->{'class'}->new($1,$2,$self));
   }
   return @result;
 }
@@ -250,7 +286,7 @@ sub _list {
 # return a portion of the active list
 sub _fetch {
   my $self = shift;
-  my ($start,$count) = @_;
+  my ($count,$start) = @_;
   my (@result);
   ($start,$count) = (0,-1) unless $count;
   $self->{database}->query("show -j -b $start -c $count");
@@ -268,7 +304,8 @@ sub _fetch_chunk {
   my @result;
   foreach (@chunks) {
     next if m!^//!;
-    push(@result,Ace::Object->newFromText($_,$self));
+    next unless /\S/;  # f**ing     appears every so often!
+    push(@result,$self->{'class'}->newFromText($_,$self));
   }
   return @result;
 }
@@ -324,8 +361,8 @@ sub next {
 sub _fill_cache {
   my $self = shift;
   if (!$self->{'valid'}) {
-    $self->{'db'}->query($self->{'query'});
-    $self->{'db'}->query("show -j -b $self->{'current'} -c -1");
+    $self->{'db'}->_query($self->{'query'});
+    $self->{'db'}->_query("show -j -b $self->{'current'} -c -1");
     $self->{'valid'}++;
   }
   my @objects = $self->{'db'}->_fetch_chunk;
@@ -339,9 +376,10 @@ package Ace::Object;
 use overload 
     '""'       => 'name',
     'fallback' =>' TRUE';
-use vars qw($AUTOLOAD $DEFAULT_WIDTH);
+use vars qw($AUTOLOAD $DEFAULT_WIDTH $SPLIT_PATTERN %MO);
 
 $DEFAULT_WIDTH=25;  # column width for pretty-printing
+$SPLIT_PATTERN='\?([^?]*)\?([^?]*)\?';
 
 # I get confused by this
 *isClass = \&isObject;
@@ -352,18 +390,17 @@ sub AUTOLOAD {
     my $self = shift;
     if ($func_name =~/__/) {
       $func_name =~ s/__/./g;
-      @_ = ($self,$func_name);
-      goto &Ace::Object::at;
+      return $self->at($func_name);
     }
-    @_ = ($self,$func_name);
-    goto &Ace::Object::search;
+    return $self->search($func_name);
 }
 
 sub DESTROY { }
 
 ###################### object constructor #################
 sub new ($$$;\$) {
-    my($pack,$class,$name,$db) = @_;
+  my $pack = shift;
+  my($class,$name,$db) = rearrange([qw/class name/,[qw/database db/]],@_);
     $pack = ref($pack) if ref($pack);
     my $self = bless { 'name'  =>  $name,
 		       'class' =>  $class
@@ -375,21 +412,22 @@ sub new ($$$;\$) {
 ######### construct object from serialized input, not usually called directly ########
 sub newFromText ($$;$) {
   my ($pack,$text,$db) = @_;
+  $pack = ref($pack) if ref($pack);
   my @array;
   foreach (split("\n",$text)) {
     next unless $_;
     push(@array,[split("\t")]);
   }
-  return $pack->_fromRaw(\@array,0,0,$#array,$db);
+  my $obj = $pack->_fromRaw(\@array,0,0,$#array,$db);
+  $obj;
 }
 
 
 ################### name of the object #################
 sub name (\$) {
     my $self = shift;
-    defined($_[0])
-	? $self->{name} = shift
-	: $self->{name};
+    $self->{name} = shift if  defined($_[0]);
+    return _ace_format($self->{'class'},$self->{'name'});
 }
 
 ################### class of the object #################
@@ -477,9 +515,28 @@ sub search (\$$;$) {
 
     TRY: {
 	last TRY if exists $self->{'.PATHS'}->{$tag};
+
+	# If the object hasn't been filled already, then we can use
+	# acedb's query mechanism to fetch the subobject.  This is a
+	# big win for large objects.
+	unless ($self->filled) {
+	  my $subobject = $self->newFromText(
+					     $self->{'db'}->show($self->class,$self->name,$tag),
+					     $self->{'db'}
+					    );
+	  if ($subobject) {
+	    my $obj = $self->new('tag',$tag,$self->{'db'});
+	    $obj->{'right'} = $subobject->right;
+	    $self->{'.PATHS'}->{$tag} = $obj;
+	  } else {
+	    $self->{'.PATHS'}->{$tag} = undef;
+	  }
+	  last TRY;
+	}
 	
 	my @col = $self->col;
 	foreach (@col) {
+	  next unless $_->isTag;
 	  if ($_ eq $tag) {
 	    $self->{'.PATHS'}->{$tag} = $_;
 	    last TRY;
@@ -489,6 +546,7 @@ sub search (\$$;$) {
 	# if we get here, we didn't find it in the column,
 	# so we call ourselves recursively to find it
 	foreach (@col) {
+	  next unless $_->isTag;
 	  if (my $r = $_->search($tag)) {
 	    $self->{'.PATHS'}->{$tag} = $r;	
 	    last TRY;
@@ -517,13 +575,25 @@ sub isPickable (\$) {
     return shift->isObject;
 }
 
+#### Return a string representation of the object subject to Ace escaping rules ###
+sub escape (\$){
+  my $self = shift;
+  my $name = $self->name;
+  my $needs_escaping = $name=~/[^\w.-]/ || $self->isClass;
+  return $name unless $needs_escaping;
+  $name=~s/\"/\\"/g; #escape quotes"
+  return qq/"$name"/;
+}
+
+
 ### Return the pretty-printed HTML table representation ###
 ### may pass a code reference to add additional formatting to cells ###
-sub asHTML (\$;$) {
+sub asHTML (\$;$$) {
     my $self = shift;
-    my $modify_code = shift;
+    my ($modify_code) = rearrange(['MODIFY'],@_);
+    return undef unless $self->right;
     my $string = "<TABLE BORDER>\n<TR ALIGN=LEFT VALIGN=TOP><TH>$self</TH>";
-    return "<TR VALIGN=TOP><TD>$self</TD></TR>" unless $self->right;
+    $modify_code = \&_default_makeHTML unless $modify_code;
     $self->right->_asHTML(\$string,1,2,$modify_code);
     $string .= "</TR>\n</TABLE>";
     return $string;
@@ -539,7 +609,15 @@ sub asTable (\$) {
     return $string . "\n";
 }
 
-### Pretty-printed version -- this should use a FORMAT statement ###
+#### In "ace" format ####
+sub asAce (\$) {
+  my $self = shift;
+  my $string = '';
+  $self->right->_asAce(\$string,0,[]);
+  "$string\n";
+}
+
+### Pretty-printed version ###
 sub asString {
   my $self = shift;
   my $MAXWIDTH = shift || $DEFAULT_WIDTH;
@@ -574,7 +652,7 @@ sub asString {
 sub asGif {
   my $self = shift;
   my ($clicks,$dimensions) = rearrange(['CLICKS',['DIMENSIONS','DIM']],@_);
-  my @commands = "gif display @{[$self->class]} @{[$self->name]}";
+  my @commands = "gif display @{[$self->class]} \"@{[$self->name]}\"";
   unshift (@commands,"Dimensions @$dimensions") if ref($dimensions);
   push(@commands,map { "mouseclick @{$_}" } @$clicks) if ref($clicks);
   push(@commands,"gifdump -");
@@ -627,20 +705,21 @@ sub down (\$) {
 # Only changes local copy until you perform commit() #
 #  returns true if this is a valid thing to do.
 sub delete (\$$;$) {
-    my($self,$tag,$oldvalue) = @_;
-    my $subtree = $self->at(($oldvalue ? "$tag.$oldvalue" : $tag),1);  # returns the parent
-    if (defined($oldvalue) 
-	&& defined($subtree->{'right'})
-	&& "$subtree->{'right'}" eq $oldvalue) {
-	$subtree->{'right'} = $subtree->{'right'}->down;
-    } else {
-	$subtree->{'down'} = $subtree->{'down'}->{'down'}
-    }
-    $oldvalue = '' unless defined($oldvalue);
-    $oldvalue =~ s/([^a-zA-Z0-9_-])/\\$1/g;
-    push(@{$self->{'delete'}},join(' ',split('\.',$tag),$oldvalue));
-    delete $self->{'.PATHS'}; # uncache cached values
-    1;
+  my $self = shift;
+  my($tag,$oldvalue) = rearrange([['TAG','PATH'],['VALUE','OLDVALUE','OLD']],@_);
+  my $subtree = $self->at(($oldvalue ? "$tag.$oldvalue" : $tag),1);  # returns the parent
+  if (defined($oldvalue) 
+      && defined($subtree->{'right'})
+      && "$subtree->{'right'}" eq $oldvalue) {
+    $subtree->{'right'} = $subtree->{'right'}->down;
+  } else {
+    $subtree->{'down'} = $subtree->{'down'}->{'down'}
+  }
+  $oldvalue = '' unless defined($oldvalue);
+  $oldvalue =~ s/([^a-zA-Z0-9_-])/\\$1/g;
+  push(@{$self->{'delete'}},join(' ',split('\.',$tag),$oldvalue));
+  delete $self->{'.PATHS'}; # uncache cached values
+  1;
 }
 
 #############################################
@@ -655,7 +734,7 @@ sub pick (\$) {
 # the database.
 sub isObject {
     my $self = shift;
-    return undef if $self->class=~/^(float|int|date|tag|txt|peptide|dna|scalar|[Tt]ext|comment)$/;
+    return _isObject($self->class);
     1;
 }
 
@@ -666,46 +745,49 @@ sub isTag {
     undef;
 }
 
-
-
 ################# add a new row #############
 #  Only changes local copy until you perform commit() #
 #  returns true if this is a valid thing to do #
 sub add (\$$$) {
-    my($self,$tag,$newvalue) = @_;
-    return 1 if $self->at("$tag.$newvalue");  #already exists
-    my $value;
-    if (ref($newvalue)) {
-	$value = $newvalue->_clone;
-    } else {
-	$value = $self->new('scalar',$newvalue);
+  my $self = shift;
+  
+  my($tag,$newvalue) = rearrange([['TAG','PATH'],'VALUE'],@_);
+  return undef if $self->at("$tag.$newvalue");  #already exists
+  my $value;
+  if (ref($newvalue)) {
+    $value = $newvalue->_clone;
+  } else {
+    $value = $self->new('scalar',$newvalue);
+  }
+  my (@tags) = split('\.',$tag);
+  my $p = $self;
+  foreach (@tags) {
+    $p = $p->_insert($_);
+  }
+  if ($p->{'right'}) {
+    $p = $p->{'right'};
+    while (1) { 
+      last unless $p->{'down'};
+      $p = $p->{'down'};
     }
-    my (@tags) = split('\.',$tag);
-    my $p = $self;
-    foreach (@tags) {
-	$p = $p->_insert($_);
-    }
-    if ($p->{'right'}) {
-	$p = $p->{'right'};
-	while (1) { 
-	    last unless $p->{'down'};
-	    $p = $p->{'down'};
-	}
-	$p->{'down'} = $value;
-    } else {
-	$p->{'right'} = $value;
-    }
-    $newvalue =~ s/([^a-zA-Z0-9_-])/\\$1/g;
-    push(@{$self->{'add'}},join(' ',@tags,$newvalue));
-    delete $self->{'.PATHS'}; # uncache cached values
-    1;
+    $p->{'down'} = $value;
+  } else {
+    $p->{'right'} = $value;
+  }
+  $newvalue =~ s/([^a-zA-Z0-9_-])/\\$1/g;
+  push(@{$self->{'add'}},join(' ',@tags,$newvalue));
+  delete $self->{'.PATHS'}; # uncache cached values
+  1;
 }
 
 ################# delete a portion of the tree #############
 # Only changes local copy until you perform commit() #
 #  returns true if this is a valid thing to do #
 sub replace (\$$$$) {
-    my($self,$tag,$oldvalue,$newvalue) = @_;
+  my $self = shift;
+  my($tag,$oldvalue,$newvalue) = rearrange([['TAG','PATH'],
+					    ['OLDVALUE','OLD'],
+					    ['NEWVALUE','NEW']],@_);
     $self->delete($tag,$oldvalue);
     $self->add($tag,$newvalue);
     delete $self->{'.PATHS'}; # uncache cached values
@@ -768,7 +850,8 @@ sub error {
 #####################################################################
 sub _clone {
     my $self = shift;
-    return new Ace::Object($self->class,$self->name,$self->db);
+    my $pack = ref($self);
+    return $pack->new($self->class,$self->name,$self->db);
 }
 
 sub _fill {
@@ -795,7 +878,7 @@ sub _parse {
     next unless $raw->[$r][$col];
     my $obj_on_right = $self->_fromRaw($raw,$current_row,$col+1,$r-1,$db);
     $current_obj->{'right'} = $obj_on_right;
-    my $obj_down = $self->new($raw->[$r][$col]=~/^\?(.+)\?(.*)\?/,$db);
+    my $obj_down = $self->new(_ace_split($raw->[$r][$col]),$db);
     $current_obj->{'down'} = $obj_down;
     $current_obj = $obj_down;
     $current_row = $r;
@@ -811,7 +894,7 @@ sub _fromRaw ($$$$$;$) {
   $pack = ref($pack) if ref($pack);
   my ($raw,$start_row,$col,$end_row,$db) = @_;
   return undef unless $raw->[$start_row][$col];
-  my ($class,$name) = $raw->[$start_row][$col]=~/^\?(.+)\?(.*)\?/;
+  my ($class,$name) = _ace_split($raw->[$start_row][$col]);
   my $self = $pack->new($class,$name,$db);
   @{$self}{qw/raw start_row end_row col db/} = ($raw,$start_row,$end_row,$col,$db);
   return $self;
@@ -828,7 +911,8 @@ sub _asTable (\%\$$$;) {
       my @to_append = map { join("\t",@{$_}[$a..$#{$_}]) } @{$self->{'raw'}}[$start..$end];
       my $new_row;
       foreach (@to_append) {
-	s/\?[^?]*\?([^?]*)\?/$1/g;
+
+	s/$SPLIT_PATTERN/_ace_format($1,$2)/eog;
 	if ($new_row++) {
 	  $$out .= "\n";
 	  $$out .= "\t" x ($level-1) 
@@ -851,50 +935,38 @@ sub _asTable (\%\$$$;) {
     return $level;
 }
 
-sub _asHTML (\%\$$$;$) {
+sub _asHTML (\%\$$$;$$) {
   my($self,$out,$position,$level,$morph_code) = @_;
   $$out .= "<TR ALIGN=LEFT VALIGN=TOP>" unless $position;
   
-  if ($self->{raw}) {  # we still have raw data, so we can optimize somewhat
-    my ($a,$start,$end) = @{$self}{qw/col start_row end_row/};
-    my @to_append = map { [@{$_}[$a..$#{$_}]] } @{$self->{'raw'}}[$start..$end];
-    my $new_row;
-    foreach my $row (@to_append) {
-      if ($new_row++) {
-	$$out .= "</TR>\n<TR ALIGN=LEFT VALIGN=TOP>";
-	$$out .= "<TD></TD>" x ($level-1) 
-      }
-      my @cells;
-      if ($morph_code) {
-	@cells = map { "<TD>" . 
-			 ($_  ?  $morph_code->($self->new(/^\?(.+)\?(.*)\?/)) : '')
- 			      . "</TD>" } @$row;
-      } else {
-	@cells = map { /^\?(tag|[A-Z].*)\?/ ? "<TH>$_</TH>":"<TD>$_</TD>" } @$row;
-	foreach (@cells) { s/\?[^?]*\?([^?]*)\?/$1/; s/\\n/<BR>/g; }
-      }
-      $$out .= join('',@cells);
-    }
-    return $level-1;
-  }
-
   $$out .= "<TD></TD>" x ($level-$position-1);
-  my $cell;
-  if ($morph_code) {
-    $cell = "<TD>".$morph_code->($self)."</TD>";
-  } else {
-    my $tag = $self->isObject || $self->isTag ? "TH" : "TD";
-    $cell = "<$tag>$self</$tag>";
-  }
-  $$out .= $cell;
-  $level = $self->right->_asHTML($out,$level,$level+1,$morph_code) if $self->right;
+  my ($cell,$prune) = $morph_code->($self);
+  $$out .= "<TD>$cell</TD>";
+  $level = $self->right->_asHTML($out,$level,$level+1,$morph_code) if $self->right and !$prune;
   if ($self->down) {
     $$out .= "</TR>\n";
-    $level = $self->down->_asHTML($out,0,$level);
+    $level = $self->down->_asHTML($out,0,$level,$morph_code);
   } else {
     $level--;
   }
   return $level;
+}
+
+# This is the default code that will be called during construction of
+# the HTML table.  It returns a two-member list consisting of the modified
+# entry and (optionally) a true value if we are to prune here.  The returned string
+# will be placed inside a <TD></TD> tag.  There's nothing you can do about that.
+sub _default_makeHTML {
+  my $self = shift;
+  my ($string,$prune) = ("$self",0);
+  return ($string,$prune) unless $self->isObject || $self->isTag;
+
+  if ($self->isTag) {
+    $string = "<B>$self</B>";
+  } else {
+    $string = qq{<FONT COLOR="blue">$self</FONT>} ;
+  }
+  return ($string,$prune);
 }
 
 # Return partial ace subtree at indicated tag
@@ -930,9 +1002,84 @@ sub _insert (\$$) {
     return $p->{'down'} = $self->new('tag',$tag);
 }
 
+# This is unsatisfactory because it duplicates much of the code
+# of asTable.
+sub _asAce (\%\$$\@) {
+  my($self,$out,$level,$tags) = @_;
+
+  # ugly optimization for speed
+  if ($self->{raw}){
+    my ($a,$start,$end) = @{$self}{qw/col start_row end_row/};
+    my (@last);
+    foreach (@{$self->{'raw'}}[$start..$end]){
+      my $j=1;
+      $$out .= join("\t",@$tags) . "\t" if ($level==0) && (@$tags);
+      my (@to_modify) = @{$_}[$a..$#{$_}];
+      foreach (@to_modify) {
+	my ($class,$name) = _ace_split($_);
+	if ($name) {
+	  $name = _ace_format($class,$name);
+	  if (_isObject($class) || $name=~/[^\w.-]/) {
+	    $name=~s/"/\\"/g; #escape quotes with slashes
+	    $name = qq/\"$name\"/;
+	  } 
+	} else {
+	  $name = $last[$j] if $name eq '';
+	}
+	$_ = $last[$j++] = $name;  
+	$$out .= "$_\t";
+      }
+      $$out .= "\n";
+      $level = 0;
+    }
+    chop($$out);
+    return;
+  }
+  
+  $$out .= join("\t",@$tags) . "\t" if ($level==0) && (@$tags);
+  $$out .= $self->escape . "\t";
+  if ($self->right) {
+    push(@$tags,$self->escape);
+    $self->right->_asAce($out,$level+1,$tags);
+    pop(@$tags);
+  }
+  if ($self->down) {
+    $$out .= "\n";
+    $self->down->_asAce($out,0,$tags);
+  }
+}
+
+sub _to_ace_date {
+  my $string = shift;
+  %MO = (Jan=>1,Feb=>2,Mar=>3,
+	 Apr=>4,May=>5,Jun=>6,
+	 Jul=>7,Aug=>8,Sep=>9,
+	 Oct=>10,Nov=>11,Dec=>12) unless %MO;
+  my ($day,$mo,$yr) = split(" ",$string);
+  return "$yr-$MO{$mo}-$day";
+}
+
+# split a -j string into class and name types
+sub _ace_split {
+  return $_[0]=~/^${SPLIT_PATTERN}$/o;
+}
+
+# Used to munge special data types.  Right now dates are the
+# only examples.
+sub _ace_format {
+  my ($class,$name) = @_;
+  return $class eq 'date' ? _to_ace_date($name) : $name;
+}
+
+# It's an object unless it is one of these things
+sub _isObject {
+  $_[0] !~ /^(float|int|date|tag|txt|peptide|dna|scalar|[Tt]ext|comment)$/;
+}
+
 # Autoload methods go after =cut, and are processed by the autosplit program.
 
 1;
+
 __END__
 
 =head1 NAME
@@ -1010,13 +1157,15 @@ The database must be up and running on the indicated host and port
 prior to the connection attempt.  The full syntax is as follows:
 
     $db = Ace->connect(-host  =>  'sapiens.wustl.edu',
-                       -port  =>  123456);
+                       -port  =>  123456,
+                       -class =>  Ace::Super::Object);
 
 The connect() method uses a named argument calling style, and
-recognizes the arguments B<-host> and B<-port>.  The host and port
-correspond to the host and port of the ACE server.  Unlike previous
-versions of this module, which required the presence of the aceclient
-executable, all database connections are handled directly.
+recognizes the arguments B<-host>, B<-port>, and B<-class>.  The host
+and port correspond to the host and port of the ACE server.  The
+optional B<-class> argument points to the class you would like to
+return from database queries.  It is provided for your use if you
+subclass Ace::Object (see below).
 
 Note that the named argument style is just passing an associative
 array to the subroutine.  
@@ -1025,6 +1174,7 @@ If arguments are omitted, they will default to the following values:
 
     -host         localhost
     -port         2000525
+    -class        Ace::Object
 
 If you prefer to use a more Smalltalk-like message-passing syntax, you
 can open a connection this way too:
@@ -1057,7 +1207,11 @@ retrieve certain objects.
 
 =head2 list() method
 
-    @objects = $db->list(class,pattern,[offset,count]);
+    @objects = $db->list(class,pattern,[count,offset]);
+    @objects = $db->list(-class=>$class,
+                         -name=>$name_pattern,
+                         -count=>$count,
+                         -offset=>$offset);
 
 This function queries the database for a list of objects matching the
 specified class and pattern, returning a list of Ace::Objects.  The
@@ -1087,9 +1241,13 @@ The class and name pattern are the same as the list() method above.
 
 =head2 fetch() method
 
-    $object = $db->fetch(Sequence,'D12345');
-    @objects = $db->fetch(Sequence,'D1234*');
-    @objects = $db->fetch(Sequence,'Clone IS M4');
+    $object = $db->fetch($class,$name_pattern);
+    @objects = $db->fetch($class,$name_pattern);
+    @objects = $db->fetch(-name=>$name_pattern,
+                          -class=>$class
+			  -count=>$count,
+			  -offset=>$offset,
+                          -fill=>$fill);
 
 Ace::fetch() is similar to Ace::list(), but retrieves whole objects,
 rather than a list.  It will either return a list of Ace::Objects, or
@@ -1097,7 +1255,12 @@ an empty list (or undef) in the case of an error.  Errors may occur
 when the indicated object is not found in the database, if the
 provided name contains wildcard characters, or if an error occurs
 during communications.  A string describing the error can be found in
-Ace->error.
+Ace->error.  For example, the first line of code will fetch the
+Sequence object whose database ID is I<D12345>.  The second line
+will retrieve all objects matching the pattern I<D1234*>.
+
+   $object = $db->fetch(Sequence,'D12345');
+   @objects = $db->fetch(Sequence,'D1234*');
 
 When you know you need to retrieve and manipulate multiple objects, it
 is faster to call fetch() with a pattern than to call list() and
@@ -1106,12 +1269,44 @@ just the B<name> of the object, which is then filled in when needed.
 Fetch() returns the B<entire> filled-in object.  There is latency
 overhead every time you go back to the database.
 
-As the last example shows, instead of providing a name pattern you can
-fetch objects that meet the conditions of an arbitrary Ace query
-language expression.  The full query syntax is described in
+In the named parameter calling form, B<-count> can be used to retrieve
+a certain maximum number of objects starting at offset B<-offset>.
+The B<-fill> parameter (also known by its pseudonym B<-filled>) allows
+you to control when Ace.pm will "fill" the object.  Ordinarily, Ace.pm
+defers fetching the whole object from the remote server, only filling
+in fields at the time you request them.  This is a good heuristic for
+conserving memory, but gives lousy performance when network latency is
+high, or when you know you will be reading fields from all the
+objects.  B<-fill>, if passed a true value, will get all the
+information from the server at once, improving performance, and
+dramatically increasing the amount of memory your program needs to
+hold the objects.  Consider using B<fetch_many()> instead.
+
+=head2 find() method
+
+    @objects = $db->query($query_string);
+    @objects = $db->query(-query=>$query_string,
+                          -offset=>$offset,
+                          -count=>$count
+                          -fill=>$fill);
+
+This allows you to pass arbitrary Ace query strings to the server and
+retrieve all objects that are returned as a result.  For example, this
+code fragment retrieves all papers written by author "Meyer BF":
+
+    @papers = $db->query('author IS "Meyer BF" ; >Paper');
+
+The full query syntax is described in
 http://where.the.hell.is.that.bloody.doc/
 
+In the named parameter calling form, B<-count>, B<-offset>, and
+B<-fill> have the same meanings as in B<fetch()>.
+
 =head2 fetch_many() method
+
+    $obj = $db->fetch_many($class,$pattern);
+    $obj = $db->fetch_many(-class=>$class,
+                           -name=>$pattern);
 
 If you expect to retrieve many objects, you can fetch an iterator
 across the data set.  This is friendly both in terms of network
@@ -1222,13 +1417,19 @@ described below.
 
 =head2 new() method
 
-    $object = new Ace::Object(class,name,database);
+    $object = new Ace::Object($class,$name,$database);
+    $object = new Ace::Object(-class=>$class,
+                              -name=>$name,
+                              -db=>database);
 
 You can create a new Ace::Object from scratch by calling the new()
 routine with the object's class, its identifier and a handle to the
 database to create it in.  The object won't actually be created in the
 database until you commit() it (see below).  If you do not provide a
 database handle, the object will be created in memory only.
+
+Arguments can be passed positionally, or as named parameters, as shown
+above.
 
 This routine is usually used internally.  See also add(), delete() and
 replace() for ways to manipulate this object.
@@ -1246,7 +1447,7 @@ number.  For example:
 
 =head2 class() method
 
-    $class = $object->name();
+    $class = $object->class();
 
 Return the class of the object.  The return value may be one of
 "float," "int," "date," "tag," "txt," "dna," "peptide," and "scalar."
@@ -1419,18 +1620,61 @@ tree.
 
     $object->asTable;
 
-asTable() returns a the object as a tab-delimited text table.
+asTable() returns the object as a tab-delimited text table.
+
+=head2 asAce() method
+
+    $object->asAce;
+
+asAce() returns the object as a tab-delimited text table with B<all>
+the intermediate tags filled in.  It is something like an Ace dump,
+but not really, because the table cells aren't escaped for proper ACE
+parsing, so it can't be fed back into ACE.  Sean Walsh
+(wsean@nasc.nott.ac.uk) thought this would be a "handy feature," and
+I've implemented it.  Suggestions are welcome.
 
 =head2 asHTML() method
 
    $object->asHTML;
+   $object->asHTML(\&tree_traversal_code);
 
 asHTML() returns an HTML 3 table representing the object, suitable for
-incorporation into a Web browser page.
+incorporation into a Web browser page.  The callback routine, if
+provided, will have a chance to modify the object representation
+before it is incorporated into the table, for example by turning it
+into an HREF link.  The callback takes a single argument containing
+the object, and must return a string-valued result.  It may also
+return a list as its result, in which case the first member of the
+list is the string representation of the object, and the second
+member is a boolean indicating whether to prune the table at this
+level.  For example, you can prune large repetitive lists.
+
+Here's a complete example:
+
+   sub process_cell {
+     my $obj = shift;
+     return "$obj" unless $obj->isObject || $obj->isTag;
+
+     my @col = $obj->col;
+     my $cnt = scalar(@col);
+     return ("$obj -- $cnt members",1);  # prune
+            if $cnt > 10                 # if subtree to big
+
+     # tags are bold
+     return "<B>$obj</B>" if $obj->isTag;  
+
+     # objects are blue
+     return qq{<FONT COLOR="blue">$obj</FONT>} if $obj->isObject; 
+   }
+
+   $object->asHTML(\&process_cell);
+
 
 =head2 add() method
 
-    $result_code = $object->add(tag,value);    
+    $result_code = $object->add($tag,$value);    
+    $result_code = $object->add(-path=>$tag,
+				-value=>$value);    
 
 add() updates the tree by adding data to the indicated tag path.  The
 example given below adds the value "555-1212" to a new Address entry
@@ -1464,7 +1708,9 @@ checked.
 
 =head2 delete() method
 
-    $result_code = $object->delete(tag_path,value);
+    $result_code = $object->delete($tag_path,$value);
+    $result_code = $object->delete(-path=>$tag_path,
+                                   -value=>$value);
 
 Delete the indicated tag and value from the object.  This example
 deletes the address line "FRANCE" from the Author's mailing address:
@@ -1477,7 +1723,10 @@ Currently it is always true, since the database model is not checked.
     
 =head2 replace() method
 
-    $result_code = $object->replace(tag_path,oldvalue,newvalue);
+    $result_code = $object->replace($tag_path,$oldvalue,$newvalue);
+    $result_code = $object->replace(-path=>$tag_path,
+				    -old=>$oldvalue,
+				    -new=>$newvalue);
 
 Replaces the indicated tag and value with the new value.  This example
 changes the address line "FRANCE" to "LANGUEDOC" in the Author's
@@ -1627,14 +1876,14 @@ improved.
 
 =head1 SEE ALSO
 
-Jade Documentation
+Jade documentation
 
 =head1 AUTHOR
 
 Lincoln Stein <lstein@w3.org> with extensive help from Jean
 Thierry-Mieg <mieg@kaa.crbm.cnrs-mop.fr>
 
-Copyright (c) 1997, 1998, Lincoln D. Stein
+Copyright (c) 1997-1998, Lincoln D. Stein
 
 This library is free software; 
 you can redistribute it and/or modify it under the same terms as Perl itself. 

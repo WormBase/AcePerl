@@ -1,2 +1,7 @@
 1.00	First working version
 1.01	Fixed bug in _appendToTable() routine that caused asHTML to hang.
+1.33    Fixed bug in Ace.xs that caused client to crash on "quit" query.
+1.34    Fixed bug in Ace.xs caused by 1.33 change!  Only some objects
+	were retrieved by fetch().
+	
+	

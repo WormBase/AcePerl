@@ -53,10 +53,12 @@ if (@ARGV || !-t STDIN) {
 
 sub evaluate {
   my $query = shift;
-  $DB->query($_) || return undef;
+  $DB->db->query($_) || return undef;
   $DB->db->status == STATUS_ERROR && return undef;
   while ($DB->db->status == STATUS_PENDING) {
-    print $DB->db->read;
+    my $h = $DB->db->read;
+    $h=~tr/\0//d; # get rid of nulls in data stream!
+    print $h;
   }
 }
 

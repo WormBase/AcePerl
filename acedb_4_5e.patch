@@ -118,4 +118,28 @@ diff -c -r1.1 truemake
 + 	if ( $(RANLIB_NEEDED) ) then ranlib $@; fi
   
   #### graphical ACEDB programs #########
+Index: w1/messubs.c
+===================================================================
+RCS file: /usr/local/cvs_repository/ace/w1/messubs.c,v
+retrieving revision 1.3
+diff -c -r1.3 messubs.c
+*** messubs.c	1998/03/16 14:50:47	1.3
+--- messubs.c	1998/05/09 18:43:02
+***************
+*** 96,102 ****
+  				*/
   
+  static FILE *dumpfil = 0 ;
+! #define BUFSIZE 4096
+  static char messbuf[BUFSIZE] ;	/* buffer for messages */
+  
+  #ifdef SGI			/* work around SGI library bug */
+--- 96,103 ----
+  				*/
+  
+  static FILE *dumpfil = 0 ;
+! /* make buffer really large */
+! #define BUFSIZE 65536
+  static char messbuf[BUFSIZE] ;	/* buffer for messages */
+  
+  #ifdef SGI			/* work around SGI library bug */

@@ -8,7 +8,7 @@ extern "C" {
 }
 #endif
 
-#include <aceclient.h>
+#include "aceclient.h"
 #include "Ace.h"
 #define CHUNKSIZE 10
 
@@ -254,7 +254,7 @@ CODE:
 	}
 	self->errcode = retval;
         self->status = STATUS_WAITING;
-	if (retval > 0) {
+	if ((retval > 0) || (answer == NULL) ) {
 	   self->status = STATUS_ERROR;
 	   RETVAL = 0;
 	} else {
@@ -276,20 +276,22 @@ PREINIT:
 CODE:
 	if (self->status != STATUS_PENDING)
 	   XSRETURN_UNDEF;
-	
+
 	if (self->answer == NULL && self->encoring) {
-	   retval = askServerBinary(self->database,"encore",&answer,
+	  retval = askServerBinary(self->database,"encore",&answer,
                                     &length,&encore,CHUNKSIZE);
-           self->errcode = retval;
-	   self->encoring = encore;
-           if (retval > 0) {
-              self->status = STATUS_ERROR;
-	      XSRETURN_UNDEF;
-           }
-	   self->answer = answer;
+	  self->errcode = retval;
+	  self->encoring = encore;
+	  if ((retval > 0) || (answer == NULL) ) {
+	    self->status = STATUS_ERROR;
+	    XSRETURN_UNDEF;
+	  }
+	  self->answer = answer;
+	  self->length = length;
 	}
-	if (!self->encoring) self->status = STATUS_WAITING;
-	RETVAL = newSVpv(self->answer,self->length);
+        if (!self->encoring) 
+           self->status = STATUS_WAITING;
+	RETVAL = newSVpv((char*)self->answer,self->length);
 OUTPUT:
 	RETVAL
 CLEANUP:
