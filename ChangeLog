@@ -1,3 +1,8 @@
+1.37    1. Added timestamp and comment handling.
+	2. Added -filled and -chunksize arguments to fetch_many().
+	3. Quashed a bug in list(-filled).
+	4. More regression tests.
+	
 1.36	6/6/98 Substantial API changes:
 	1. row() now returns everything to the right of the current object INCLUSIVE
 	of the object.  Calling row() in a scalar context returns the size of the

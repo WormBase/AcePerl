@@ -6,7 +6,7 @@ use lib '../blib/lib','../blib/arch';
 use constant HOST => $ENV{ACEDB_HOST} || 'beta.crbm.cnrs-mop.fr';
 use constant PORT => $ENV{ACEDB_PORT} || 20000100;
 
-BEGIN {$| = 1; print "1..21\n"; }
+BEGIN {$| = 1; print "1..30\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Ace;
 $loaded = 1;
@@ -52,3 +52,12 @@ test(18,join(' ',$obj->Address->row) eq "Address Mail The Sanger Centre","row() 
 test(19,join(' ',$obj->Address->row(1)) eq "Mail The Sanger Centre","row() failure");
 test(20,@h=$obj->Address(2),"tag[2] failure");
 test(21,@h==9,"tag[2] failure");
+test(22,$iterator1 = $db->fetch_many('Author','S*'),"fetch_many() failure (1)");
+test(23,$iterator2 = $db->fetch_many('Clone','*'),"fetch_many() failure (2)");
+test(24,$obj1 = $iterator1->next,"iterator failure (1)");
+test(25,!$obj1->filled,"got filled object, expected unfilled");
+test(26,($obj2 = $iterator1->next) && $obj1 ne $obj2,"iterator failure (2)");
+test(27,($obj3 = $iterator2->next) && $obj3->class eq 'Clone',"iterator failure (3)");
+test(28,($obj4 = $iterator1->next) && $obj4->class eq 'Author',"iterator failure (4)");
+test(29,$iterator1 = $db->fetch_many(-class=>'Author',-name=>'S*',-filled=>1),"fetch_many(filled) failure");
+test(30,($obj1 = $iterator1->next) && $obj1 && $obj1->filled,"expected filled object, got unfilled or null");

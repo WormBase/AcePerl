@@ -7,25 +7,39 @@ use Ace;
 use Getopt::Long;
 use Text::ParseWords;
 use strict vars;
-use vars qw/@CLASSES/;
+use vars qw/@CLASSES @HELP_TOPICS/;
+use constant DEBUG => 0;
 
-my ($HOST,$PORT);
+my ($HOST,$PORT,$PATH,$TCSH);
 GetOptions('host=s' => \$HOST,
-	   'port=i' => \$PORT) || die <<USAGE;
+	   'port=i' => \$PORT,
+	   'path=s' => \$PATH,
+	   'tcsh'   => \$TCSH,
+	  ) || die <<USAGE;
 Usage: $0 [options]
 Interactive Perl client for ACEDB
 
-Options:
+Options (can be abbreviated):
        -host <hostname>  Server host (localhost)
        -port <port>      Server port (200005)
+       -path <db path>   Local database path (no default)
+       -tcsh             Use T-shell completion mode (no)
+
+Respects the environment variables \$ACEDB_HOST and \$ACEDB_PORT, if present.
+You can edit the command line using the cursor keys and emacs style
+key bindings.  Use up and down arrows (or ^P, ^N) to access the history.
+The tab key completes partial commands.  In tcsh mode, the tab key cycles 
+among the completions, otherwise pressing the tab key a second time lists 
+all the possibilities.
 USAGE
 ;
 
-$HOST ||= 'localhost';
-$PORT ||= 200005;
+$HOST ||= $ENV{ACEDB_HOST} || 'localhost';
+$PORT ||= $ENV{ACEDB_PORT} || 200005;
 my $PROMPT = "aceperl> ";
 
-my $DB = Ace->connect(-host=>$HOST,-port=>$PORT) ||  die "Connection failure.\n";
+my $DB = $PATH ? Ace->connect(-path=>$PATH) : Ace->connect(-host=>$HOST,-port=>$PORT);
+$DB ||  die "Connection failure.\n";
 
 if (@ARGV || !-t STDIN) {
   while (<>) {
@@ -53,6 +67,10 @@ if (@ARGV || !-t STDIN) {
 
 sub evaluate {
   my $query = shift;
+  if ($query=~/^(quit|exit)/i) {
+    print "// A bientot!\n";
+    exit 0;
+  }
   $DB->db->query($_) || return undef;
   $DB->db->status == STATUS_ERROR && return undef;
   while ($DB->db->status == STATUS_PENDING) {
@@ -69,39 +87,80 @@ sub setup_readline {
            spush spop swap sand sor sxor sminus parse pparse write edit 
 	   eedit shutdown who data_version kill status date time_stamps
 	   count clear save undo wspec/;
-  my (@upcase_commands) = @commands;
-  grep(substr($_,0,1)=~tr/a-z/A-Z/,@upcase_commands);
-  readline::rl_basic_commands(@commands,@upcase_commands);
+  readline::rl_basic_commands(@commands);
+  readline::rl_set('TcshCompleteMode', 'On') if $TCSH;
+  $readline::rl_special_prefixes='"';
   $readline::rl_completion_function=\&complete;
   $term;
 }
 
+# This is a big function for command completion/guessing.
 sub complete {
   my($txt,$line,$start) = @_;
-  my(@tokens) = quotewords('\s+',0,$line);
+  return ('"') if $txt eq '"';  # to fix wierdness
 
-  if (lc($tokens[0]) eq 'find') {
-    if ($tokens[2]) {
-      my $count = $DB->count($tokens[1],"$tokens[2]*");
-      if ($count > 250) {
-	warn "\r\n($count possibilities -- too many to display)\n";
-	$readline::force_redraw++;
-	readline::redisplay();
-      } else {
-	my @obj = $DB->list($tokens[1],"$tokens[2]*");
-	return grep(/^$txt/i,@obj);
-      }
+  # Examine current word in the context of the two previous ones
+  $line = substr($line,0,$start+length($txt)); # truncate
+  $line .= '"' if $line=~tr/"/"/ % 2;  # correct odd quote parity errors
+  my(@tokens) = quotewords(' ',0,$line);
+  push(@tokens,$txt) unless $txt || $line=~/\"$/;
+  my $old = $txt;
+  $txt = $tokens[$#tokens]; 
+
+  if (DEBUG) {
+    warn "\n",join(':',@tokens)," (text = $txt, start = $start, old=$old)\n";
+    $readline::force_redraw++;
+    readline::redisplay();
+  }
+
+  if (lc($tokens[$#tokens-2]) eq 'find') {
+    my $count = $DB->count($tokens[$#tokens-1],"$txt*");
+    if ($count > 250) {
+      warn "\r\n($count possibilities -- too many to display)\n";
+      $readline::force_redraw++;
+      readline::redisplay();
+      return;
     } else {
-      @CLASSES = $DB->classes() unless @CLASSES;
-      return grep(/^$txt/,@CLASSES);
+      my @obj = $DB->list($tokens[$#tokens-1],"\"$txt*\"");
+      if ($txt=~/(.+\s+)\S*$/) {
+	my $common_prefix = $1;
+	return map { "$_\"" } 
+	       map { substr($_,index($_,$common_prefix)+length($common_prefix))  }
+	       grep(/^$txt/i,@obj);
+      } else {
+	return map { $_=~/\s/ ? "\"$_\"" : $_ } grep(/^$txt/i,@obj);
+      }
     }
   }
 
-  if ($tokens[0] =~ /^list|show/i) {
+  if (lc($tokens[$#tokens-1]) =~/^(find|model)/) {
+    @CLASSES = $DB->classes() unless @CLASSES;
+    return grep(/^$txt/i,@CLASSES);
+  }
+
+  if ($tokens[$#tokens-1] =~ /^list|show/i) {
     if ($line=~/-f\s+\S*$/) {
       return readline::rl_filename_list($txt);
     } 
-    return grep (/^$txt/,qw/-h -a -p -j -T -b -c -f/);
+    return grep (/^$txt/i,qw/-h -a -p -j -T -b -c -f/);
   }
-  return readline::use_basic_commands(@_);
+
+  if ($tokens[$#tokens-1] =~ /^help/i) {
+    @HELP_TOPICS = get_help_topics() unless @HELP_TOPICS;
+    return grep(/^$txt/i,'query_syntax',@HELP_TOPICS);
+  }
+  
+  if (DEBUG) {
+    warn "\n",join(':',@_),"\n";
+    $readline::force_redraw++;
+    readline::redisplay();
+  }
+
+  return grep(/^$txt/i,@readline::rl_basic_commands);
+}
+
+sub get_help_topics {
+  return () unless $DB;
+  my $result = $DB->raw_query('help topics');
+  return grep(/^About/../^nohelp/,split(' ',$result));
 }
