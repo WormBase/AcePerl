@@ -1,3 +1,5 @@
+1.80	1. Numerous small bug fixes in AceBrowser
+	
 1.78	9/28/2001
 	1. bugs in Makefile.PL and install.PL caught by Randal Schwartz
 1.77
