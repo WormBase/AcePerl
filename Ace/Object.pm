@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.40 2001/07/16 21:04:42 lstein Exp $
+# $Id: Object.pm,v 1.41 2001/07/20 15:35:55 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -22,7 +22,7 @@ use constant XML_SUPPRESS_TIMESTAMPS=>0;
 require AutoLoader;
 
 $DEFAULT_WIDTH=25;  # column width for pretty-printing
-$VERSION = '1.64';
+$VERSION = '1.65';
 
 # Pseudonyms and deprecated methods.
 *isClass        =  \&isObject;
@@ -1277,7 +1277,8 @@ is primarily for demonstration.
 	                         -dimensions=> [$width,$height],
 				 -coords    => [$top,$bottom],
 				 -display   => $display_type,
-				 -view      => $view_type
+				 -view      => $view_type,
+				 -getcoords => $true_or_false
 	                         );
 
 asGIF() returns the object as a GIF image.  The contents of the GIF
@@ -1306,8 +1307,11 @@ view.
 
 The option B<-coords> argument allows you to provide the top and
 bottom of the display for MAP objects only.  These coordinates are in
-the map's native coordinate system (cM, bp).  By default, the entire
-map is shown.
+the map's native coordinate system (cM, bp).  By default, AceDB will
+show most (but not necessarily all) of the map according to xace's
+display rules.  If you call this method with the B<-getcoords>
+argument and a true value, it will return a two-element array
+containing the coordinates of the top and bottom of the map.
 
 asGIF() returns a two-element array.  The first element is the GIF
 data.  The second element is an array reference that indicates special 
@@ -1716,12 +1720,13 @@ sub asString {
 #                                   -dimensions=>[$x,$y]);
 sub asGif {
   my $self = shift;
-  my ($clicks,$dimensions,$display,$view,$coords) = rearrange(['CLICKS',
-							       ['DIMENSIONS','DIM'],
-							       'DISPLAY',
-							       'VIEW',
-							       'COORDS',
-							      ],@_);
+  my ($clicks,$dimensions,$display,$view,$coords,$getcoords) = rearrange(['CLICKS',
+									  ['DIMENSIONS','DIM'],
+									  'DISPLAY',
+									  'VIEW',
+									  'COORDS',
+									  'GETCOORDS',
+									  ],@_);
   $display = "-D $display" if $display;
   $view    = "-view $view" if $view;
   my $c;
@@ -1729,16 +1734,23 @@ sub asGif {
     $c    =  ref($coords) ? "-coords @$coords" : "-coords $coords";
   }
   my @commands;
-  if ($view || $c) {
+  if ($view || $c || $self->class =~ /Map/i) {
       @commands = "gif map \"@{[$self->name]}\" $view $c";
   } else {
       @commands = "gif display $display $view @{[$self->class]} \"@{[$self->name]}\"";
   }
   push(@commands,"Dimensions @$dimensions") if ref($dimensions);
   push(@commands,map { "mouseclick @{$_}" } @$clicks) if ref($clicks);
-  push(@commands,"gifdump -");
 
-  warn "@commands";
+  if ($getcoords) { # just want the coordinates
+    my ($start,$stop);
+    my $data = $self->{'db'}->raw_query(join(' ; ',@commands));    
+    return unless $data =~ /\"[^\"]+\" ([\d.-]+) ([\d.-]+)/;
+    ($start,$stop) = ($1,$2);
+    return ($start,$stop);
+  }
+
+  push(@commands,"gifdump -");
   
   # do the query
   my $data = $self->{'db'}->raw_query(join(' ; ',@commands));
