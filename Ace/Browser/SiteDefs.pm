@@ -140,7 +140,7 @@ sub map_url {
   }
 
   # if we get here, then take the first display
-  my @displays = $self->displays($class);
+  my @displays = $self->displays($class,$name);
   push @displays,$self->displays('default') unless @displays;
   my $n = CGI->escape($name);
   my $c = CGI->escape($class);
