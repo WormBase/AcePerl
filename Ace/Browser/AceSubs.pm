@@ -648,8 +648,10 @@ tag.
 sub ObjectLink {
   my $object     = shift;
   my $link_text  = shift;
+  my $target     = shift;
   my $url = Object2URL($object,@_) or return ($link_text || "$object");
-  return a({-href=>Object2URL($object,@_),-name=>"$object"},($link_text || "$object"));
+  my @targ = $target ? (-target=>$target) : ();
+  return a({-href=>Object2URL($object,@_),-name=>"$object",@targ},($link_text || "$object"));
 }
 
 =item $db = OpenDatabase()
