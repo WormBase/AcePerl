@@ -53,7 +53,7 @@ sub feature_list {
   my $raw;
 
   for my $db ($self->db,$self->secondary) {
-    $raw .= $self->_query($db,'seqfeatures -list');
+    $raw .= $self->_query($db,'seqfeatures -version 2 -list');
     $raw .= "\n";  # avoid nulls
   }
 

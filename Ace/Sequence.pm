@@ -244,7 +244,7 @@ sub features {
 sub feature_list {
   my $self = shift;
   return $self->{'feature_list'} if $self->{'feature_list'};
-  return unless my $raw = $self->_query(undef,'seqfeatures -list');
+  return unless my $raw = $self->_query(undef,'seqfeatures -version 2 -list');
   return $self->{'feature_list'} = Ace::Sequence::FeatureList->new($raw);
 }
 
