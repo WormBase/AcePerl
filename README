@@ -10,17 +10,19 @@ warranty.
 
 INSTALLATION:
 
-AcePerl comes with all the code needed to communicate with a remote
-ACEDB server.  No additional software is required.  However, if you
-wish to communicate with your own ACEDB database, you must use ACEDB
-version 4.7c or higher, available from this location:
+In addition to this package, you will need Perl 5.00503 or higher
+(5.6.0 or higher recommended), and the Digest::MD5 module.  Both are
+available on CPAN (http://www.cpan.org).
+
+If you wish to communicate with your own ACEDB database, you must use
+ACEDB version 4.7c or higher, available from this location:
 
 	ftp://ncbi.nlm.nih.gov/repository/acedb/
 	
-However, to take full advantage of the sequence annotation features in
-the Ace::Sequence and Ace::Sequence::Feature classes, you will need
-version 4.8c or higher.  It can be obtained from the Sanger FTP site
-at ftp.sanger.ac.uk.
+To take full advantage of the sequence annotation features in the
+Ace::Sequence and Ace::Sequence::Feature classes, you will need
+version 4.8c or higher.  It can be obtained from the Acedb web site at
+http://www.acdb.org.
 
 Version 4.8 of Aceserver adds support for Berkeley sockets.  It is
 highly recommended that you use it if you are not already reliant on
@@ -47,8 +49,23 @@ Follow these steps to unpack, build and install AcePerl:
 
 3. perl Makefile.PL
 
-   Among other things, the Makefile.PL script will attempt to guess
-   the type of your machine and its operating system.  This information
+   This script will ask you whether you wish to build: (1) the minimal package
+   with support only for newer (socket) versions of the Ace server, (3) the maximum
+   package, which supports both older (RPC) and newer (socket) versions of the 
+   Ace server, or (2) a version that supports the socket server and has some C 
+   language optimizations.  Choice (3) is recommended.  All versions will support
+   local Acedb databases.
+
+   The script will also ask you whether you wish to install support for the 
+   AceBrowser Web server extensions.  Only answer yes if you are installing
+   on a machine that already runs a web server and you wish to have AceBrowser
+   installed.  If you answer in the affirmative, then you will be asked a number
+   of directory configuration questions.  See README.ACEBROWSER for more details
+   on installation.
+
+   At this point, Makefile.PL will create the make files necessary to build
+   AcePerl.  Among other things, the Makefile.PL script will attempt
+   to guess the type of your machine and its operating system.  This information
    is needed to select the correct makefile in the ACEDB library
    directory, AcePerl-X.XX/ace/.
 
@@ -173,10 +190,9 @@ tricks.
 
 There is also family of CGI scripts that run on top of AcePerl to give
 a WebAce-like interface to Ace (it is not as feature-full as WebAce,
-but it is probably easier to set up and run).  You can find the
-package at this URL:
-
-  http://stein.cshl.org/AcePerl/AceBrowser
+but it is probably easier to set up and run).  This package is now part
+of the AcePerl distribution, but is not installed unless you specifically
+request it.  See README.ACEBROWSER for details.
 
 Lincoln Stein
 lstein@cshl.org

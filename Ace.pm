@@ -17,7 +17,7 @@ use overload
 
 # Optional exports
 @EXPORT_OK = qw(rearrange ACE_PARSE);
-$VERSION = '1.76';
+$VERSION = '1.77';
 
 use constant STATUS_WAITING => 0;
 use constant STATUS_PENDING => 1;
@@ -62,7 +62,7 @@ sub connect {
   ($host,$port,$u,$p,$server_type) = $class->process_url($url) 
     or croak "Usage:  Ace->connect(-host=>\$host,-port=>\$port [,-path=>\$path]\n"
       if defined $url;
-  
+
   if ($path) { # local database
     $server_type = 'Ace::Local';
   } else { # either RPC or socket server
@@ -74,7 +74,7 @@ sub connect {
     $server_type ||= 'Ace::SocketServer' if $port <  100000;
     $server_type ||= 'Ace::RPC'          if $port >= 100000;
   }
-  
+
   # we've normalized parameters, so do the actual connect
   eval "require $server_type" || croak "Module $server_type not loaded: $@";
   if ($path) {

@@ -8,6 +8,8 @@ print STDERR "Creating HTML documentation in docs...\n";
 mkdir "docs",0755;
 mkdir "docs/Ace",0755;
 mkdir "docs/Ace/Sequence",0755;
+mkdir "docs/Ace/Browser",0755;
+mkdir "docs/Ace/Graphics",0755;
 foreach $pod ('Ace.pm',<Ace/*.pm>,<Ace/*/*.pm>) {
   (my $out = $pod) =~ s/\.pm$/.html/;
 
@@ -19,7 +21,7 @@ foreach $pod ('Ace.pm',<Ace/*.pm>,<Ace/*/*.pm>) {
 <BODY BGCOLOR="white">
 <!--NAVBAR-->
 <hr>
-<a href="index.html">AcePerl Main Page</a>
+<a href="http://stein.cshl.org/AcePerl">AcePerl Main Page</a>
 END
 ;
       } else {

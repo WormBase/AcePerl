@@ -1,3 +1,5 @@
+1.77
+	1. AceBrowser is now part of AcePerl
 1.76
 	1. Changes to AceBrowser to improve AceRedirect() call and make more robust.
 	2. Can now redirect to other class.

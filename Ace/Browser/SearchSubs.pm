@@ -1,5 +1,50 @@
 package Ace::Browser::SearchSubs;
 
+=head1 NAME
+
+Ace::Browser::SearchSubs - Subroutines for AceBrowser search scripts
+
+=head1 SYNOPSIS
+
+  use Ace;
+  use Ace::Browser::AceSubs;
+  use Ace::Browser::SarchSubs;
+  use CGI qw(:standard);
+
+  my $form = p(start_form,
+	       textfield(-name=>'query'),
+	       end_form);
+  AceSearchTable('Search for stuff',$form);
+  ...
+
+  my $query  = param('query');
+  my $offset = AceSearchOffset;
+  my ($objects,$count) = do_search($query,$offset);
+  AceResultsTable($objects,$count,$offset,'Here are results');
+
+=head1 DESCRIPTION
+
+Ace::Browser::SearchSubs exports a set of constants and subroutines
+that are useful for creating AceBrowser search scripts.
+
+=head2 CONSTANTS
+
+This package exports the following constants:
+
+  MAXOBJECTS     The maximum number of objects that can be displayed
+                 per page.
+
+  SEARCH_ICON    An icon to use for search links. This is deprecated.
+                 Use Configuration->Search_icon instead.
+
+=head2 FUNCTIONS
+
+These functions are exported:
+
+=over 4
+
+=cut
+
 # Common constants and subroutines used by the various search scripts
 
 use strict;
@@ -12,9 +57,9 @@ require Exporter;
 
 ######################### This is the list of exported subroutines #######################
 @EXPORT = qw(
-	     MAXOBJECTS 
+	     MAXOBJECTS
 	     SEARCH_ICON
-	     AceSearchTable AceResultsTable AceSearchOffset AceSearchMenuBar
+	     AceSearchTable AceResultsTable AceSearchOffset
 	     DisplayInstructions
 	    );
 
@@ -27,16 +72,35 @@ use constant SPACER_ICON    => '/icons/spacer.gif';
 use constant LEFT_ICON      => '/icons/cylarrw.gif';
 use constant RIGHT_ICON     => '/icons/cyrarrw.gif';
 
+=item $offset = AceSearchOffset()
+
+When the user is paging back and forth among a multi-page list of
+results, this function returns the index of the first item to display.
+
+=cut
+
 sub AceSearchOffset {
   my $offset = param('offset') || 0;
   $offset += param('scroll') if param('scroll');
   $offset;
 }
 
+=item AceSearchTable($title,@contents)
+
+Given a title and the HTML contents, this formats the search into a
+table and gives it the background and foreground colors used elsewhere
+for searches.  The formatted search is then printed.
+
+The HTML contents are usually a fill-out form.  For convenience, you
+can provide the contents in multiple parts (lines or elements) and
+they will be concatenated together.
+
+=cut
+
 sub AceSearchTable {
   my ($title,@body) = @_;
   print
-    start_form(-action=>url(-absolute=>1,-path_info=>1).'#searchagain'),
+    start_form(-action=>url(-absolute=>1,-path_info=>1).'#results'),
     a({-name=>'search'},''),
     table({-border=>0,-width=>'100%'},
 	  TR(th({-class=>'searchtitle'},$title),
@@ -44,6 +108,36 @@ sub AceSearchTable {
 	     td({-class=>'searchbody'},@body)))),
     end_form;
 }
+
+=item AceResultsTable($objects,$count,$offset,$title)
+
+This subroutine formats the results of a search into a pageable list
+and prints out the resulting HTML.  The following arguments are required:
+
+ $objects   An array reference containing the objects to place in the
+            table.
+
+ $count     The total number of objects.
+
+ $offset    The offset into the array, as returned by AceSearchOffset()
+
+ $title     A title for the table.
+
+The array reference should contain no more than MAXOBJECTS objects.
+The AceDB query should be arranged in such a way that this is the
+case.  A typical idiom is the following:
+
+  my $offset = AceSearchOffset();
+  my $query  = param('query');
+  my $count;
+  my @objs = $db->fetch(-query=> $query,
+			-count  => MAXOBJECTS,
+			-offset => $offset,
+			-total => \$count
+		       );
+  AceResultsTable(\@objs,$count,$offset,'Here are the results');
+
+=cut
 
 sub AceResultsTable {
   my ($objects,$count,$offset,$title) = @_;
@@ -55,9 +149,6 @@ sub AceResultsTable {
   $title ||= 'Search Results';
 
   print 
-#    p(a({-href=>'#search',-name=>'searchagain'},
-#	    'Search Again'), "|", a({-href=>(url(-absolute=>1,path_info=>1))},
-#				    'Clear Search')),
     a({-name=>'results'}),
     start_table({-border=>0,-cellspacing=>2,-cellpadding=>2,-width=>'100%',-align=>'CENTER',-class=>'resultsbody'}),
     TR(th({-class=>'resultstitle'},$title));
@@ -75,33 +166,6 @@ sub AceResultsTable {
   print table({-width=>'100%'},tableize(ROWS,COLS,\@rheaders,\@cheaders,@$objects));
 
   print end_td,end_Tr,end_table,p();
-}
-
-sub AceSearchMenuBar {
-  my $quovadis = url(-absolute=>1,-path=>1);
-  my @searches = Configuration->searches;
-  return unless @searches;
-  my $bgcolor = Configuration->Search_menubar_bg || "#eeeeff";
-
-  my @cells;
-  my ($url,$home) = @{Configuration->Home} if Configuration->Home;
-
-  if (my $bookmark = cookie('HOME_'.Configuration->Name)) {
-    $bookmark=~s/ /+/g;  # some bug
-    push(@cells,a({-href=>$bookmark,-target=>'_top'},$home));
-  } else {
-    push(@cells,a({-href=>$url,-target=>'_top'},$home)) if $home;
-  }
-
-  foreach my $page (@searches) {
-    push @cells,($quovadis =~ /$page/)
-        ? strong(font({-color=>'red'},Configuration->searches($page)))
-	: a({-href=>ResolveUrl($page),-target=>'_top'},
-	    Configuration->searches($page));
-  }
-  return 
-    table({-border=>0,-bgcolor=>$bgcolor,-width=>'100%',-cellpadding=>0, -cellspacing=>0, -height=>20},
-	  TR({-class=>'search',-align=>'CENTER'},td({-class=>'search'},\@cells)));
 }
 
 # ------ ugly internal routines for scrolling along the search results list -----
@@ -185,3 +249,28 @@ sub tableize {
 }
 
 1;
+
+__END__
+
+=back
+
+=head1 BUGS
+
+Please report them.
+
+=head1 SEE ALSO
+
+L<Ace::Object>, L<Ace::Browser::SiteDefs>, L<Ace::Browsr::AceSubs>,
+the README.ACEBROWSER file.
+
+=head1 AUTHOR
+
+Lincoln Stein <lstein@cshl.org>.
+
+Copyright (c) 2001 Cold Spring Harbor Laboratory
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.  See DISCLAIMER.txt for
+disclaimers of warranty.
+
+=cut

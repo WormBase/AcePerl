@@ -1,12 +1,86 @@
 package Ace::Browser::SiteDefs;
 
+=head1 NAME
+
+Ace::Browser::SiteDefs - Access to AceBrowser configuration files
+
+=head1 SYNOPSIS
+
+  use Ace;
+  use Ace::Browser::AceSubs;
+  use CGI qw(:standard);
+
+  my $configuration = Configuration;
+  my $docroot  = $configuration->Docroot;
+  my @pictures = @{$configuration->Pictures};
+  my %displays = %{$configuration->Displays};
+  my $coderef  = $configuration->Url_mapper;
+  $coderef->($param1,$param2);
+
+=head1 DESCRIPTION
+
+Ace::Browser::SiteDefs evaluates an AceBrowser configuration file and
+returns a configuration object ("config object" for short).  A config
+object is a bag of dynamically-generated methods, derived from the
+scalar variables, arrays, hashes and subroutines in the configuration
+file.
+
+The config object methods are a canonicalized form of the
+configuration file variables, in which the first character of the
+method is uppercase, and subsequent characters are lower case.  For
+example, if the configuration variable was $ROOT, the method will be
+$config_object->Root.
+
+=head2 Working with Configuration Objects
+
+To fetch a configuration object, use the Ace::Browser::AceSubs
+Configuration() function.  This will return a configuration object for 
+the current database:
+
+  $config_object = Configuration();
+
+Thereafter, it's just a matter of making the proper method calls.
+
+   If the Configuration file is a....    The method call returns a...
+   ----------------------------------    ----------------------------
+
+   Scalar variable                       Scalar
+   Array variable                        Array reference
+   Hash variable                         Hash reference
+   Subroutine                            Code reference
+
+If a variable is not defined, the corresponding method will return undef.
+
+=head1 BUGS
+
+Please report them.
+
+=head1 SEE ALSO
+
+L<Ace::Object>, L<Ace::Browser::AceSubs>, L<Ace::Browsr::SearchSubs>, 
+the README.ACEBROWSER file.
+
+=head1 AUTHOR
+
+Lincoln Stein <lstein@cshl.org>.
+
+Copyright (c) 2001 Cold Spring Harbor Laboratory
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.  See DISCLAIMER.txt for
+disclaimers of warranty.
+
+=cut
+
 use CGI();
 use Ace();
 
 use strict;
 use Carp;
-use vars '$AUTOLOAD';
-use constant SITE_DEFS => 'SiteDefs';
+use vars qw($AUTOLOAD);
+
+# get location of configuration file
+use Ace::Browser::LocalSiteDefs '$SITE_DEFS';
 
 my %CONFIG;
 my %CACHETIME;
@@ -15,12 +89,12 @@ my %CACHED;
 sub getConfig {
   my $package = shift;
   my $name    = shift;
-  die "Usage: getConfig(\$database_name)" unless defined $name;
+  croak "Usage: getConfig(\$database_name)" unless defined $name;
   $package = ref $package if ref $package;
   my $file    = "${name}.pm";
 
   # make search relative to SiteDefs.pm file
-  my $path = $package-> get_config || $package->resolvePath(SITE_DEFS . "/$file");
+  my $path = $package->get_config || $package->resolveConf($file);
 
   return unless -r $path;
   return $CONFIG{$name} if exists $CONFIG{$name} and $CACHETIME{$name} >= (stat(_))[9];
@@ -99,12 +173,14 @@ sub display {
 sub displays {
   my $self = shift;
   return unless my $d = $self->Classes;
-  return keys %$d unless defined $_[0];
-  my $type = ucfirst(lc($_[0]));
+  return keys %$d unless @_;
+
+  my ($class,$name) = @_;
+  my $type = ucfirst(lc($class));
   return  unless exists $d->{$type};
   my $value = $d->{$type};
   if (ref $value eq 'CODE') { # oh, wow, a subroutine
-    my @v = $value->();  # invoke to get list of displays
+    my @v = $value->($type,$name);  # invoke to get list of displays
     return wantarray ? @v : \@v;
   } else {
     return  wantarray ? @{$value} : $value;
@@ -113,11 +189,13 @@ sub displays {
 
 sub class2displays {
   my $self = shift;
+  my ($class,$name) = @_;
+
   # No class specified.  Return name of all defined classes.
-  return $self->displays unless defined $_[0];
+  return $self->displays unless defined $class;
 
   # A class is specified.  Map it into the list of display records.
-  my @displays = map {$self->display($_)} $self->displays($_[0]);
+  my @displays = map {$self->display($_)} $self->displays($class,$name);
   return @displays;
 }
 
@@ -133,7 +211,7 @@ sub _load {
   (my $ns = $safe) =~ s/\W/_/g;
   my $namespace = __PACKAGE__ . '::Config::' . $ns;
   unless (eval "package $namespace; require '$safe';") {
-    warn "compile error while parsing config file '$safe': $@\n";
+    die "compile error while parsing config file '$safe': $@\n";
   }
   # build the object up from the values compiled into the $namespace area
   my %data;
@@ -160,39 +238,36 @@ sub _load {
 }
 
 sub resolvePath {
+  my $self = shift;
+  my $file = shift;
+  my $root = $self->Root || '/cgi-bin';
+  return "$root/$file";
+}
+
+sub resolveConf {
   my $pack = shift;
   my $file = shift;
 
-  # if we're running under MOD_PERL, then look for the configuration file
-  # underneath AceBrowserRoot configuration variable
-
-  if (exists $ENV{MOD_PERL}) {
-    my $r    = Apache->request;
-    if (my $root = $r->dir_config('AceBrowserRoot')) {
-      $file ||= '';
-      return $CACHED{$file,$r->filename} if exists $CACHED{$file,$r->filename};
-      return $CACHED{$file,$r->filename} = "$root/$file";
-    }
+  unless ($SITE_DEFS) {
+    (my $rpath = __PACKAGE__) =~ s{::}{/}g;
+    my $path = $INC{"${rpath}.pm"} 
+      || warn "Unexpected error: can't locate acebrowser SiteDefs.pm file";
+    $path =~ s![^/]*$!!;  # trim to directory
+    $SITE_DEFS = $path;
   }
-
-  # otherwise locate configuration file relative to this file, 
-  # e.g. /usr/local/perl5/site_perl/Ace/Browser/SiteDefs/foo.pm
-  (my $rpath = __PACKAGE__) =~ s{::}{/}g;
-  warn "rpath = ${rpath}.pm";
-  my $path = $INC{"${rpath}.pm"} || warn "Unexpected error: can't locate acebrowser SiteDefs.pm file";
-  $path =~ s![^/]*$!!;  # trim to directory
-  return "$path/$file";
+  return "$SITE_DEFS/$file";
 }
 
 sub get_config {
   my $pack = shift;
-  my $file = shift;
 
   return unless exists $ENV{MOD_PERL};
   my $r    = Apache->request;
-  return $r->dir_config('AceBrowserConf') ||
-    $r->dir_config('AceBrowserRoot') . "/$file";
+  return $r->dir_config('AceBrowserConf');
 }
 
+sub Name {
+  Ace::Browser::AceSubs->get_symbolic();
+}
 
 1;
