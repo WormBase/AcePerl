@@ -55,8 +55,8 @@ sub DESTROY {
   $self->_send_msg('quit');
 # Is _recv_msg() bringing things down in flames?  Maybe!
 #    my ($msg,$body) = $self->_recv_msg('strip');
-  warn "Did not get expected ACESERV_MSGKILL message, got $msg instead" 
-    if defined($msg) and $msg ne ACESERV_MSGKILL;
+#  warn "Did not get expected ACESERV_MSGKILL message, got $msg instead" 
+#    if defined($msg) and $msg ne ACESERV_MSGKILL;
 }
 
 sub encore { return shift->{encoring} }
