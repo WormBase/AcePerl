@@ -57,11 +57,21 @@ sub map_url {
   my ($display,$name,$class) = @_;
   $class ||= $name->class if ref($name) and $name->can('class');
 
-  return unless my $code = $self->Url_mapper;
   my (@result,$url);
-  if (@result = $code->($display,$name,$class)) {
-    return @result;
+
+  if (my $code = $self->Url_mapper) {
+    if (@result = $code->($display,$name,$class)) {
+      return @result;
+    }
   }
+
+  # if we get here, then take the first display
+  my @displays = $self->displays($class);
+  push @displays,$self->displays('default') unless @displays;
+  my $n = CGI->escape($name);
+  my $c = CGI->escape($class);
+  return ($displays[0],"name=$n;class=$c") if $displays[0];
+
   return unless @result = $self->getConfig('default')->Url_mapper->($display,$name,$class);
   return unless $url = $self->display($result[0],'url');
   return ($url,$result[1]);
