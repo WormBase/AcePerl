@@ -377,6 +377,87 @@ sub asString {
   return ref $self;
 }
 
+###################### MOVE DOWN ##################
+
+# Fetch many objects in iterative style
+sub fetch_many {
+  my $self = shift;
+  my ($class,$pattern,$filled,$query,$chunksize) = rearrange( ['CLASS',
+							       ['PATTERN','NAME'],
+							       ['FILL','FILLED'],
+							       'QUERY',
+							       'CHUNKSIZE'],@_);
+  $pattern ||= '*';
+  $pattern = Ace->freeprotect($pattern);
+  if (defined $query) {
+    $query = "query $query" unless $query=~/^query\s/;
+  } else {
+    $query = qq{query find $class $pattern};
+  }
+  my $iterator = Ace::Iterator->new($self,$query,$filled,$chunksize);
+  return $iterator;
+}
+
+sub select_iterator {
+  my $self = shift;
+  my $iterator = shift;
+  $self->pick_iterator($iterator);
+}
+
+sub _register_iterator {
+  my ($self,$iterator) = @_;
+  $self->_push_iterator($iterator);
+#  $self->{'iterators'}->{$iterator} = $iterator;
+}
+
+sub _unregister_iterator {
+  my ($self,$iterator) = @_;
+  $self->_pick_iterator($iterator) or return;
+  $self->_pop_iterator;
+#  delete $self->{'iterators'}->{$iterator};
+}
+
+sub _push_iterator {
+  my $self = shift;
+  my $iterator = shift;
+
+  $self->raw_query("spush");
+  $self->{iterators} ||= [];
+  push @{$self->{iterators}},$iterator;
+}
+
+sub _pop_iterator {
+  my $self = shift;
+
+  $self->raw_query("spop");
+  $self->{iterators} ||= [];
+  pop @{$self->{iterators}};
+}
+
+# horrid little function that keeps the database's view of
+# iterators in synch with our view
+sub _pick_iterator {
+  my $self = shift;
+  my $iterator = shift;
+  my $list = $self->{iterators};
+  my $i = 0;
+  while ($i < @$list) {
+    last if $list->[$i] eq $iterator;
+    $i++;
+  }
+  return unless $i < @$list;
+  my $result = $self->raw_query("spick $i");
+  unless (($result =~ /The stack now holds (\d+) keyset/ && ($1 == (@$list-1) ))
+	  or 
+	  ($result =~ /stack is now empty/ && @$list == 1)
+	 ) {
+    $Ace::Error = 'Unexpected result from spick';
+    return;
+  }
+  my $result = $self->raw_query("spush");  # push it back
+  splice(@$list,$i,1);   # remove from position
+  push @$list,$iterator; # and place at head
+}
 
 1;
 
@@ -1409,25 +1490,6 @@ sub grep {
   return $filled ? $self->_fetch($count,$offset) : $self->_list($count,$offset);
 }
 
-# Fetch many objects in iterative style
-sub fetch_many {
-  my $self = shift;
-  my ($class,$pattern,$filled,$query,$chunksize) = rearrange( ['CLASS',
-							       ['PATTERN','NAME'],
-							       ['FILL','FILLED'],
-							       'QUERY',
-							       'CHUNKSIZE'],@_);
-  $pattern ||= '*';
-  $pattern = Ace->freeprotect($pattern);
-  if (defined $query) {
-    $query = "query $query" unless $query=~/^query\s/;
-  } else {
-    $query = qq{query find $class $pattern};
-  }
-  my $iterator = Ace::Iterator->new($self,$query,$filled,$chunksize);
-  return $iterator;
-}
-
 sub pick {
     my ($self,$class,$item) = @_;
     $Ace::Error = '';
@@ -1449,15 +1511,6 @@ sub pick {
     return $result[0];
 }
 
-sub _register_iterator {
-  my ($self,$iterator) = @_;
-  $self->{'iterators'}->{$iterator} = $iterator;
-}
-
-sub _unregister_iterator {
-  my ($self,$iterator) = @_;
-  delete $self->{'iterators'}->{$iterator};
-}
 
 # these two only get loaded if the Ace::Freesubs .XS isn't compiled
 sub freeprotect {

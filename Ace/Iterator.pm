@@ -25,6 +25,7 @@ sub new {
 sub next {
   my $self = shift;
   croak "Attempt to use an expired iterator" unless $self->{db};
+  $self->{db}->select_iterator($self);  # make us active
   $self->_fill_cache() unless @{$self->{'cached_answers'}};
   my $cache = $self->{'cached_answers'};
   my $result = shift @{$cache};
