@@ -4,6 +4,7 @@
 	4. ace.pl added to exampe directory
 	5. new patch file adds a few essential bug fixes to ace 4_5e.
 	6. asGIF() method is now documented
+	7. updated patchfile to include "phoenix effect" aceserver bug
 	
 1.37    1. Added timestamp and comment handling.
 	2. Added -filled and -chunksize arguments to fetch_many().
