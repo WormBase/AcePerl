@@ -9,6 +9,7 @@ Ace::Browser::AceSubs - Subroutines for AceBrowser
   use Ace;
   use Ace::Browser::AceSubs;
   use CGI qw(:standard);
+  use CGI::Cookie;
 
   my $obj = GetAceObject() || AceNotFound();
   PrintTop($obj);
@@ -102,6 +103,7 @@ use strict;
 use Ace::Browser::SiteDefs;
 use Ace 1.76;
 use CGI qw(:standard escape);
+use CGI::Cookie;
 
 use vars qw/@ISA @EXPORT @EXPORT_OK $VERSION %EXPORT_TAGS %DB %OPEN $HEADER $TOP/;
 
