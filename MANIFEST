@@ -11,7 +11,6 @@ MANIFEST
 Makefile.PL
 README
 ace/Makefile
-ace/Makefile.bak
 ace/aceclientlib.c
 ace/arraysub.c
 ace/bump.c
@@ -88,7 +87,6 @@ ace/wmake/SOLARIS_DEF
 ace/wmake/SUN_4_DEF
 ace/wmake/SUN_4_NEW_DEF
 ace/wmake/_DEF
-acedb_4_5e.patch
 examples/ace.pl
 examples/authors.pl
 examples/authors2.pl

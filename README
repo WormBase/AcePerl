@@ -1,7 +1,5 @@
-This is version 1.50 of AcePerl, a Perl interface for the ACEDB
-object-oriented database.  The code is currently in beta stage, which
-means the interface will not change.  However, it may still contain
-bugs.
+This is version 1.52 of AcePerl, a Perl interface for the ACEDB
+object-oriented database.
 
 See the ChangeLog for important notices, including recent user
 interfaces changes.  Please see DISCLAIMER.txt for disclaimers of
@@ -9,67 +7,93 @@ warranty.
 
 INSTALLATION:
 
-You will need ACEDB 4.5e or higher.  If you are using a stock 4.5e
-distribution you will need to apply a patchfile that fixes a number of
-bugs, enhances the GIF generating facilities, and adds two new targets
-to the makefile, "libacecl.a" and "libace.a".  These two library files
-are needed to compile AcePerl.  The patch is contained in the file
-acedb_4_5e.patch.
+AcePerl comes with all the code needed to communicate with a remote
+ACEDB server.  No additional software is required.  However, if you
+wish to communicate with your own ACEDB database, you must use ACEDB
+version 4.7c or higher, available from one of these two locations:
 
-In the instructions that follow, the variable $ACEDB means the ACEDB
-build directory, and $ACEPERL means the AcePerl directory (the
-directory this file is located in.)  This is for simplification of the
-instructions only.  You do not need to create environment variables
-with these names.
+	ftp://ncbi.nlm.nih.gov/repository/acedb/
+	
+There are numerous performance enhancements and bug fixes in version
+4.7 of ACEDB.  Use of older versions of ACEDB is not recommended.
+However this advice only applies to the aceserver, gifaceserver and
+tace applications.  You may use older versions of the graphical xace
+application freely, as this does not interact with AcePerl.
 
+If you wish to use AcePerl in a client-server fashion, you must get
+gifaceserver up and running.  Some hints on installing the
+gifaceserver application are given later in this README.
 
-A. Build and install the ace libraries and header file:
-  1. cd $ACEDB
-  2. patch -p0 < $ACEPERL/acedb_4_5e.patch
-  3. ln -s wmake/makefile makefile
-  4. setenv ACEDB_MACHINE <<your machine architecture>>
-  5. make libacecl.a libace.a
+Follow these steps to unpack, build and install AcePerl:
 
+1. Unpack the AcePerl distribution with this command:
 
-B. Building AcePerl
-  1. cd $ACEPERL
-  2. perl Makefile.PL
-     The Makefile.PL script will search for the location of the
-     ace library and header files.  If it can't find them, enter
-     the path to the directories in which they 
-     can be found ($ACEDB/bin.<<architecture> and $ACEDB/wh
-     respectively.)
-  3. make
-  4. make test (optional, see below)
-  5. make install
+  gunzip -c AcePerl-X.XX.tar.gz | tar xvf -
 
-You may "make test" to test the system.  It will attempt to open a
-connection to a database at beta.crbm.cnrs-mop.fr:20000100.  You may
-change these defaults by setting the environment variables ACEDB_HOST
-and ACEDB_PORT, or by defining them on the command line, as in:
+  Replace X.XX with the current version number of AcePerl.
 
-   make test ACEDB_HOST=localhost ACEDB_PORT=200005
+2. cd AcePerl-X.XX
 
- However, since some of the tests are dependent on specific values in
-the database, this may cause some tests to fail.  Do not be alarmed if
-a handful of tests fail.  Do be alarmed if all of the tests fail.
+3. perl Makefile.PL
 
-You may need to be root (superuser) in order to "make install".  This
-is because Perl will want to install the newly-built files into its
-library tree, /usr/local/lib/perl5/site_perl (or something similar),
-and this tree is usually not writable by mere mortals.  Do not
-despair: see section (D) below.
+   Among other things, the Makefile.PL script will attempt to guess
+   the type of your machine and its operating system.  This information
+   is needed to select the correct makefile in the ACEDB library
+   directory, AcePerl-X.XX/ace/.
 
-If you are using ACEDB 4.6 or higher, AcePerl is included with the
-distribution and will be built automatically when you build ACE.  In
-keeping with the Ace build strategy, when AcePerl is built in context
-with ACEDB, its library files are installed in
-$ACEDB/bin.<<architecture>>.  To use AcePerl within your scripts, you
-will have to tell your scripts where they can find the library files,
-or move these files to the main Perl library tree.  See section (E)
-for the details.
+   If AcePerl fails to make correctly later in the process, it may be
+   because the script guessed wrong.  You can override this guess by
+   setting the machine type using the ACEDB_MACHINE environment
+   variable.  On a C-shell or TC-shell machine, use a command like
+   this one:
+ 
+     setenv ACEDB_MACHINE ALPHA_4_GCC; perl Makefile.PL
+  
+   On a Bourne-shell or Korn-shell system, use:
 
-C. Installing AcePerl in a non-standard location
+    ACEDB_MACHINE=ALPHA_4_GCC; export ACEDB_MACHINE
+    perl Makefile.PL
+
+   You can find a list of machine definitions in
+   AcePerl-X.XX/ace/wmake.  There are lots of them, but only
+   one or two per operating system, so it's usually pretty
+   easy to choose the right one.  The defintions have names 
+   like ALPHA_4_GCC_DEF.  Before setting the corresponding
+   environment variable, remove the "_DEF" from the end of the name.
+
+   Please drop me a line to let me know what you had to do to get
+   the ACEDB libraries to compile.  I'll fix up the Makefile so
+   that it works correctly for the next person who tries it.
+
+4. make
+
+   This will build the ACEDB client library, libaceperl.a, in the ace
+   subdirectory.  It will then link in the Perl client subs.
+
+5. make test (optional)
+
+   You may "make test" to test the system.  It will attempt to open a
+   connection to a database at beta.crbm.cnrs-mop.fr:20000100.  You may
+   change these defaults by setting the environment variables ACEDB_HOST
+   and ACEDB_PORT, or by defining them on the command line, as in:
+
+    make test ACEDB_HOST=localhost ACEDB_PORT=200005
+
+   However, since some of the tests are dependent on specific values in
+   the database, this may cause some tests to fail.  Do not be alarmed if
+   a handful of tests fail.  Do be alarmed if all of the tests fail.
+
+  6. make install
+
+  This will install AcePerl into your perl5 library directory.
+
+  You may need to be root (superuser) in order to "make install".  This
+  is because Perl will want to install the newly-built files into its
+  library tree, /usr/local/lib/perl5/site_perl (or something similar),
+  and this tree is usually not writable by mere mortals.  Do not
+  despair: see the next section.
+
+INSTALLING ACEPERL IN A NON-STANDARD LOCATION
 
 By default, Perl will install AcePerl's library files within the
 site-specific subdirectory of its library tree, usually
@@ -111,8 +135,18 @@ Or you could reinstall AcePerl in the main Perl library tree just by
 entering the wperl/ subdirectory, and rerunning "perl Makefile.PL"
 without defining INSTALLSITELIB.
 
+HINTS ON INSTALLING AN ACE SERVER
 
-D. Install an Ace server, if you haven't already.  
+ACEDB comes with two servers called "aceserver" and "gifaceserver".
+The difference between the two is that gifaceserver has the ability to 
+serve graphical pictures.  Aceserver is text-only. In general, you
+will want to use gifaceserver unless you know you will never need to
+serve pictures.
+
+A full description of installing (gif)aceserver is given in the ACEDB
+distribution subdirectory wrpc/, in the file SERVER.INSTALLATION.
+In order to get the server to start up automatically when it's needed, 
+you must modify two system files, /etc/rpc, and /etc/inetd.conf.
 
 Here's my configuration:
 
@@ -134,11 +168,12 @@ You may need to kill the inetd daemon completely and restart it in
 order to have the server come up correctly the first time.  At least I
 did.  After that it will come up whenever it is needed and exit after
 it has idled for the timeout period specified on the command line.
-Earlier versions of aceserver had problems with the so-called "phoenix
-effect" on certain platforms, a phenonemon which caused the server to
-be immediately relaunched after exiting, but the patchfile contains a
-fix for that problem.
 
+(gif)aceserver has a problem on many Solaris systems.  The symptom of
+this problem is that the server launches, but fails to respond to
+requests.  The solution to this problem is to install the binary
+distribution of ACEDB for solaris, or to follow the directions given
+in the SERVER.INSTALLATION file.
 
 USING ACEPERL
 
@@ -149,8 +184,8 @@ A. Read the copious documentation
 B. Review the examples
 
 A few useful examples can be found in the "examples" subdirectory.
-Among these is a script called "ace.pl", which implements a tace-like
-interface to a local or remote ace database.  If you have the Perl
+Among these is a script called "ace.pl", which implements a text
+interface to any local or remote ace database.  If you have the Perl
 Term::readline module installed, it gives you command-line editing,
 completion, and history.
 
@@ -160,10 +195,9 @@ but it is probably easier to set up and run).  You can find the
 package at this URL:
 
   http://stein.cshl.org/AcePerl/AceBrowser
-	
 
 Lincoln Stein
 lstein@cshl.org
 
-October 27, 1998
+January 21, 1999
 

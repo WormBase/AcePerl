@@ -67,7 +67,7 @@
  *-------------------------------------------------------------------
  */
 
-/* $Id: messubs.c,v 1.1 1999/01/11 00:01:29 lstein Exp $ */
+/* $Id: messubs.c,v 1.2 1999/01/21 18:21:23 lstein Exp $ */
 
 #include <assert.h>
 #include <errno.h>
@@ -706,35 +706,33 @@ UTIL_FUNC_DEF void messErrorInit(char *progname)
 /* line information using the __FILE__ & __LINE__ macros.                    */
 /*                                                                           */
 UTIL_FUNC_DEF void uMessSetErrorOrigin(char *filename, int line_num)
-  {
+{
   
   assert(filename != NULL && line_num != 0) ;
-    
+  
   /* We take the basename here because __FILE__ can be a path rather than    */
   /* just a filename, depending on how a module was compiled.                */
   messageG.filename = strnew(filGetFilename(filename), 0) ;
-
+  
   messageG.line_num = line_num ;
+}
 
-  return ;
-  }
-
-
+/* mieg: protected these func against bad return, was crashing solaris server */
 /* Access functions for message error data.                                  */
 UTIL_FUNC_DEF char *messGetErrorProgram()
-  {
-  return(messageG.progname) ;
-  }  
+{
+  return messageG.progname ?  messageG.progname : "programme_name_unknown"  ;
+}  
 
 static char *messGetErrorFile()
-  {
-  return(messageG.filename) ;
-  }  
+{
+  return messageG.filename ? messageG.filename  : "file_name_unknown" ; 
+}  
 
 static int messGetErrorLine()
-  {
-  return(messageG.line_num) ;
-  }  
+{
+  return messageG.line_num ;
+}  
 
 
 /*****************************/

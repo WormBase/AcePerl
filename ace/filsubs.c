@@ -11,7 +11,7 @@
  *              
  * Exported functions:
  * HISTORY:
- * Last edited: Dec  8 16:33 1998 (fw)
+ * Last edited: Jan  5 16:36 1999 (fw)
  * * Dec  8 10:20 1998 (fw): new function filAge to determine time since
  *              last modification of file
  * * Oct 22 16:17 1998 (edgrif): Replace unsafe strtok with strstr.
@@ -41,7 +41,7 @@
  *-------------------------------------------------------------------
  */
 
-/* $Id: filsubs.c,v 1.1 1999/01/11 00:01:28 lstein Exp $	 */
+/* $Id: filsubs.c,v 1.2 1999/01/21 18:21:22 lstein Exp $	 */
 
 #include "regular.h"
 #include "mytime.h"
@@ -652,7 +652,7 @@ UTIL_FUNC_DEF Array filDirectoryCreate (char *dirName,
   Array a ;
 #if !defined(WIN32)
   DIR	*dirp ;
-  char	*dName, entryPathName[MAXPATHLEN], *leaf ;
+  char	*dName, *dName_copy, entryPathName[MAXPATHLEN], *leaf ;
   int	dLen, endLen ;
   MYDIRENT *dent ;
 
@@ -686,7 +686,9 @@ UTIL_FUNC_DEF Array filDirectoryCreate (char *dirName,
 
       /* the memory of these strings is freed my 
 	 the messfree()'s in filDirectoryDestroy() */
-      array(a,arrayMax(a),char*) = strnew(dName, 0) ;
+      dName_copy = messalloc(strlen(dName)+1) ;
+      strcpy (dName_copy, dName);
+      array(a, arrayMax(a), char*) = dName_copy;
     }
   
   closedir (dirp) ;

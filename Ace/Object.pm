@@ -22,20 +22,27 @@ $VERSION = '1.51';
 sub AUTOLOAD {
     my($pack,$func_name) = $AUTOLOAD=~/(.+)::([^:]+)$/;
     my $self = $_[0];
-    my $error = "Can't locate object method \"$func_name\" via package \"$pack\"";
 
     # The following commented area works without the autoloader
+    #     my $error = "Can't locate object method \"$func_name\" via package \"$pack\"";
     #     croak $error unless $self->db && $self->isObject;
     #     $self = $self->fetch unless $self->isRoot;  # dereference, if need be
     #     croak $error unless $self;
     #     croak $error unless $self->model->valid_tag($func_name);
 
      # This section works with Autoloader
-     $AutoLoader::AUTOLOAD = $AUTOLOAD;
-     goto &AutoLoader::AUTOLOAD unless $self->db && $self->isObject;
-     $self = $self->fetch unless $self->isRoot;  # dereference, if need be
-     goto &AutoLoader::AUTOLOAD unless $self;
-     goto &AutoLoader::AUTOLOAD unless $self->model->valid_tag($func_name);
+    my $presumed_tag = $func_name =~ /^[A-Z]/;  # initial_cap 
+    $AutoLoader::AUTOLOAD = $AUTOLOAD;
+    goto &AutoLoader::AUTOLOAD unless $self->isObject;
+    $self = $self->fetch unless $self->isRoot;  # dereference, if need be
+    unless ($self) {
+      croak "Null object tag \"$func_name\"" if $presumed_tag;
+      goto &AutoLoader::AUTOLOAD;
+    }
+    unless ($self->model->valid_tag($func_name)) {
+      croak "Invalid object tag \"$func_name\"" if $presumed_tag;
+      goto &AutoLoader::AUTOLOAD;       
+    }
 
     shift();  # get rid of the object
     my $no_dereference;
@@ -1505,7 +1512,7 @@ sub asPeptide {
 sub _special_dump {
   my $self = shift;
   my $dump_format = shift;
-  return unless $self->db->raw_query(join(' ','find',$self->class,$self->name));
+  return unless $self->db->count($self->class,$self->name);
   my $result = $self->db->raw_query($dump_format);
   $result =~ s!^//.*!!ms;
   $result;
@@ -1664,14 +1671,9 @@ sub delete {
 # Removes the object from the database immediately.
 sub kill {
   my $self = shift;
-  my $name = $self->name();
-  return unless defined $name;
-
-  $name =~ s/([^a-zA-Z0-9_-])/\\$1/g;
-  my $cmd = "kill $self->{'class'} $name";
-  warn "$cmd\n" if $self->debug;
   return unless my $db = $self->db;
-  my $result = $db->raw_query($cmd);
+  return 1 unless $db->count($self->class,$self->name);
+  my $result = $db->raw_query("kill");
   if (defined($result) and $result=~/write access/im) {  # this keeps changing
     $Ace::ERR = "Write access denied";
     return;

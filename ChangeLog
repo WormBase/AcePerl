@@ -1,5 +1,10 @@
-1.42	12/18/98
-	1. Numeric comparisons now behave as expected.
+1.52	1/21/99
+	1. Fixed bad bug in the kill method which caused objects
+	to be removed from the database seemingly randomly.
+	2. Optimized tag searching to improve performance when
+	navigating objects.
+	3. Better error message reporting when objects do not contain
+	a desired tag.
 1.51	12/14/98
 	1. Comparison between objects now is more sensible:
 	"eq" performs a string comparison on object names
