@@ -118,6 +118,12 @@ int arg;
 #else
 	    goto not_there;
 #endif
+	if (strEQ(name, "STATUS_ERROR"))
+#ifdef STATUS_ERROR
+	    return STATUS_ERROR;
+#else
+	    goto not_there;
+#endif
 	break;
     case 'T':
 	break;
@@ -253,6 +259,7 @@ CODE:
 	   RETVAL = 0;
 	} else {
 	   self->answer = answer;
+	   self->length = length;
            self->status = STATUS_PENDING;
 	   self->encoring = encore;
 	   RETVAL = 1;
@@ -260,7 +267,7 @@ CODE:
 OUTPUT:
 	RETVAL
 
-char*
+SV*
 read(self)
 	AceDB* self
 PREINIT:
@@ -282,11 +289,12 @@ CODE:
 	   self->answer = answer;
 	}
 	if (!self->encoring) self->status = STATUS_WAITING;
-	RETVAL = self->answer;
+	RETVAL = newSVpv(self->answer,self->length);
 OUTPUT:
 	RETVAL
 CLEANUP:
 	if (self->answer != NULL) {
 	   free((void*) self->answer);
+	   self->length = 0;
 	   self->answer = NULL;
 	}

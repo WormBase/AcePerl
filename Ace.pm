@@ -20,7 +20,7 @@ require DynaLoader;
         STATUS_PENDING
 	STATUS_ERROR
 );
-$VERSION = '0.50';
+$VERSION = '1.21';
 
 sub AUTOLOAD {
     # This AUTOLOAD is used to 'autoload' constants from the constant()
@@ -71,12 +71,21 @@ sub connect {
     return $self;
 }
 
+# return true if the database is still connected
+sub ping {
+  my $self = shift;
+  local($SIG{PIPE})='IGNORE';  # so we don't get a fatal exception during the check
+  $self->raw_query('') || return undef;
+  return !$self->{database}->status;
+}
+
 sub fetch {
     my ($self,$class,$pattern) = @_;
     my ($start,$count) = (0,-1);
     $count = 1 unless wantarray;
     $self->query("find $class $pattern");
-    $self->_fetch($start,$count);
+    my (@h) = $self->_list($start,$count);
+    return $h[0]
 }
 
 sub fetch_many {
@@ -316,10 +325,10 @@ use overload
     '""'       => 'name',
     'fallback' =>' TRUE';
 use vars '$AUTOLOAD';
-use Ace 'rearrange';
 
 # I get confused by this
 *isClass = \&isObject;
+*rearrange = \&Ace::rearrange;
 
 sub AUTOLOAD {
     my($pack,$func_name) = $AUTOLOAD=~/(.+)::([^:]+)$/;
@@ -534,6 +543,47 @@ sub asString {
   }
   return ($result = $^A,$^A='')[0];
 }
+
+# run a series of GIF commands and return the Gif and the semi-parsed
+# "boxes" structure.  Commands is typically a series of mouseclicks
+# ($gif,$boxes) = $aceObject->asGif(-clicks=>[[$x1,$y1],[$x2,$y2]...],
+#                                   -dimensions=>[$x,$y]);
+sub asGif {
+  my $self = shift;
+  my ($clicks,$dimensions) = rearrange(['CLICKS',['DIMENSIONS','DIM']],@_);
+  my @commands = "gif display @{[$self->class]} @{[$self->name]}";
+  unshift (@commands,"Dimensions @$dimensions") if ref($dimensions);
+  push(@commands,map { "mouseclick @{$_}" } @$clicks) if ref($clicks);
+  push(@commands,"gifdump -");
+  
+  # do the query
+  my $data = $self->{'db'}->raw_query(join(' ; ',@commands));
+
+  # did this query succeed?
+  return () unless $data=~m!^// (\d+) bytes\n!m;
+  my $bytes = $1;
+  my $trim = $';  # everything after the match
+  my $gif = substr($trim,0,$bytes);
+  
+  # now process the boxes
+  my @b;
+  my @boxes = split("\n",substr($trim,$bytes));
+  foreach (@boxes) {
+    last if m!^//!;
+    chomp;
+    my ($left,$top,$right,$bottom,$class,$name,$comments) = 
+      m/^\s*\d*\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\w+):"(.+)"\s*(.*)/;
+    next unless defined $left;
+    $comments=~s/\s+$//; # sometimes there's extra white space at the end
+    my $box = {'coordinates'=>[$left,$top,$right,$bottom],
+	       'class'=>$class,
+	       'name' =>$name,
+	       'comment'=>$comments};
+    push (@b,$box);
+  }
+  return ($gif,\@b);
+}
+
 
 ############### object on the right of the tree #############
 sub right (\$) {
@@ -952,6 +1002,14 @@ can open a connection this way too:
 The return value is an Ace handle to use to access the database, or
 undef if the connection fails.  If the connection fails, an error
 message can be retrieved by calling Ace->error.
+
+You may check the status of a connection at any time with ping().  It
+will return a true value if the database is still connected.  Note
+that Ace will timeout clients that have been inactive for any length
+of time.  Long-running clients should attempt to reestablish their 
+connection if ping() returns false.
+
+    $db->ping() || die "not connected";
 
 =head1 RETRIEVING ACEDB OBJECTS
 

@@ -16,6 +16,8 @@ WriteMakefile(
     'OBJECT'    => '$(O_FILES)',
     'XSPROTOARG'   => '-noprototypes',
     'INC'	   => "-I$headers",     # e.g., '-I/usr/include/other' 
+    'dist'      => {'COMPRESS'=>'gzip -9f', 'SUFFIX' => 'gz',
+	            'ZIP'=>'/usr/bin/zip','ZIPFLAGS'=>'-rl'}
 );
 
 sub readline_setup {

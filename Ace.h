@@ -8,6 +8,7 @@
 typedef struct AceDB {
   ace_handle*  database;
   char*        answer;
+  int          length;
   int          encoring;
   int          status;
   int          errcode;
