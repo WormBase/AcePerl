@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.46 2003/09/05 14:02:42 lstein Exp $
+# $Id: Object.pm,v 1.47 2004/08/16 20:57:10 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -2262,6 +2262,8 @@ sub _asXML {
       $timestamp = $self->escapeXML($timestamp);
       $attributes .= qq( timestamp="$timestamp");
     }
+
+    $tagname = $self->_xmlNumber($tagname) if $tagname =~ /^\d/;
     
     unless (defined $self->right) { # lone tag
       $$out .= $self->isTag || !$opts->{content} ? qq($tab<$tagname$attributes />\n) 
@@ -2293,4 +2295,22 @@ sub escapeXML {
   $string =~ s/</&lt;/g;
   $string =~ s/>/&gt;/g;
   return $string;
+}
+
+sub _xmlNumber {
+  my $self = shift;
+  my $tag  = shift;
+  $tag =~ s/^(\d)/
+        $1 eq '0' ? 'zero'
+      : $1 eq '1' ? 'one'
+      : $1 eq '2' ? 'two'
+      : $1 eq '3' ? 'three'
+      : $1 eq '4' ? 'four'
+      : $1 eq '5' ? 'five'
+      : $1 eq '6' ? 'six'
+      : $1 eq '7' ? 'seven'
+      : $1 eq '8' ? 'eight'
+      : $1 eq '9' ? 'nine'
+      : $1/ex;
+  $tag;
 }
