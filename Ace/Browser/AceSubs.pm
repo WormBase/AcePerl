@@ -113,7 +113,7 @@ use vars qw/@ISA @EXPORT @EXPORT_OK $VERSION %EXPORT_TAGS
 
 require Exporter;
 @ISA = qw(Exporter);
-$VERSION = 1.20;
+$VERSION = 1.21;
 
 ######################### This is the list of exported subroutines #######################
 @EXPORT = qw(
@@ -398,7 +398,7 @@ sub AceRedirect {
   my $args = ref($object) ? "name=$object&class=".$object->class
                           : "name=$object";
   my $destination = ResolveUrl($url => $args);
-  AceHeader(-Refresh => "2; URL=$destination");
+  AceHeader(-Refresh => "1; URL=$destination");
   print start_html (
 			 '-Title' => 'Redirect',
 			 '-Style' => Style(),
@@ -406,7 +406,7 @@ sub AceRedirect {
     h1('Redirect'),
     p("This request is being redirected to the \U$report\E display"),
     p("This page will automatically display the requested object in",
-	   "two seconds.",a({-href=>$destination},'Click on this link'),
+	   "one seconds",a({-href=>$destination},'Click on this link'),
 	'to load the page immediately.'),
     end_html();
     Apache->exit(0) if defined &Apache::exit;
