@@ -19,28 +19,88 @@ A. Build and install the ace libraries and header file:
   2. patch < $ACEPERL/acedb_4_5e.patch
   3. setenv ACEDB_MACHINE <<your machine architecture>>
   4. make libacecl.a libace.a
-  5. cp bin.<<your machine architecture>>/libace*.a /usr/local/lib
-  6. cp wh/aceclient.h /usr/local/include
 
 B. Building AcePerl
   1. cd $ACEPERL
   2. perl Makefile.PL
-     You will be prompted for the location of the ace library and
-     header files. Enter the path to the directories in which they 
-     can be found (/usr/local/lib  and /usr/local/include if you 
-     followed the recipe above).
+     The Makefile.PL script will search for the location of the
+     ace library and header files.  If it can't find them, enter
+     the path to the directories in which they 
+     can be found ($ACEDB/bin.<<architecture> and $ACEDB/wh
+     respectively.)
   3. make
   4. make test (optional, see below)
   5. make install
 
-You may "make test" if you like, but it currently is hard-wired to
-open an acedb database on formaggio.cshl.org.  Since this port is not
-open to the Internet, you can expect all but test 1 to fail.
+You may "make test" to test the system.  It will attempt to open a
+connection to a database at beta.crbm.cnrs-mop.fr:20000100.  You may
+change these defaults by setting the environment variables ACEDB_HOST
+and ACEDB_PORT.  However, since some of the tests are dependant on
+specific values in the database, this may cause some tests to fail.
+Do not be alarmed.
+
+You may need to be root (superuser) in order to "make install".  This
+is because Perl will want to install the newly-built files into its
+library tree, /usr/local/lib/perl5/site_perl (or something similar),
+and this tree is usually not writable by mere mortals.  Do not
+despair: see section (D) below.
+
+If you are using ACEDB 4.6 or higher, AcePerl is included with the
+distribution and will be built automatically when you build ACE.  In
+keeping with the Ace build strategy, when AcePerl is built in context
+with ACEDB, its library files are installed in
+$ACEDB/bin.<<architecture>>.  To use AcePerl within your scripts, you
+will have to tell your scripts where they can find the library files,
+or move these files to the main Perl library tree.  See section (D)
+for the details.
 
 C. Read the copious documentation
-   1. perldoc Ace
+   
+   perldoc Ace
 
-D. Install an Ace server, if you haven't already.  
+D. Installing AcePerl in a non-standard location
+
+By default, Perl will install AcePerl's library files within the
+site-specific subdirectory of its library tree, usually
+/usr/local/lib/perl5/site_perl.  If you wish, you can install the
+library files elsewhere.
+
+Simply change to the AcePerl distribution directory and run the
+Makefile.PL script with the INSTALLSITELIB switch set to the full path 
+of the directory you want to install into:
+
+  perl Makefile.PL INSTALLSITELIB=/path/to/library
+
+Then "make" and "make install" as described before.  You will now have
+to tell Perl where to find AcePerl.  You can do this on a
+script-by-script basis, or by defining an environment variable that
+will affect all scripts.
+
+To tell a single script where to find AcePerl, add a "use lib" line
+to your script.  Put it _before_ the "use Ace" line:
+
+  use lib /path/to/library;
+  use Ace;
+
+To change Perl's library search path so that it finds AcePerl
+automatically, define the PERL5LIB environment variable in your
+.login, .cshrc or .profile script.  PERL5LIB is a colon-delimited list 
+of directories in which Perl will search for included libraries.  For
+example:
+
+  setenv PERL5LIB "/path/to/library";
+
+If AcePerl was built as part of the main Ace distribution, you will
+want to define PERL5LIB to be the location of the machine-specific 
+build directory.  For example:
+
+  setenv PERL5LIB $HOME/ace/bin.LINUX_4_OPT
+
+Or you could reinstall AcePerl in the main Perl library tree just by
+entering the wperl/ subdirectory, and rerunning "perl Makefile.PL"
+without defining INSTALLSITELIB.
+
+E. Install an Ace server, if you haven't already.  
 
 Here's my configuration:
 
@@ -65,9 +125,12 @@ too much about picking the timeouts.  My version of portmapper is kind
 enough to keep the aceserver running at all times -- yours probably
 will too.
 
-You'll find some test scripts in misc_tests.  None will work
-unmodified on your system because they were designed for a particular
-database on my development machine.
+The examples/ subdirectory contains some example scripts that fetch
+data from a database in France.  You'll also find there a program
+called "ace.pl" which sets up a small command shell for interacting
+with an ace server.  If you have Perl readline installed, you even get 
+the benefits of command-line editing and command completion!
+
 
 Lincoln Stein
 lstein@cshl.org

@@ -2,10 +2,17 @@ use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 readline_setup();
-exit -1 unless
-  $location = _prompt('Location of libace.a and libacecl.a','/usr/local/lib');
-exit -1 unless
-  $headers = _prompt('Location of aceclient.h','/usr/local/include');
+my ($lib,$include) = find_ace();
+my @OTHER_FLAGS;
+
+if ($ENV{ACEDB_MACHINE} && $ENV{ACEDB_SRC}) {
+  ($location,$headers) = ($lib,$include);
+} else {
+  exit -1 unless
+    $location = _prompt('Location of libace.a and libacecl.a',$lib);
+  exit -1 unless
+    $headers = _prompt('Location of aceclient.h',$include);
+}
 
 WriteMakefile(
     'DISTNAME'     => 'AcePerl',
@@ -17,8 +24,50 @@ WriteMakefile(
     'XSPROTOARG'   => '-noprototypes',
     'INC'	   => "-I$headers",     # e.g., '-I/usr/include/other' 
     'dist'      => {'COMPRESS'=>'gzip -9f', 'SUFFIX' => 'gz',
-	            'ZIP'=>'/usr/bin/zip','ZIPFLAGS'=>'-rl'}
+	            'ZIP'=>'/usr/bin/zip','ZIPFLAGS'=>'-rl'},
 );
+
+# search around for ace and return the location of the lib and include files
+sub find_ace {
+  my @roots = qw(. .. ../.. ../../.. /usr/local);
+  unshift(@roots,$ENV{ACEDB_SRC}) if exists $ENV{ACEDB_SRC};
+  unshift(@roots,(getpwnam('acedb'))[7]);
+  unshift(@roots,$ENV{HOME}) if exists $ENV{HOME};
+  my @subs = qw(ace acedb ACE ACEDB);
+  # look for a wh directory
+  my ($src,$root,$sub);
+ SEARCH:
+  foreach $root (@roots) {
+    foreach $sub (@subs) {
+      $src = "$root",last SEARCH if -d "$root/wh";
+      $src = "$root/$sub",last SEARCH if -d "$root/$sub/wh";
+    }
+  }
+  if ($src) {
+    my $olddir;
+    chomp($olddir = `pwd`);
+    chdir $src;
+    chomp($src = `pwd`);
+    chdir $olddir;
+    warn "Found ACEDB source tree in $src.\n";
+  } else {
+    warn "Couldn't find ACEDB source tree.\n";
+    return ('/usr/local/lib','/usr/local/include');
+  }
+  # If we get here, then we have a source tree to rummage through.
+  # Now we need to find the appropriate bin directory for the
+  # libraries.
+  my $include = "$src/wh";
+  my ($lib);
+  my (@bins) = <$src/bin*>;
+  unshift (@bins,"$src/bin.$ENV{ACEDB_MACHINE}") if exists $ENV{ACEDB_MACHINE};
+  foreach (@bins) {
+    return ($_,$include) if -e "$_/libacecl.a";
+  }
+  
+  # if we get here, we go with the defaults again
+  return ('/usr/local/lib',$include);
+}
 
 sub readline_setup {
   eval 'use Term::ReadLine' ;

@@ -20,7 +20,7 @@ require DynaLoader;
         STATUS_PENDING
 	STATUS_ERROR
 );
-$VERSION = '1.21';
+$VERSION = '1.24';
 
 sub AUTOLOAD {
     # This AUTOLOAD is used to 'autoload' constants from the constant()
@@ -79,13 +79,19 @@ sub ping {
   return !$self->{database}->status;
 }
 
+# Return the low-level Ace::AceDB object
+sub db {
+  return $_[0]->{'database'};
+}
+
+# Fetch one or a group of objects from the database
 sub fetch {
     my ($self,$class,$pattern) = @_;
     my ($start,$count) = (0,-1);
     $count = 1 unless wantarray;
-    $self->query("find $class $pattern");
+    $self->query("query find $class $pattern");
     my (@h) = $self->_list($start,$count);
-    return $h[0]
+    return wantarray ? @h : $h[0];
 }
 
 sub fetch_many {
@@ -178,6 +184,15 @@ sub raw_query {
     return $self->read_object;
 }
 
+# Return a list of all the classes known to the server.
+sub classes {
+  my $self = shift;
+  $self->_alert_iterators;
+  $self->query("query find class !buried");
+  return $self->_list;
+}
+
+# return the last error
 sub error {
     return $ACE::ERR;
 }
@@ -324,7 +339,9 @@ package Ace::Object;
 use overload 
     '""'       => 'name',
     'fallback' =>' TRUE';
-use vars '$AUTOLOAD';
+use vars qw($AUTOLOAD $DEFAULT_WIDTH);
+
+$DEFAULT_WIDTH=25;  # column width for pretty-printing
 
 # I get confused by this
 *isClass = \&isObject;
@@ -514,13 +531,15 @@ sub asHTML (\$;$) {
 sub asTable (\$) {
     my $self = shift;
     my $string = "$self\t";
-    $self->right->_asTable(\$string,1,2);
+    my $right = $self->right;
+    $right->_asTable(\$string,1,2) if $right;
     return $string . "\n";
 }
 
 ### Pretty-printed version -- this should use a FORMAT statement ###
 sub asString {
   my $self = shift;
+  my $MAXWIDTH = shift || $DEFAULT_WIDTH;
   my $tabs = $self->asTable;
   my(@lines) = split("\n",$tabs);
   my($result,@max);
@@ -528,10 +547,10 @@ sub asString {
     my(@fields) = split("\t");
     for (my $i=0;$i<@fields;$i++) {
       $max[$i] = length($fields[$i]) if
-	$max[$i] < length($fields[$i]);
+	!defined($max[$i]) or $max[$i] < length($fields[$i]);
     }
   }
-  foreach (@max) { $_ = 20 if $_ > 20; } # crunch long lines
+  foreach (@max) { $_ = $MAXWIDTH if $_ > $MAXWIDTH; } # crunch long lines
   my $format1 = join(' ',map { "^"."<"x $max[$_] } (0..$#max)) . "\n";
   my $format2 =   ' ' . join('  ',map { "^"."<"x ($max[$_]-1) } (0..$#max)) . "~~\n";
   $^A = '';
@@ -606,11 +625,14 @@ sub down (\$) {
 sub delete (\$$;$) {
     my($self,$tag,$oldvalue) = @_;
     my $subtree = $self->at(($oldvalue ? "$tag.$oldvalue" : $tag),1);  # returns the parent
-    if ("$subtree->{'right'}" eq $oldvalue) {
+    if (defined($oldvalue) 
+	&& defined($subtree->{'right'})
+	&& "$subtree->{'right'}" eq $oldvalue) {
 	$subtree->{'right'} = $subtree->{'right'}->down;
     } else {
 	$subtree->{'down'} = $subtree->{'down'}->{'down'}
     }
+    $oldvalue = '' unless defined($oldvalue);
     $oldvalue =~ s/([^a-zA-Z0-9_-])/\\$1/g;
     push(@{$self->{'delete'}},join(' ',split('\.',$tag),$oldvalue));
     delete $self->{'.PATHS'}; # uncache cached values
@@ -680,8 +702,8 @@ sub add (\$$$) {
 #  returns true if this is a valid thing to do #
 sub replace (\$$$$) {
     my($self,$tag,$oldvalue,$newvalue) = @_;
-    $self->add($tag,$newvalue);
     $self->delete($tag,$oldvalue);
+    $self->add($tag,$newvalue);
     delete $self->{'.PATHS'}; # uncache cached values
     1;
 }
@@ -689,9 +711,11 @@ sub replace (\$$$$) {
 sub commit (\$) {
     my $self = shift;
     my (@cmd);
-    push(@cmd,"parse = $self->{'class'} $self->{'name'} ; " . join(' ; ',@{$self->{'add'}}))
+    my $name = $self->{'name'};
+    $name =~ s/([^a-zA-Z0-9_-])/\\$1/g;
+    push(@cmd,"parse = $self->{'class'} $name ; " . join(' ; ',@{$self->{'add'}}))
 	if $self->{'add'};
-    push(@cmd,"parse = $self->{'class'} $self->{'name'} ; -D " . join(' ; -D ',@{$self->{'delete'}}))
+    push(@cmd,"parse = $self->{'class'} $name ; -D " . join(' ; -D ',@{$self->{'delete'}}))
 	if $self->{'delete'};
     warn join("\n",@cmd),"\n" if $self->debug && @cmd;
     return undef unless my $db = $self->db;
@@ -699,9 +723,13 @@ sub commit (\$) {
     foreach my $cmd (@cmd) {
 	my $result = $db->raw_query($cmd);
 	my ($errors) = $result =~ /(\d+) errors\/\/ \d+ Active Objects/;
-	if ($errors) {
-	    $ACE::ERR = "Error during commit().  Object $self->{name} not correctly written.";
+	if (defined($errors) and $errors > 0) {
+	    $ACE::ERR = "Error during commit().  Object $self->{'name'} not correctly written.";
 	    return undef;
+	}
+	if ($result =~ /you do not have Write Access/im) {
+	  $ACE::ERR = "Write access to database denied.";
+	  return undef;
 	}
     }
     undef $self->{'add'};
@@ -715,7 +743,8 @@ sub rollback (\$) {
     undef $self->{'delete'};
     # this will force object to be reloaded from database
     # next time it is needed.
-    undef $self->{'right'};
+    delete $self->{'right'};
+    1;
 }
 
 sub debug {
@@ -753,7 +782,7 @@ sub _fill {
 sub _parse {
   my $self = shift;
   return unless my $raw = $self->{'raw'};
-  my $col = $self->{col};
+  my $col = $self->{'col'};
   my $current_obj = $self;
   my $current_row = $self->{'start_row'};
   my $db = $self->{'db'};
@@ -952,7 +981,7 @@ Ace - open an ACE database server for reading and writing
     $r->rollback()
 
     # Get errors
-    print ACE->error;
+    print Ace->error;
     print $sequence->error;
 
 =head1 DESCRIPTION
@@ -1011,6 +1040,12 @@ connection if ping() returns false.
 
     $db->ping() || die "not connected";
 
+You may perform low-level calls using the Ace client C API by calling
+db().  This fetches an Ace::AceDB object.  See THE LOW LEVEL C API for
+details on using this object.
+ 
+    $low_level = $db->db();
+
 =head1 RETRIEVING ACEDB OBJECTS
 
 Once you have established a connection and have an Ace databaes
@@ -1067,9 +1102,9 @@ Fetch() returns the B<entire> filled-in object.  There is latency
 overhead every time you go back to the database.
 
 As the last example shows, instead of providing a name pattern you can
-fetch objects that meet the conditions of an arbitrary query language
-expression.  Unfortunately, nobody currently understands the query
-language syntax.
+fetch objects that meet the conditions of an arbitrary Ace query
+language expression.  The full query syntax is described in
+http://where.the.hell.is.that.bloody.doc/
 
 =head2 fetch_many() method
 
@@ -1077,7 +1112,7 @@ If you expect to retrieve many objects, you can fetch an iterator
 across the data set.  This is friendly both in terms of network
 bandwidth and memory consumption.  It is simple to use:
 
-    $i = $db->fetch(Sequence,'*');  # all sequences!!!!
+    $i = $db->fetch_many(Sequence,'*');  # all sequences!!!!
     while ($obj = $i->next) {
        print $obj->asTable;
     }
@@ -1093,6 +1128,14 @@ Send a command to the database and return its unprocessed output.
 This method is necessary to gain access to features that are not yet
 implemented in this module, such as model browsing and complex
 queries.
+
+=head2 classes() method
+
+   @classes = $db->classes();
+
+This method returns a list of all the object classes known to the
+server.  In a list context it returns an array of class names.  In a
+scalar context, it the number of classes defined in the database.
 
 =head2 error() method
 
@@ -1478,6 +1521,85 @@ operation returned a result code indicating an error.
 Change the debugging mode.  A zero turns of debugging messages.
 Integer values produce debug messages on standard error.  Higher
 integers produce progressively more verbose messages.
+
+=head1 THE LOW LEVEL C API
+
+Internally Ace.pm makes C-language calls to libace to send query
+strings to the server and to retrieve the results.  The class that
+exports the low-level calls is named Ace::AceDB.
+
+The following methods are available in Ace::AceDB:
+
+=over 4
+
+=item new($host,$port,$timeout)
+
+Connect to the host $host at port $port. Timeout after $timeout
+seconds.  If timeout is not specified, it defaults to 25.
+
+If successful, this call returns an Ace::AceDB connection object.
+Otherwise, it returns undef.  Example:
+
+  $acedb = Ace::AceDB->new('localhost',200005,5) 
+           || die "Couldn't connect";
+
+The Ace::AceDB object can also be accessed from the high-level Ace
+interface by calling the ACE::db() method:
+
+  $db = Ace->new(-host=>'localhost',-port=>200005);
+  $acedb = $db->db();
+
+=item query($request)
+
+Send the query string $request to the server and return a true value
+if successful.  You must then call read() repeatedly in order to fetch
+the query result.
+
+=item read()
+
+Read the result from the last query sent to the server and return it
+as a string.  ACE may return the result in pieces, breaking between
+whole objects.  You may need to read repeatedly in order to fetch the
+entire result.  Canonical example:
+
+  $acedb->query("find Sequence D*");
+  die "Got an error ",$acedb->error() if $acedb->status == STATUS_ERROR;
+  while ($acedb->status == STATUS_PENDING) {
+     $result .= $acedb->read;
+  }
+
+=item status()
+
+Return the status code from the last operation.  Status codes are
+exported by default when you B<use> Ace.pm.  The status codes you may
+see are:
+
+  STATUS_WAITING    The server is waiting for a query.
+  STATUS_PENDING    A query has been sent and Ace is waiting for
+                    you to read() the result.
+  STATUS_ERROR      A communications or syntax error has occurred
+
+=item error()
+
+Returns a more detailed error code supplied by the Ace server.  Check
+this value when STATUS_ERROR has been returned.  These constants are
+also exported by default.  Possible values:
+
+ ACE_INVALID           
+ ACE_OUTOFCONTEXT
+ ACE_SYNTAXERROR
+ ACE_UNRECOGNIZED
+
+Please see the ace client library documentation for a full description
+of these error codes and their significance.
+
+=item encore()
+
+This method may return true after you have performed one or more
+read() operations, and indicates that there is more data to read.  You
+will not ordinarily have to call this method.
+
+=back
 
 =head1 BUGS
 
