@@ -1,29 +1,50 @@
 use ExtUtils::MakeMaker;
+use Config;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
-readline_setup();
-my ($lib,$include) = find_ace();
-my @OTHER_FLAGS;
 
-exit -1 unless
-  $location = _prompt('Location of libfree.a and libacecl.a',$lib);
-exit -1 unless
-  $headers = _prompt('Location of aceclient.h',$include);
+#readline_setup();
+#my ($lib,$include) = find_ace();
+#my @OTHER_FLAGS;
+
+#exit -1 unless
+#  $location = _prompt('Location of libfree.a and libacecl.a',$lib);
+#exit -1 unless
+#  $headers = _prompt('Location of aceclient.h',$include);
+$headers  = "./ace/wh";
 
 WriteMakefile(
-    'DISTNAME'     => 'AcePerl',
-    'NAME'	   => 'Ace',
-    'VERSION_FROM' => 'Ace.pm', # finds $VERSION
-    'LIBS'	   => ["-L$location -lacecl -lfree -lc"],
-    'DEFINE'	   => '',
-    'OBJECT'    => '$(O_FILES)',
-    'XSPROTOARG'   => '-noprototypes',
-    'INC'	   => "-I$headers",
-    'dist'      => {'COMPRESS'=>'gzip -9f', 'SUFFIX' => 'gz',
-	            'ZIP'=>'/usr/bin/zip','ZIPFLAGS'=>'-rl'},
+	      'DISTNAME'     => 'AcePerl',
+	      'NAME'	     => 'Ace',
+	      'VERSION_FROM' => 'Ace.pm', # finds $VERSION
+	      'MYEXTLIB'     => 'ace/libaceperl.a',
+	      'LIBS'         => ['-lc'],
+	      'DEFINE'	     => '',
+	      'OBJECT'       => '$(O_FILES)',
+	      'XSPROTOARG'   => '-noprototypes',
+	      'INC'	     => "-I$headers",
+	      'dist'         => {'COMPRESS'=>'gzip -9f', 
+                                 'SUFFIX' => 'gz',
+	                         'ZIP'=>'/usr/bin/zip','ZIPFLAGS'=>'-rl'
+			      },
+	      'clean'        => {'FILES' => 'ace/lib* ace/*.o'},
 );
 
 exit 0;
+
+sub MY::postamble {
+    my $definition = guess_definition();
+    warn "Using $definition definitions to build ace library.\n";
+"
+\$(MYEXTLIB): ace/Makefile
+	cd ace && \$(MAKE) ACEDB_MACHINE=$definition all
+";
+}
+
+sub guess_definition {
+    return $ENV{ACEDB_MACHINE} if $ENV{ACEDB_MACHINE};
+    return uc $Config{osname};
+}
 
 # search around for ace and return the location of the lib and include files
 sub find_ace {
