@@ -1,5 +1,7 @@
 package Ace::Object;
+use strict;
 use Carp;
+
 use overload 
     '""'       => 'name',
     '=='       => 'eq',
@@ -91,7 +93,7 @@ sub newFromText {
 ################### name of the object #################
 sub name {
     my $self = shift;
-    $self->{name} = shift if  defined($_[0]);
+    $self->{'name'} = shift if  defined($_[0]);
     return $self->_ace_format($self->{'class'},$self->{'name'});
 }
 
@@ -99,8 +101,8 @@ sub name {
 sub class {
     my $self = shift;
     defined($_[0])
-	? $self->{class} = shift
-	: $self->{class};
+	? $self->{'class'} = shift
+	: $self->{'class'};
 }
 
 ############## return true if two objects are equivalent ##################
@@ -132,8 +134,8 @@ sub isRoot {
 sub db {
     my $self = shift;
     defined($_[0])
-	? $self->{db} = shift
-	: $self->{db};
+	? $self->{'db'} = shift
+	: $self->{'db'};
 }
 
 ### Return a portion of the tree at the indicated tag path     ###
@@ -1487,6 +1489,7 @@ disclaimers of warranty.
 
 
 # AUTOLOADED METHODS GO HERE
+
 ### Return the pretty-printed HTML table representation ###
 ### may pass a code reference to add additional formatting to cells ###
 sub asHTML {

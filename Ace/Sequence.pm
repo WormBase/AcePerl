@@ -1,4 +1,6 @@
 package Ace::Sequence;
+use strict;
+
 use Carp;
 use Ace 1.50 qw(:DEFAULT rearrange);
 
@@ -14,7 +16,8 @@ sub new {
 
   # fetch the sequence object if we don't have it already
   unless (defined $obj) {
-    croak "Please provide either a Sequence object or a database and name" unless $db && $name;
+    croak "Please provide either a Sequence object or a database and name" 
+	unless $db && $name;
     $obj = $db->fetch('Sequence'=>$name);
     return unless $obj;  # No object in database.  Not necessarily an error.
   }
@@ -27,7 +30,7 @@ sub new {
   # store the object into our instance variables and return
   return bless {
 		'obj'=>$obj,
-		'offset' => $off,
+		'offset' => $offset,
 		'length' => $len,
 	       },$pack;
 }
@@ -74,6 +77,16 @@ sub gff {
   return $self->_query("seqfeatures -version 2 @_");
 }
 
+# return a GFF object using the optional GFF.pm module
+sub asGFF {
+    my $self = shift;
+    croak "GFF module not installed" unless eval "use GFF";
+    my @lines = $self->gff;
+    local *IN;
+    tie *IN,'GFF::Filehandle',\@lines;
+    return GFF->read(\*IN);
+}
+
 # Get feature lists without much overhead
 sub features {
   my $self = shift;
@@ -88,8 +101,8 @@ sub features {
   
   # get raw gff file
   my $gff = $self->gff($opt);
-  
-  $gff ;  #placeholder -- will return real object soon
+  my @lines = grep !/^\#/,split("\n",$gff);
+  return map {Ace::Sequence::Feature->new($_)} @lines;
 }
 
 # utility functions
@@ -100,9 +113,9 @@ sub _obj {
 # offsets to coordinates
 sub _coord {
   my $self = shift;
-  return unless $self->{length};
+  return unless $self->{'length'};
   my $start = $self->{offset} + 1;
-  my $end   = $start + $self->{length} - 1;
+  my $end   = $start + $self->{'length'} - 1;
   return ($start,$end);
 }
 
@@ -123,10 +136,10 @@ sub _basic_info {
   return unless $raw;
   my ($date) = $raw =~ /^\#\#date\s+(\S+)/m;
   my ($source,$start,$end) = $raw =~ /^\#\#sequence-region (\S+) ([\d-]+) ([\d-]+)/m;
-  return $self->{'basic_info'} = { date => $date,
-				   source       => $source,
-				   source_start => $start,
-				   source_end   => $end,
+  return $self->{'basic_info'} = { 'date'         => $date,
+				   'source'       => $source,
+				   'source_start' => $start,
+				   'source_end'   => $end,
 				 };
 }
 
@@ -179,15 +192,95 @@ sub types {
 }
 
 package Ace::Sequence::Feature;
+use Carp;
 
 # parse a line from a sequence list
 sub new {
   my $class = shift;
   my ($gff_line,$db) = @_;
   croak "must provide a line from a GFF file"  unless $gff_line;
-  my ($name,$source,$type,$start,$end,$score,$strand,$frame,$comment) = 
-    split("\t",$gff_line);
+  return bless {db=>$db,data=>[split("\t",$gff_line)]},$class;
+}
 
+sub seqname  { _field(0,@_); }
+sub source   { _field(1,@_); }  # I don't like this term...
+sub subtype  { _field(1,@_); }  # ... I prefer "subtype"
+sub feature  { _field(2,@_); }  # I don't like this term...
+sub type     { _field(2,@_); }  # ... I prefer "type"
+sub start    { _field(3,@_); }  # start of feature
+sub end      { _field(4,@_); }  # end of feature
+sub score    { _field(5,@_); }  # float indicating some sort of score
+sub strand   { _field(6,@_); }  # one of +, - or undef
+sub frame    { _field(7,@_); }  # one of 1, 2, 3 or undef
+sub info     {                  # returns Ace::Object(s) containing further information about the feature
+    my $info = _field(7,@_);    # be prepared to get an array of interesting objects!!!!
+    return unless $info;
+    my @data = split(/\s*;\s*/,$info);
+    return map {$_[0]->toAce($_)} @data;
+}
+
+# map info into a reasonable set of ace objects
+sub toAce {
+    my $self = shift;
+    my $thing = shift;
+    my ($tag,@values) = $thing=~/(\"[^\"]+?\"|\S+)/g;
+    foreach (@values) { # strip the damn quotes
+	s/^\"(.*)\"$/$1/;  # get rid of leading and trailing quotes
+    }
+    return $self->tag2ace($tag,@values);
+}
+
+# syntesize an artificial Ace object based on the tag
+sub tag2ace {
+    my $self = shift;
+    my ($tag,@data) = @_;
+
+    # Sequence and Clone objects are easy to deal with.
+    # Are there other easy cases?
+    return Ace::Object->new($tag=>$data[0],$self->{'db'})
+	if $tag eq 'Sequence' || $tag eq 'Clone';
+
+    # for Notes we just return a text, no database associated
+    return Ace::Object->new(Text=>$data[0]) if $tag eq 'Note';
+    
+    # for homols, we create the indicated Protein or Sequence object
+    # then generate a bogus Homology object (for future compatability??)
+    if ($tag eq 'Target') {
+	my $db = $self->db;
+	my ($objname,$start,$end) = @data;
+	my ($class,$name) = $objname =~ /(\S+):(.+)/;
+	my $obj   = $db->fetch($class=>$name);
+	my $homol = Ace::Object->new('Homology'=>$self->source . "->$name");
+	$homol->add_row('Target'=> $obj);
+	$homol->add_row('Start' => $start);
+	$homol->end_row('End'   => $end);
+	return $homol;
+    }
+
+    # Default is to return a Text
+    return Ace::Object->new(Text=>$data[0]);
+}
+
+# $_[0] is field no, $_[1] is self, $_[2] is optional replacement value
+sub _field {
+    my $v = defined $_[2] ? $_[1]->{data}->[$_[0]] = $_[2] 
+                          : $_[1]->{data}->[$_[0]];
+    return if $v eq '.';
+    return $v;
+}
+
+# this is a dumb trick to work around GFF.pm's inability to take data 
+# from memory
+package GFF::Filehandle;
+
+sub TIEHANDLE {
+    my ($package,$datalines) = @_;
+    return bless $datalines,$package;
+}
+
+sub READLINE {
+    my $self = shift;
+    return shift @$self;
 }
 
 1;
