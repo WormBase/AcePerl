@@ -1,3 +1,6 @@
+1.55	2/26/99
+	1. Patched nulls appearing in raw query strings.  Was causing fetch() and list()
+	to return fewer than the correct number of objects (approximately 0.2% loss).
 1.54	2/10/99
 	1. Fixed spin-loop (polling) bug in Ace::Local.  Should no longer
 	consume 99% of CPU time while waiting for tace to answer a long query.
