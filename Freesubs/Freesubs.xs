@@ -47,9 +47,9 @@ split(CLASS,string)
      char*  CLASS
      char*  string
 PREINIT:
-	char *class,*name,*cp,*dest;
+	char *class,*name,*cp,*dest,*timestamp;
 	SV* c,n;
-	int class_size,name_size,total_size;
+	int class_size,name_size,timestamp_size,total_size;
 PPCODE:
 	if (*string != '?') XSRETURN_EMPTY;
 	/* first scan for the class */
@@ -82,8 +82,7 @@ PPCODE:
 	class_size = dest-class;
 
 	/* now we go after the object name */
-	total_size -= (cp - string);
-	Newz(0,name,total_size,char);
+	Newz(0,name,total_size - (cp-string),char);
 	SAVEFREEPV(name);
 
 	for (++cp, dest=name; *cp ; *cp && (*dest++ = *cp++) ) {
@@ -104,9 +103,20 @@ PPCODE:
 		if (*cp == '?') break;
 	}
 	*dest = '\0';
+	name_size = dest - name;
+
 	if (!*cp) XSRETURN_EMPTY;
 
-	name_size = dest - name;
-	EXTEND(sp,2);
-	PUSHs(sv_2mortal(newSVpv(class,class_size)));
-	PUSHs(sv_2mortal(newSVpv(name,name_size)));
+        XPUSHs(sv_2mortal(newSVpv(class,class_size)));
+	XPUSHs(sv_2mortal(newSVpv(name,name_size)));
+
+        /* dest should now point at the '?' character, and name holds the object id */
+        if (*++cp) {
+	  Newz(0,timestamp,total_size - (cp-string),char);
+	  SAVEFREEPV(timestamp);
+	  for (dest=timestamp; *cp ; *cp && (*dest++ = *cp++) ) ;
+	  *dest = '\0';
+	  timestamp_size = dest - timestamp - 1;
+	  XPUSHs(sv_2mortal(newSVpv(timestamp,timestamp_size)));
+	}
+

@@ -1453,8 +1453,9 @@ sub split {
   my $text = shift;
   $text =~ s/\\n/\n/g;
   $text =~ s/\\t/\t/g;
-  my ($class,$id) = $text=~m/^\?(.+)(?<!\\)\?(.+)(?<!\\)\?$/s;
+  my ($class,$id,$ts) = $text=~m/^\?(.+)(?<!\\)\?(.+)(?<!\\)\?([^?]*)$/s;
   $class =~ s/\\\?/?/g;
   $id =~  s/\\\?/?/g;
-  return ($class,$id);
+  return ($class,$id) unless $ts;
+  return ($class,$id,$ts);  # return timestamp
 }

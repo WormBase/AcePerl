@@ -50,12 +50,12 @@ test(12,$zk154r = Ace::Sequence->new(-seq=>$clone,
 				     -offset =>  100,
 				     -Length => -100),"new() failure");
 test(13,$zk154r->start==101,"start() failure (3)");
-# test(14,$zk154r->end==2,"end() failure (3)");
-# test(15,$zk154r->length==-100,"length() failure");
-# test(16,length($zk154r->dna)==100,"dna() failure");
-print "ok 14 # Skip, persistent off-by-one errors\n";
-print "ok 15 # Skip, persistent off-by-one errors\n";
-print "ok 16 # Skip, persistent off-by-one errors\n";
+test(14,$zk154r->end==2,"end() failure (3)");
+test(15,$zk154r->length==-100,"length() failure");
+test(16,length($zk154r->dna)==100,"dna() failure");
+# print "ok 14 # Skip, persistent off-by-one errors\n";
+# print "ok 15 # Skip, persistent off-by-one errors\n";
+# print "ok 16 # Skip, persistent off-by-one errors\n";
 
 @features = sort { $a->start <=> $b->start; }  $zk154->features('exon');
 
@@ -70,7 +70,7 @@ if (eval q{local($^W)=0; require GFF;}) {
 #  print STDERR "Expect a seek() on unopened file error from GFF module...\n";
   test(21,$gff = $zk154->GFF,'GFF() error');
 } else {
-  print "ok 21 # Skip\n";
+  print "ok 21 # Skip no GFF module installed\n";
 }
 
 # Test that we can do the same thing on forward and reverse predicted genes
