@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.34 2001/05/30 12:13:29 lstein Exp $
+# $Id: Object.pm,v 1.35 2001/05/31 18:02:13 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -51,7 +51,7 @@ sub AUTOLOAD {
 	shift();
       }
       return $self->search($func_name,@_) if wantarray;
-      my $obj = @_ ? $self->search($func_name,@_) : $self->search($func_name,1);
+      my ($obj) = @_ ? $self->search($func_name,@_) : $self->search($func_name,1);
 
       # these nasty heuristics simulate aql semantics.
       # undefined return
