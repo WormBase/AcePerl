@@ -2,6 +2,8 @@ package Ace::Object;
 use strict;
 use Carp;
 
+# $Id: Object.pm,v 1.16 2000/03/24 14:59:37 lstein Exp $
+
 use overload 
     '""'       => 'name',
     '=='       => 'eq',
@@ -13,7 +15,7 @@ use Ace 1.50 qw(:DEFAULT rearrange);
 require AutoLoader;
 
 $DEFAULT_WIDTH=25;  # column width for pretty-printing
-$VERSION = '1.53';
+$VERSION = '1.60';
 
 # Pseudonyms and deprecated methods.
 *isClass        =  \&isObject;
@@ -42,7 +44,7 @@ sub AUTOLOAD {
 	shift();
       }
       return $self->search($func_name,@_) if wantarray;
-      my $obj = $self->search($func_name,@_);
+      my $obj = @_ ? $self->search($func_name,@_) : $self->search($func_name,1);
       
       # these nasty heuristics simulate aql semantics.
       # undefined return
@@ -56,7 +58,8 @@ sub AUTOLOAD {
 
       # otherwise dereference if the current thing is an object or we are at a tag
       # and the thing to the right is an object.
-      return $obj->fetch if $obj->isObject || ($obj->right && $obj->right->isObject);
+#      return $obj->fetch if $obj->isObject || ($obj->right && $obj->right->isObject);  # this heuristic stinks
+      return $obj->fetch if $obj->isObject;  # always dereference objects
 
       # otherwise return the thing itself
       return $obj;
