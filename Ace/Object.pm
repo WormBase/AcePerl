@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.27 2000/12/21 18:00:38 lstein Exp $
+# $Id: Object.pm,v 1.28 2001/01/03 16:52:53 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -38,8 +38,14 @@ sub AUTOLOAD {
     my $presumed_tag = $func_name =~ /^[A-Z]/ && $self->isObject;  # initial_cap 
 
     if ($presumed_tag) {
-      croak "Invalid object tag \"$func_name\"" 
-	if $self->db && !$self->model->valid_tag($func_name);
+      if ($self->db && !$self->model->valid_tag($func_name)) {
+
+	# bad hack for wormbase transition from Locus to Locus_genomic_seq tag
+	croak "Invalid object tag \"$func_name\"" unless lc($func_name) eq 'locus';
+	$func_name = 'Locus_genomic_seq';
+	croak "Invalid object tag \"$func_name\"" unless $self->model->valid_tag($func_name);
+      }
+
 
       $self = $self->fetch if !$self->isRoot && $self->db;  # dereference, if need be
       croak "Null object tag \"$func_name\"" unless $self;
@@ -52,7 +58,7 @@ sub AUTOLOAD {
       }
       return $self->search($func_name,@_) if wantarray;
       my $obj = @_ ? $self->search($func_name,@_) : $self->search($func_name,1);
-      
+
       # these nasty heuristics simulate aql semantics.
       # undefined return
       return unless $obj;
