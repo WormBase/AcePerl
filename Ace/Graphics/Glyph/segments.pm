@@ -4,9 +4,11 @@ package Ace::Graphics::Glyph::segments;
 
 use strict;
 use vars '@ISA';
+use GD;
 @ISA = 'Ace::Graphics::Glyph';
 
 use constant GRAY  => 'lightgrey';
+my %BRUSHES;
 
 # override right to allow for label
 sub calculate_right {
@@ -51,6 +53,7 @@ sub draw {
   my $gray = $self->color(GRAY);
 
   my (@boxes,@skips);
+  my $stranded = $self->option('stranded');
 
   for (my $i=0; $i < @segments; $i++) {
     my ($start,$stop) = ($left + $self->map_pt($segments[$i]->start),
@@ -58,7 +61,11 @@ sub draw {
 
     my $strand = 0;
     my $target;
-    if (($target = $segments[$i]->target) && $target->can('start')) {
+
+    if ($stranded
+	&& $segments[$i]->can('target') 
+	&& ($target = $segments[$i]->target) 
+	&& $target->can('start')) {
       $strand = $target->start < $target->end ? 1 : -1;
     }
 
@@ -85,17 +92,14 @@ sub draw {
   my $fill   = $self->fillcolor;
   my $center = ($y1 + $y2)/2;
 
-  my $stranded = $self->option('stranded');
-
   # each segment becomes a box
   for my $e (@boxes) {
     my @rect = ($e->[0],$y1,$e->[1],$y2);
     if ($e->[2] == 0 || !$stranded) {
       $self->filled_box($gd,@rect);
-    } elsif ($e->[2] > 0) {
-      $self->filled_arrow($gd,1,@rect);
     } else {
-      $self->filled_arrow($gd,-1,@rect);
+#      $self->filled_arrow($gd,1,@rect);
+      $self->oriented_box($gd,$e->[2],@rect);
     }
   }
 
@@ -107,6 +111,40 @@ sub draw {
 
   # draw label
   $self->draw_label($gd,@_) if $self->option('label');
+}
+
+sub oriented_box {
+  my $self = shift;
+  my $gd  = shift;
+  my $orientation = shift;
+  my ($x1,$y1,$x2,$y2) = @_;
+  $self->filled_box($gd,@_);
+  return unless $x2 - $x1 >= 4;
+  $BRUSHES{$orientation} ||= $self->make_brush($orientation);
+  my $top = int(1.5 + $y1 + ($y2 - $y1 - ($BRUSHES{$orientation}->getBounds)[1])/2);
+  $gd->setBrush($BRUSHES{$orientation});
+  $gd->setStyle(0,0,0,1);
+  $gd->line($x1+2,$top,$x2-2,$top,gdStyledBrushed);
+}
+
+sub make_brush {
+  my $self = shift;
+  my $orientation = shift;
+
+  my $brush   = GD::Image->new(3,3);
+  my $bgcolor = $brush->colorAllocate(255,255,255); #white
+  $brush->transparent($bgcolor);
+  my $fgcolor   = $brush->colorAllocate($self->factory->panel->rgb($self->fgcolor));
+  if ($orientation > 0) {
+    $brush->setPixel(0,0,$fgcolor);
+    $brush->setPixel(1,1,$fgcolor);
+    $brush->setPixel(0,2,$fgcolor);
+  } else {
+    $brush->setPixel(1,0,$fgcolor);
+    $brush->setPixel(0,1,$fgcolor);
+    $brush->setPixel(1,2,$fgcolor);
+  }
+  $brush;
 }
 
 sub filled_arrow {
@@ -175,7 +213,11 @@ AcePerl/Das-style segments() or merged_segments() methods.
 
 =head2 OPTIONS
 
-Only the common options are recognized. There are no glyph-specific options.
+In addition to the common options, this glyph recognizes the
+b<-stranded> argument.  If b<-stranded> is true and the feature is an
+alignment (has the target() method) then the glyph will draw little
+arrows in the segment boxes to indicate the direction of the
+alignment.
 
 =head1 BUGS
 

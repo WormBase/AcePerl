@@ -51,7 +51,7 @@ sub length    { shift->factory->length      }
 # dictated by the factory, and then adjust if needed
 sub height   {
   my $self = shift;
-  $self->{cache_height} = $self->calculate_height unless exists$self->{cache_height};
+  $self->{cache_height} = $self->calculate_height unless exists $self->{cache_height};
   return $self->{cache_height};
 }
 
@@ -121,7 +121,10 @@ sub labelheight {
 }
 
 sub label {
-  my $f = shift->feature;
+  my $f = (my $self = shift)->feature;
+  if (ref (my $code = $self->option('label')) eq 'CODE') {
+    return $code->($f);
+  }
   my $info = eval {$f->info};
   return $info if $info;
   return $f->seqname if $f->can('seqname');
@@ -482,6 +485,10 @@ glyph pages for more options.
   -font       Glyph font		gdSmallFont
 
   -label      Whether to draw a label	false
+
+You may pass an anonymous subroutine to -label, in which case the
+subroutine will be invoked with the feature as its single argument.
+The subroutine must return a string to render as the label.
 
 =head1 SUBCLASSING Ace::Graphics::Glyph
 

@@ -2,7 +2,6 @@ package Ace::Graphics::Fk;
 
 use strict;
 *stop        = \&end;
-*info        = \&name;
 *primary_tag = \&name;
 *exons       = \&segments;
 
@@ -80,7 +79,11 @@ sub introns {
   return;
 }
 sub source_tag { 'dummy' }
-sub info { shift->{info} }
+sub target { }
+sub info {
+  my $self = shift;
+  return $self->{info} || $self->name;
+}
 
 
 

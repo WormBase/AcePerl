@@ -160,7 +160,6 @@ sub draw {
     my $x = $left - length($label) * $font->width;
     $gd->string($font,$x,$y,$label,$self->factory->fontcolor);
   }
-
   $_->draw($gd,$left,$top) foreach @$glyphs;
 
   if ($self->factory->option('connectgroups')) {

@@ -105,7 +105,7 @@ sub draw_parallel {
 
     my $first_tick = $interval * int(0.5 + $self->start/$interval);
 
-    for (my $i = $first_tick; $i < $self->end; $i += $interval) {
+    for (my $i = $first_tick-$interval; $i < $self->end; $i += $interval) {
       my $tickpos = $left + $self->map_pt($i);
       $gd->line($tickpos,$center-$a2,$tickpos,$center+$a2,$fg);
       my $middle = $tickpos - (length($i) * $width)/2;
@@ -114,7 +114,7 @@ sub draw_parallel {
 
     if ($self->option('tick') >= 2) {
       my $a4 = $self->SUPER::height/4;
-      for (my $i = $self->start+$interval/10; $i < $self->end; $i += $interval/10) {
+      for (my $i = $first_tick; $i < $self->end; $i += $interval/10) {
 	my $tickpos = $left + $self->map_pt($i);
 	$gd->line($tickpos,$center-$a4,$tickpos,$center+$a4,$fg);
       }
