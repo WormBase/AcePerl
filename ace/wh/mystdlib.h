@@ -30,7 +30,7 @@
  *-------------------------------------------------------------------
  */
 
-/* $Id: mystdlib.h,v 1.2 1999/07/02 21:04:55 lstein Exp $ */
+/* $Id: mystdlib.h,v 1.3 2001/07/16 21:04:45 lstein Exp $ */
 
 #ifndef DEF_MYSTDLIB_H
 #define DEF_MYSTDLIB_H
@@ -161,7 +161,7 @@ char *DosToPosix(char *path) ; /* defined in filsubs.c */
 #endif
 
 #if defined(POSIX) || defined(LINUX) || defined(SOLARIS) || defined(SGI) || \
-	defined(HP) || defined(WIN32)
+	defined(HP) || defined(WIN32) || defined(INTEL_SOLARIS)
 
 #ifdef WIN32
 #include <mbctype.h>
@@ -341,13 +341,12 @@ int gethostname(char *name, int namelen);
  int vprintf  (const char *format, va_list arglist);
 #endif	/* !( defined(MACINTOSH)  etc. ) */
 
-#ifdef SUN
+#if defined(SUN)
  char *vsprintf (char *buffer, const char *format, va_list arglist);
 #else
- /* !SUN */
-#ifndef HASVSPRINTF
+#if ! defined(POSIX) && ! defined(SOLARIS)
  int vsprintf (char *buffer, const char *format, va_list arglist);
-#endif
+#endif /* !POSIX */
 #endif /* !SUN */
 
 /*******************************************************************/

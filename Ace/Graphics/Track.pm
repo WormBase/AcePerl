@@ -16,6 +16,8 @@ sub AUTOLOAD {
   $self->factory->$func_name(@_);
 }
 
+sub DESTROY { }
+
 # Pass a list of Ace::Sequence::Feature objects, and a glyph name
 sub new {
   my $class = shift;

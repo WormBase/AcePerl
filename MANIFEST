@@ -5,6 +5,7 @@ Ace/Model.pm
 Ace/Object.pm
 Ace/Object/Wormbase.pm
 Ace/Browser/AceSubs.pm
+Ace/Browser/GeneSubs.pm
 Ace/Browser/SearchSubs.pm
 Ace/Browser/SiteDefs.pm
 Ace/Browser/TreeSubs.pm
@@ -14,12 +15,18 @@ Ace/Graphics/GlyphFactory.pm
 Ace/Graphics/Panel.pm
 Ace/Graphics/Track.pm
 Ace/Graphics/Glyph/anchored_arrow.pm
+Ace/Graphics/Glyph/crossbox.pm
+Ace/Graphics/Glyph/dot.pm
+Ace/Graphics/Glyph/ex.pm
 Ace/Graphics/Glyph/arrow.pm
 Ace/Graphics/Glyph/line.pm
 Ace/Graphics/Glyph/primers.pm
 Ace/Graphics/Glyph/transcript.pm
 Ace/Graphics/Glyph/segments.pm
 Ace/Graphics/Glyph/group.pm
+Ace/Graphics/Glyph/span.pm
+Ace/Graphics/Glyph/triangle.pm
+Ace/Graphics/Glyph/toomany.pm
 Ace/Sequence.pm
 Ace/Sequence/Feature.pm
 Ace/Sequence/Transcript.pm

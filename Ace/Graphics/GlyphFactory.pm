@@ -134,7 +134,7 @@ sub fillcolor {
 
 sub length {  shift->option('length',@_) }
 sub offset {  shift->option('offset',@_) }
-sub translate { shift->panel->translate(@_) }
+sub translate { my $self = shift; $self->panel->translate(@_) || $self->fgcolor; }
 sub rgb       { shift->panel->rgb(@_) }
 
 # create a new glyph from configuration

@@ -4,6 +4,8 @@ package Ace::Sequence::Homol;
 use vars '@ISA';
 @ISA = 'Ace::Object';
 
+*stop = \&end;
+
 # this was a mistake!
 # use overload '""' => 'asString';
 

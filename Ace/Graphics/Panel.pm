@@ -271,12 +271,12 @@ sub translate {
   my $self = shift;
   my $color = shift;
   if ($color =~ /^\#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})$/i) {
-    my $gd = $self->gd or return $self->fgcolor;
+    my $gd = $self->gd or return 1;
     my ($r,$g,$b) = (hex($1),hex($2),hex($3));
     return $gd->colorClosest($r,$g,$b);
   } else {
     my $table = $self->{translations} or return $self->fgcolor;
-    return defined $table->{$color} ? $table->{$color} : $self->fgcolor;
+    return $table->{$color} || 1;
   }
 }
 

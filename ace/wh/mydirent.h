@@ -6,7 +6,7 @@
  *	-	Cleaning up WIN32 file system port in filsubs.c et al.
  * *  Jun  4 22:07 1996 (rd) */
 
-/* $Id: mydirent.h,v 1.1 1999/01/10 23:51:40 lstein Exp $ */
+/* $Id: mydirent.h,v 1.2 2001/07/16 21:04:45 lstein Exp $ */
 
 /*
  * Filesystem-independent directory information.
@@ -55,7 +55,7 @@
 extern char *getwd(char *pathname) ;
 #endif /* HP || SOLARIS || WIN32 */
 
-#if defined (POSIX) || defined(SUN) || defined(SUNSVR4) || defined(SOLARIS) || defined(DEC) || defined(ALPHA) || defined(SGI) || defined(LINUX) || defined(HP)
+#if defined (POSIX) || defined(SUN) || defined(SUNSVR4) || defined(SOLARIS) || defined(DEC) || defined(ALPHA) || defined(SGI) || defined(LINUX) || defined(HP) || defined (INTEL_SOLARIS)
 #include <dirent.h>
   typedef struct dirent MYDIRENT ;
 #endif

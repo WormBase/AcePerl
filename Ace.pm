@@ -17,7 +17,7 @@ use overload
 
 # Optional exports
 @EXPORT_OK = qw(rearrange ACE_PARSE);
-$VERSION = '1.73';
+$VERSION = '1.74';
 
 use constant STATUS_WAITING => 0;
 use constant STATUS_PENDING => 1;
@@ -45,7 +45,7 @@ sub connect {
   my $class = shift;
   my ($host,$port,$user,$pass,$path,$program,
       $objclass,$timeout,$query_timeout,$database,
-      $server_type,$url,$u,$p);
+      $server_type,$url,$u,$p,$other);
 
   # one-argument single "URL" form
   if (@_ == 1) {
@@ -54,9 +54,9 @@ sub connect {
 
   # multi-argument (traditional) form
   ($host,$port,$user,$pass,
-   $path,$program,$objclass,$timeout,$query_timeout,$url) = 
+   $path,$objclass,$timeout,$query_timeout,$url,$other) = 
      rearrange(['HOST','PORT','USER','PASS',
-		'PATH','PROGRAM','CLASS','TIMEOUT',
+		'PATH','CLASS','TIMEOUT',
 		'QUERY_TIMEOUT','URL'],@_);
 
   ($host,$port,$u,$p,$server_type) = $class->process_url($url) 
@@ -78,9 +78,9 @@ sub connect {
   # we've normalized parameters, so do the actual connect
   eval "require $server_type" || croak "Module $server_type not loaded: $@";
   if ($path) {
-    $database = $server_type->connect($path);
+    $database = $server_type->connect(-path=>$path,%$other);
   } else {
-    $database = $server_type->connect($host,$port,$query_timeout,$user,$pass);
+    $database = $server_type->connect($host,$port,$query_timeout,$user,$pass,%$other);
   }
   
   unless ($database) {
@@ -345,7 +345,7 @@ sub rearrange {
         }
         push(@return_array,$value);
     }
-    push (@return_array,{%param}) if %param;
+    push (@return_array,\%param) if %param;
     return @return_array;
 }
 
