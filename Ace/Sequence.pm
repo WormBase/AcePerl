@@ -612,7 +612,7 @@ sub _traverse {
 sub _get_toplevel {
   my $seq = shift;
 
-  my $gff = $seq->db->raw_query("gif seqget $seq -coords 1 2 ; seqfeatures -version 2 -feature Sequence");
+  my $gff = $seq->db->raw_query("gif seqget $seq -coords 1 2 ; seqfeatures -version 2 -feature Sequence|structural");
   my $seq_strand = $gff =~ /^\#\#sequence-region.+\(reversed\)/m ? '-' : '+';
 
   my ($tl,$tl_strand);
