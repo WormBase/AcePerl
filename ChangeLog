@@ -1,5 +1,10 @@
-1.86  4/11/03
+1.87  10/3/03
+	1. Fixed unreadable GIF images produced by recent versions of GifAceServer.
+	2. Fixed Ace::Model to handle #tags properly.
+1.86  5/11/03
 	1. Fixed Ace::Sequence, but requires Acedb server 4.9r or higher to work!
+	2. Changed location of regression tests.
+	3. Updated documentation.
 1.84	
 	1. Fixed auto_save() getting stuck on when using Ace::Local.
 1.83	2/22/02
