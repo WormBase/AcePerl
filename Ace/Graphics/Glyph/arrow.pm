@@ -9,7 +9,7 @@ sub bottom {
   my $self = shift;
   my $val = $self->SUPER::bottom(@_);
   $val += $self->font->height if $self->option('tick');
-  $val += $self->labelheight if $self->option('label');
+  $val += $self->labelheight  if $self->option('label');
   $val;
 }
 

@@ -11,6 +11,7 @@ use strict;
 #                         -start => 1,
 #                         -end   => 100,
 #                         -name  => 'fred feature',
+#                         -info  => $additional_stuff_to_store,
 #                         -strand => +1);
 #
 # Alternatively, use -segments => [ [start,stop],[start,stop]...]
@@ -24,6 +25,7 @@ sub new {
   $arg{-strand} ||= 0;
   $self->{strand} = $arg{-strand} >= 0 ? +1 : -1;
   $self->{name}   = $arg{-name};
+  $self->{info}   = $arg{-info};
 
   if (my $s = $arg{-segments}) {
 
@@ -78,6 +80,7 @@ sub introns {
   return;
 }
 sub source_tag { 'dummy' }
+sub info { shift->{info} }
 
 
 
