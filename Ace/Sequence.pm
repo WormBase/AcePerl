@@ -628,14 +628,15 @@ sub _get_toplevel {
 # create subroutine that filters GFF files for certain feature types
 sub _make_filter {
   my $self = shift;
+  my $automerge = $self->automerge;
 
   # parse out the filter
   my %filter;
   foreach (@_) {
     my ($type,$filter) = split(':',$_,2);
-    if (lc($type) eq 'transcript') {
+    if ($automerge && lc($type) eq 'transcript') {
       @filter{'exon','intron','Sequence','cds'} = ([undef],[undef],[undef],[undef]);
-    } elsif (lc($type) eq 'clone') {
+    } elsif ($automerge && lc($type) eq 'clone') {
       @filter{'Clone_left_end','Clone_right_end','Sequence'} = ([undef],[undef],[undef]);
     } else {
       push @{$filter{$type}},$filter;
@@ -1224,42 +1225,3 @@ disclaimers of warranty.
 =cut
 
 __END__
-
-# fragments
-
-# get sequence, offset and strand of topmost container
-# sub _traverse {
-#   my $obj = shift;
-
-#   my ($offset,$length,$phase,$prev) = (0,0,1,undef);
-  
-#   for ( $prev=$obj, my $o=_get_parent($obj); $o; $prev=$o,$o=_get_parent($o) ) {
-#     my @subs = _get_children($o);
-#     my ($seq) = grep $prev eq $_,@subs;
-#     my ($start,$end) = $seq->row(1);
-#     $length ||= $end - $start + 1;
-#     $offset += $start-1;    # offset to beginning of sequence
-#     $phase  *= $start < $end ? +1 : -1;
-#   }
-  
-#   return ($prev,$offset,$phase < 0 ? (abs($length)+2,'-') : (abs($length),'+') ) if $length;
-
-#   # Traversal  will fail in the event that a top-level sequence
-#   # is requested (like a whole CHROMOSOME).  In this case, we try to
-#   # derive its size from its DNA first, and if that doesn't work, from its
-#   # map information
-#   $length ||= $obj->get(DNA=>2);
-#   return ($prev,0,$length,'+') if $length > 0;
-
-#   # now try to reassemble map information
-#   my @pieces = _get_children($obj);
-#   foreach (@pieces) {
-#       my ($start,$end) = $_->row(1);
-#       $length = $start if $length < $start;
-#       $length = $end   if $length < $end;
-#     }
-#   $offset = 0;
-#   $prev   = $obj;
-#   return ($obj,0,abs($length),'+');
-# }
-
