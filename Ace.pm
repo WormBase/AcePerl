@@ -20,7 +20,7 @@ require DynaLoader;
         STATUS_PENDING
 	STATUS_ERROR
 );
-$VERSION = '1.24';
+$VERSION = '1.28';
 
 sub AUTOLOAD {
     # This AUTOLOAD is used to 'autoload' constants from the constant()
@@ -86,11 +86,11 @@ sub db {
 
 # Fetch one or a group of objects from the database
 sub fetch {
-    my ($self,$class,$pattern) = @_;
-    my ($start,$count) = (0,-1);
+    my ($self,$class,$pattern,$count,$offset) = @_;
+    ($offset,$count) = (0,-1) unless defined $count;
     $count = 1 unless wantarray;
-    $self->query("query find $class $pattern");
-    my (@h) = $self->_list($start,$count);
+    $self->query(qq{query find $class "$pattern"});
+    my (@h) = $self->_list($count,$offset);
     return wantarray ? @h : $h[0];
 }
 
@@ -102,10 +102,10 @@ sub fetch_many {
 }
 
 sub list {
-    my ($self,$class,$pattern) = @_;
+    my ($self,$class,$pattern,$count,$offset) = @_;
     my @result;
     $self->raw_query("find $class $pattern");
-    $self->_list;
+    $self->_list($count,$offset);
 }
 
 sub count {
@@ -237,10 +237,10 @@ sub rearrange {
 # return a portion of the active list
 sub _list {
   my $self = shift;
-  my ($start,$count) = @_;
-  ($start,$count) = (0,-1) unless $count;
+  my ($count,$offset) = @_;
+  ($offset,$count) = (0,-1) unless $count;
   my (@result);
-  my $result = $self->raw_query("list -j -b $start -c $count");
+  my $result = $self->raw_query("list -j -b $offset -c $count");
   while ($result =~ /^\?(\w+)\?(.+)\?/mg) {
     push(@result,Ace::Object->new($1,$2,$self));
   }
@@ -352,9 +352,11 @@ sub AUTOLOAD {
     my $self = shift;
     if ($func_name =~/__/) {
       $func_name =~ s/__/./g;
-      return $self->at($func_name);
+      @_ = ($self,$func_name);
+      goto &Ace::Object::at;
     }
-    return $self->search($func_name);
+    @_ = ($self,$func_name);
+    goto &Ace::Object::search;
 }
 
 sub DESTROY { }
@@ -520,7 +522,8 @@ sub isPickable (\$) {
 sub asHTML (\$;$) {
     my $self = shift;
     my $modify_code = shift;
-    my $string = "<TABLE BORDER>\n<TR ALIGN=LEFT><TH>$self</TH>";
+    my $string = "<TABLE BORDER>\n<TR ALIGN=LEFT VALIGN=TOP><TH>$self</TH>";
+    return "<TR VALIGN=TOP><TD>$self</TD></TR>" unless $self->right;
     $self->right->_asHTML(\$string,1,2,$modify_code);
     $string .= "</TR>\n</TABLE>";
     return $string;
@@ -541,6 +544,7 @@ sub asString {
   my $self = shift;
   my $MAXWIDTH = shift || $DEFAULT_WIDTH;
   my $tabs = $self->asTable;
+  return "$self" unless $tabs;
   my(@lines) = split("\n",$tabs);
   my($result,@max);
   foreach (@lines) {
@@ -651,7 +655,7 @@ sub pick (\$) {
 # the database.
 sub isObject {
     my $self = shift;
-    return undef if $self->class=~/^(float|int|date|tag|txt|dna|peptide|scalar)$/;
+    return undef if $self->class=~/^(float|int|date|tag|txt|peptide|dna|scalar|[Tt]ext|comment)$/;
     1;
 }
 
@@ -714,9 +718,9 @@ sub commit (\$) {
     my $name = $self->{'name'};
     $name =~ s/([^a-zA-Z0-9_-])/\\$1/g;
     push(@cmd,"parse = $self->{'class'} $name ; " . join(' ; ',@{$self->{'add'}}))
-	if $self->{'add'};
+	if defined $self->{'add'};
     push(@cmd,"parse = $self->{'class'} $name ; -D " . join(' ; -D ',@{$self->{'delete'}}))
-	if $self->{'delete'};
+	if defined $self->{'delete'};
     warn join("\n",@cmd),"\n" if $self->debug && @cmd;
     return undef unless my $db = $self->db;
 
@@ -849,7 +853,7 @@ sub _asTable (\%\$$$;) {
 
 sub _asHTML (\%\$$$;$) {
   my($self,$out,$position,$level,$morph_code) = @_;
-  $$out .= "<TR ALIGN=LEFT>" unless $position;
+  $$out .= "<TR ALIGN=LEFT VALIGN=TOP>" unless $position;
   
   if ($self->{raw}) {  # we still have raw data, so we can optimize somewhat
     my ($a,$start,$end) = @{$self}{qw/col start_row end_row/};
@@ -857,17 +861,17 @@ sub _asHTML (\%\$$$;$) {
     my $new_row;
     foreach my $row (@to_append) {
       if ($new_row++) {
-	$$out .= "</TR>\n<TR ALIGN=LEFT>";
+	$$out .= "</TR>\n<TR ALIGN=LEFT VALIGN=TOP>";
 	$$out .= "<TD></TD>" x ($level-1) 
       }
       my @cells;
       if ($morph_code) {
 	@cells = map { "<TD>" . 
 			 ($_  ?  $morph_code->($self->new(/^\?(.+)\?(.*)\?/)) : '')
-			     . "</TD>" } @$row;
+ 			      . "</TD>" } @$row;
       } else {
 	@cells = map { /^\?(tag|[A-Z].*)\?/ ? "<TH>$_</TH>":"<TD>$_</TD>" } @$row;
-	foreach (@cells) { s/\?[^?]*\?([^?]*)\?/$1/; }
+	foreach (@cells) { s/\?[^?]*\?([^?]*)\?/$1/; s/\\n/<BR>/g; }
       }
       $$out .= join('',@cells);
     }
@@ -883,8 +887,7 @@ sub _asHTML (\%\$$$;$) {
     $cell = "<$tag>$self</$tag>";
   }
   $$out .= $cell;
-  $level = $self->right->_asHTML($out,$level,$level+1,$morph_code)
-    if $self->right;
+  $level = $self->right->_asHTML($out,$level,$level+1,$morph_code) if $self->right;
   if ($self->down) {
     $$out .= "</TR>\n";
     $level = $self->down->_asHTML($out,0,$level);
@@ -1054,7 +1057,7 @@ retrieve certain objects.
 
 =head2 list() method
 
-    @sequences = $db->list(class,pattern);
+    @objects = $db->list(class,pattern,[offset,count]);
 
 This function queries the database for a list of objects matching the
 specified class and pattern, returning a list of Ace::Objects.  The
@@ -1065,9 +1068,11 @@ objects with this request:
 
     @sequences = $db->list('Sequence','*');
 
-A limitation of this module is there is no way to iteratively retrieve
-long lists of objects a chunk at a time.  This will be corrected
-in a future implementation.
+You may limit the number of objects to be listed by providing optional
+offset and count parameters.  For example, this fetches 100 sequences
+starting at the 500th.
+
+    @some_sequences = $db->list('Sequence','*',100,500);
 
 =head2 count() method
 

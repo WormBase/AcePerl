@@ -6,12 +6,12 @@
 #define STATUS_ERROR  -1
 
 typedef struct AceDB {
-  ace_handle*  database;
-  char*        answer;
-  int          length;
-  int          encoring;
-  int          status;
-  int          errcode;
+  ace_handle*    database;
+  unsigned char* answer;
+  int            length;
+  int            encoring;
+  int            status;
+  int            errcode;
 } AceDB;
 
 #endif

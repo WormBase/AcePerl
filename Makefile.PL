@@ -18,7 +18,7 @@ WriteMakefile(
     'DISTNAME'     => 'AcePerl',
     'NAME'	   => 'Ace',
     'VERSION_FROM' => 'Ace.pm', # finds $VERSION
-    'LIBS'	   => ["-L$location -lacecl -lace"],   # e.g., '-lm' 
+    'LIBS'	   => ["-L$location -lacecl -lace -lc"],   # e.g., '-lm' 
     'DEFINE'	   => '',     # e.g., '-DHAVE_SOMETHING' 
     'OBJECT'    => '$(O_FILES)',
     'XSPROTOARG'   => '-noprototypes',
