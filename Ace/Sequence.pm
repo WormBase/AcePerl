@@ -142,7 +142,7 @@ sub refseq {
 
   BLOCK: {
       last BLOCK unless defined ($refseq);
-      
+
       if (ref($refseq) && ref($refseq) eq 'ARRAY') {
 	$arrayref = $refseq;
 	last BLOCK;
@@ -164,12 +164,12 @@ sub refseq {
       $refseq = $self->db->fetch('Sequence' => $refseq)
 	unless $refseq->isa('Ace::Object');
       croak "Invalid reference sequence" unless $refseq;
-      
+
       # find position of ref sequence in parent strand
       my ($r_parent,$r_offset,$r_length,$r_strand) = find_parent($refseq);
       croak "Reference sequence has no common ancestor with sequence" 
 	unless $r_parent eq $self->{parent};
-      
+
       # set to array reference containing this information
       $arrayref = [$refseq,$r_offset,$r_strand];
     }
@@ -326,12 +326,16 @@ sub features {
   my @features = $self->_make_features($gff,$filter);
 
   # fetch out constructed transcripts and clones
-  my %types = map {lc($_)=>1} @_;
+  my %types = map {lc($_)=>1} (@$opt,@_);
   if ($types{'transcript'}) {
     push @features,$self->_make_transcripts(\@features);
   }
   if ($types{'clone'}) {
     push @features,$self->_make_clones(\@features);
+  }
+  if ($types{'similarity'}) {
+    push @features,$self->_make_alignments(\@features);
+    @features = grep {$_->type ne 'similarity'} @features;
   }
 
   return wantarray ? @features : \@features;
@@ -425,9 +429,8 @@ sub alignments {
   my $self    = shift;
   my @subtypes = @_;
   my @types = map { "similarity:$_" } @subtypes;
-  my @features = $self->features(@types);
-  return unless @features;
-  return $self->_make_alignments(\@features);
+  push @types,'similarity' unless @types;
+  return $self->features(@types);
 }
 
 sub _make_alignments {
@@ -438,17 +441,9 @@ sub _make_alignments {
   my %homol;
 
   for my $feature (@$features) {
+    next unless $feature->type eq 'similarity';
     my $target = $feature->info;
-
-    # HACK ALERT: here's where we associated 3' and 5' ESTs by taking advantage
-    # of a C. elegans-specific sequence naming scheme:
-    my $id;
-    if ($target =~ /^(.+)\.[35]$/) {
-      $id = $1;
-    } else {
-      $id = $target;
-    }
-    push @{$homol{$id}},$feature;
+    push @{$homol{$target}},$feature;
   }
 
   # map onto Ace::Sequence::GappedAlignment objects

@@ -20,13 +20,21 @@ sub new {
   my $class = shift;
   my $segments = shift;
 
-  # sort segments by position
-  my @segs = sort {$a->{offset} <=> $b->{offset}} @$segments;
-  my $offset = $segs[0]->{offset};
-  my $len    = $segs[-1]->end - $segs[0]->start + 1;
-  my $base = { %{$segs[0]} };
+  # find the min and max for the alignment
+  my ($offset,$len);
+  if ($segments->[0]->start < $segments->[-1]->start) {  # positive direction
+    $offset = $segments->[0]->{offset};
+    $len = $segments->[-1]->{offset} + $segments->[-1]->{length} - $segments->[0]->{offset};
+  } else {
+    $offset = $segments->[-1]->{offset};
+    $len = $segments->[0]->end - $segments->[-1]->start + 1;
+  }
+
+  my $base = { %{$segments->[0]} };
+  $base->{offset} = $offset;
   $base->{length} = $len;
-  bless $base,ref($segs[0]);
+
+  bless $base,ref($segments->[0]);
   return bless {
 		base     => $base,
 		segments => $segments,

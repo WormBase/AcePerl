@@ -24,25 +24,27 @@ sub new {
 
 # delegates
 # any of these can be overridden safely
+sub factory   {  shift->{-factory}            }
 sub feature   {  shift->{-feature}            }
-sub fgcolor   {  shift->{-factory}->fgcolor   }
-sub bgcolor   {  shift->{-factory}->bgcolor   }
-sub fillcolor {  shift->{-factory}->fillcolor }
-sub scale     {  shift->{-factory}->scale     }
-sub width     {  shift->{-factory}->width     }
-sub font      {  shift->{-factory}->font      }
-sub option    {  shift->{-factory}->option(@_) }
+
+sub fgcolor   {  shift->factory->fgcolor   }
+sub bgcolor   {  shift->factory->bgcolor   }
+sub fillcolor {  shift->factory->fillcolor }
+sub scale     {  shift->factory->scale     }
+sub width     {  shift->factory->width     }
+sub font      {  shift->factory->font      }
+sub option    {  shift->factory->option(@_) }
 sub color     {  
   my $self    = shift;
-  my $factory = $self->{-factory};
+  my $factory = $self->factory;
   my $color   = $factory->option(@_) or return $self->fgcolor;
   $factory->translate($color);
 }
 
 sub start     { shift->{start}                 }
 sub end       { shift->{end}                   }
-sub offset    { shift->{-factory}->offset      }
-sub length    { shift->{-factory}->length      }
+sub offset    { shift->factory->offset      }
+sub length    { shift->factory->length      }
 
 # this is a very important routine that dictates the
 # height of the bounding box.  We start with the height
@@ -55,7 +57,7 @@ sub height   {
 
 sub _height {
   my $self = shift;
-  my $val = $self->{-factory}->height;
+  my $val = $self->factory->height;
   $val += $self->labelheight if $self->option('label');
   $val;
 }
@@ -81,7 +83,6 @@ sub right {
   return $self->{cache_right} if defined $self->{cache_right};
   return $self->{cache_right} = $self->_right;
 }
-
 
 sub _left {
   my $self = shift;
@@ -142,7 +143,7 @@ sub calculate_boundaries {
 
   my $y1 = $top + $self->{top};
   $y1 += $self->labelheight if $self->option('label');
-  my $y2 = $y1 + $self->{-factory}->height;
+  my $y2 = $y1 + $self->factory->height;
 
   $x2 = $x1 if $x2-$x1 < 1;
   $y2 = $y1 if $y2-$y1 < 1;

@@ -54,7 +54,7 @@ sub draw {
 
   my @exons   = $self->feature->exons;
   my @introns = $self->feature->introns;
-  
+
   # fill in missing introns
   my (%istart,@intron_boxes,@implied_introns,@exon_boxes);
   foreach (@introns) {
@@ -63,7 +63,7 @@ sub draw {
     $istart{$start}++;
     push @intron_boxes,[$self->map_pt($start),$self->map_pt($stop)];
   }
-  
+
   for (my $i=0; $i < @exons; $i++) {
     my ($start,$stop) = ($exons[$i]->start,$exons[$i]->stop);
     ($start,$stop) = ($stop,$start) if $start > $stop;

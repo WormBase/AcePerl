@@ -16,6 +16,7 @@ Ace/Graphics/Glyph/anchored_arrow.pm
 Ace/Graphics/Glyph/arrow.pm
 Ace/Graphics/Glyph/primers.pm
 Ace/Graphics/Glyph/transcript.pm
+Ace/Graphics/Glyph/segments.pm
 Ace/Sequence.pm
 Ace/Sequence/Feature.pm
 Ace/Sequence/Transcript.pm

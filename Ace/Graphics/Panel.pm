@@ -21,8 +21,8 @@ sub new {
   my $length = $options{-length} || 0;
   my $offset = $options{-offset} || 0;
 
-  $length   ||= $options{-segment}->length if $options{-segment};
-  $offset   ||= $options{-segment}->offset if $options{-segment};
+  $length   ||= $options{-segment}->length  if $options{-segment};
+  $offset   ||= $options{-segment}->start-1 if $options{-segment};
 
   return bless {
 		tracks => [],
@@ -78,6 +78,16 @@ sub pad_bottom {
 sub add_track {
   my $self = shift;
   my ($features,$glyph_type,@options) = @_;
+
+  # if the first argument is a string, then assume features is empty
+  if ( !ref($features) ) {
+    unshift @options,$glyph_type;
+    $glyph_type = $features;
+    $features = [];
+  }
+
+  # if glyph_type begins with a dash, then this is the beginning
+  # of the options
   if ($glyph_type =~ /^-/) {
     unshift @options,$glyph_type;
     undef $glyph_type;
@@ -89,6 +99,7 @@ sub add_track {
   my $track  = Ace::Graphics::Track->new($features,$glyph_type,@options);
   $track->set_scale($self->length,$self->width);
   push @{$self->{tracks}},$track;
+  return $track;
 }
 
 sub height {

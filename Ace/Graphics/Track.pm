@@ -21,6 +21,7 @@ sub new {
   my $class = shift;
   my ($objects,$glyph,@options) = @_;
   my $glyph_factory = $class->make_factory($glyph,@options);
+  $objects ||= [];  # empty, if not provided
   return bless {
 		features => $objects,                    # list of Ace::Sequence::Feature objects
 		factory  => $glyph_factory,              # the glyph class associated with this track
@@ -38,11 +39,21 @@ sub bump {
   $self->factory->option('bump',@_);
 }
 
-# add a feature to the list
+# add a feature (or array ref of features) to the list
 sub add_feature {
   my $self = shift;
   my $feature = shift;
-  push @{$self->{features}},$feature;
+  push @{$self->{features}},ref($feature) ? @$feature : $feature;
+}
+
+# link a set of features together so that they bump as a group
+
+sub add_group {
+  my $self = shift;
+  my $features = shift;
+  ref($features) eq 'ARRAY' or croak("Usage: Ace::Graphics::Track->add_group(\$arrayref)");
+  my $name     = ++$self->{group_name};
+  $self->{groups}{$name} = $features;
 }
 
 # delegate lineheight to the glyph
@@ -101,6 +112,7 @@ sub boxes {
   for my $g (@$glyphs) {
     my ($l,$t,$r,$b) = $g->box;
     push @result,[$g->feature,$left+$l,$top+$t,$left+$r,$top+$b];
+
   }
 
   return \@result;
@@ -114,6 +126,10 @@ sub draw {
 
   my $glyphs = $self->layout;
   $_->draw($gd,$left,$top) foreach @$glyphs;
+
+  if ($self->factory->option('connectgroups')) {
+    $_->draw($gd,$left,$top) foreach @{$self->{groups}};
+  }
 }
 
 # lay out -- this uses the infamous bump algorithm
@@ -127,18 +143,33 @@ sub layout {
   $factory->scale($self->scale);  # set the horizontal scale
   $factory->width($self->width);
 
-  # create glyphs and sort them horizontally
-  my @glyphs = sort {$a->start <=> $b->start } map { $factory->glyph($_) } @$f;
-  return $self->{glyphs} = [] if !@glyphs;
+  # create singleton glyphs
+  my @singletons = map { $factory->glyph($_) } @$f;
 
-  # run the bumper
-  $self->_bump(\@glyphs) if $self->bump;
+  # create linked groups of glyphs
+  my @groups;
+  if (my $groups = $self->{groups}) {
+    my $groupfactory = Ace::Graphics::GlyphFactory->new('group');
+    for my $g (values %$groups) {
+      my @g = map { $factory->glyph($_) } @$g;
+      push @groups,$groupfactory->glyph(\@g);
+    }
+  }
+
+  return $self->{glyphs} = [] unless @singletons || @groups;
+
+  # run the bumper on the groups
+  $self->_bump([@singletons,@groups]) if $self->bump;
+
+  # merge the singletons and groups and sort them horizontally
+  my @glyphs = sort {$a->left <=> $b->left } @singletons,map {$_->members} @groups;
 
   # If -1 bumping was allowed, then normalize so that the top glyph is at zero
   my ($topmost) = sort {$a->top <=> $b->top} @glyphs;
   my $offset = 0 - $topmost->top;
   $_->move(0,$offset) foreach @glyphs;
 
+  $self->{groups}        = \@groups;
   return $self->{glyphs} = \@glyphs;
 }
 
@@ -149,7 +180,8 @@ sub _bump {
   my $bump_direction = $self->bump;  # +1 means bump down, -1 means bump up
 
   my %occupied;
-  for my $g (@$glyphs) {
+  for my $g (sort { $a->left <=> $b->left} @$glyphs) {
+
     my $pos = 0;
     for my $y (sort {$bump_direction * ($a <=> $b)} keys %occupied) {
       my $previous = $occupied{$y};
@@ -181,7 +213,7 @@ sub height {
   return $bottommost->bottom - $topmost->top;
 }
 
-sub make_factory { 
+sub make_factory {
   my ($class,$type,@options) = @_;
   Ace::Graphics::GlyphFactory->new($type,@options);
 }
