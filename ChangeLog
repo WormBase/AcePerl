@@ -1,3 +1,6 @@
+1.70	3/5/2001
+	1. Folded AceBrowser functionality into package.
+	2. Added GD graphics.
 1.69	10/17/2000
 	1. fixes to url processing
 1.67	9/5/2000
