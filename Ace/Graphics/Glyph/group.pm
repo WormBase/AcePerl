@@ -22,18 +22,22 @@ sub new {
   my @sorted = sort { $a->left   <=> $b->left } @$parts;
   my $leftmost  = $sorted[0];
   my $rightmost = (sort { $a->right  <=> $b->right  } @$parts)[-1];
-  my $tallest   = (sort { $a->height <=> $b->height } @$parts)[-1];
 
-  return bless {
-		@_,
-		top      => 0,
-		left     => 0,
-		right    => 0,
-		leftmost => $leftmost,
-		rightmost => $rightmost,
-		tallest   => $tallest,
-		members   => \@sorted,
-	       },$class;
+  my $self =  bless {
+		     @_,
+		     top      => 0,
+		     left     => 0,
+		     right    => 0,
+		     leftmost => $leftmost,
+		     rightmost => $rightmost,
+		     members   => \@sorted,
+		    },$class;
+
+
+  @sorted = $self->bump;
+  $self->{height} = $sorted[-1]->bottom - $sorted[0]->top;
+
+  return $self;
 }
 
 sub members {
@@ -53,7 +57,29 @@ sub right {  shift->{rightmost}->right }
 
 sub height {
   my $self = shift;
-  return $self->{tallest}->height;
+  $self->{height};
+}
+
+# this is replication of code in Track.pm;
+# should have done a formal container/contained relationship
+# in order to accomodate groups
+sub bump {
+  my $self = shift;
+  my @glyphs = $self->members;
+
+  my %occupied;
+  for my $g (sort { $a->left <=> $b->left} @glyphs) {
+
+    my $pos = 0;
+    for my $y (sort {$a <=> $b} keys %occupied) {
+      my $previous = $occupied{$y};
+      last if $previous->right + 2 < $g->left;          # no collision at this position
+      $pos += $previous->height + 2;                    # collision, so bump
+    }
+    $occupied{$pos} = $g;                           # remember where we are
+    $g->move(0,$pos);
+  }
+  return sort { $a->top <=> $b->top } @glyphs;
 }
 
 # override draw method - draw individual subparts
@@ -72,10 +98,10 @@ sub draw {
 
   $gd->setStyle($black,$black,gdTransparent,gdTransparent,);
   for (my $i=0;$i<@parts-1;$i++) {
-    my $start = ($parts[$i]->box)[2];
-    my $end   = ($parts[$i+1]->box)[0];
+    my $start = ($parts[$i]->calculate_boundaries($left,$top))[2];
+    my $end   = ($parts[$i+1]->calculate_boundaries($left,$top))[0];
     next unless ($end - $start) > 6;
-    $gd->line($left + $start,$center,$left + $end,$center,gdStyled);
+    $gd->line($start+1,$center,$end-1,$center,gdStyled);
   }
 
 }

@@ -183,19 +183,19 @@ sub _bump {
   for my $g (sort { $a->left <=> $b->left} @$glyphs) {
 
     my $pos = 0;
-    for my $y (sort {$bump_direction * ($a <=> $b)} keys %occupied) {
-      my $previous = $occupied{$y};
-      last if $previous->right + 2 < $g->left;          # no collision at this position
+    while (1) {
+      my $previous = $occupied{$pos};
+      last if !$previous || $previous->right + 2 < $g->left; # no collision at this position
       if ($bump_direction > 0) {
 	$pos += $previous->height + 2;                    # collision, so bump
       } else {
 	$pos -= $g->height + 2;
       }
     }
+
     $occupied{$pos} = $g;                           # remember where we are
     $g->move(0,$pos);
   }
-
 }
 
 # return list of glyphs -- only after they are laid out
@@ -204,12 +204,14 @@ sub glyphs { shift->{glyphs} }
 # height is determined by the layout, and cannot be externally controlled
 sub height {
   my $self = shift;
+
   $self->layout;
   my $glyphs = $self->{glyphs} or croak "Can't lay out";
   return 0 unless @$glyphs;
 
   my ($topmost)    = sort { $a->top    <=> $b->top }    @$glyphs;
   my ($bottommost) = sort { $b->bottom <=> $a->bottom } @$glyphs;
+
   return $bottommost->bottom - $topmost->top;
 }
 

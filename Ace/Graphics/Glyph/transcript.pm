@@ -85,8 +85,9 @@ sub draw {
   # each exon becomes a box
   for my $e (@exon_boxes) {
     my @rect = ($e->[0],$y1,$e->[1],$y2);
-    $gd->rectangle(@rect,$fg);
-    $self->fill($gd,@rect);
+    $self->filled_box($gd,@rect);
+#    $gd->rectangle(@rect,$fg);
+#    $self->fill($gd,@rect);
   }
 
   # each intron becomes an angly thing

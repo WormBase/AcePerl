@@ -12,7 +12,7 @@ sub new {
   my $feature = $arg{-feature};
   my ($start,$end) = ($feature->start,$feature->end);
   ($start,$end) = ($end,$start) if $start > $end;
-  return bless { 
+  return bless {
 		@_,
 		top   => 0,
 		left  => 0,
@@ -111,7 +111,7 @@ sub map_pt {
   my $val = $self->{left} + $self->scale * $point;
   my $right = $self->{left} + $self->width;
   $val = 0 if $val < 0;
-  $val = $self->width-1 if $right && $val > $right;
+  $val = $self->width if $right && $val > $right;
   return int($val+0.5);
 }
 
@@ -151,6 +151,27 @@ sub calculate_boundaries {
   return ($x1,$y1,$x2,$y2);
 }
 
+sub filled_box {
+  my $self = shift;
+  my $gd = shift;
+  my ($x1,$y1,$x2,$y2) = @_;
+
+  # draw a box
+  $gd->rectangle($x1,$y1,$x2,$y2,$self->fgcolor);
+
+  # and fill it
+  $self->fill($gd,$x1,$y1,$x2,$y2);
+
+  # if the left end is off the end, then cover over
+  # the leftmost line
+  my ($width) = $gd->getBounds;
+  $gd->line($x1,$y1,$x1,$y2,$self->fillcolor)
+    if $x1 <= 0;
+
+  $gd->line($x2,$y1,$x2,$y2,$self->fillcolor)
+    if $x2 >= $width;
+}
+
 sub fill {
   my $self = shift;
   my $gd   = shift;
@@ -172,10 +193,12 @@ sub draw {
   $x2 = $x1 if $x2-$x1 < 1;
 
   # for now, just draw a box
-  $gd->rectangle($x1,$y1,$x2,$y2,$self->fgcolor);
+#  $gd->rectangle($x1,$y1,$x2,$y2,$self->fgcolor);
 
   # and fill it
-  $self->fill($gd,$x1,$y1,$x2,$y2);
+#  $self->fill($gd,$x1,$y1,$x2,$y2);
+
+  $gd->filled_box($gd,$x1,$y1,$x2,$y2);
 
   # add a label if requested
   $self->draw_label($gd,@_) if $self->option('label');
