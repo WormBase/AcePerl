@@ -1,6 +1,6 @@
 diff -N -c -r ./w1/arraysub.c ../4_5e.new/w1/arraysub.c
 *** ./w1/arraysub.c	Fri Aug  8 16:10:40 1997
---- ../4_5e.new/w1/arraysub.c	Sun Jun 21 18:36:35 1998
+--- ../4_5e.new/w1/arraysub.c	Thu Jul  2 15:14:31 1998
 ***************
 *** 691,696 ****
 --- 691,716 ----
@@ -32,7 +32,7 @@ diff -N -c -r ./w1/arraysub.c ../4_5e.new/w1/arraysub.c
     if (text>= s->ptr)
 diff -N -c -r ./w1/freeout.c ../4_5e.new/w1/freeout.c
 *** ./w1/freeout.c	Fri Aug  8 16:09:43 1997
---- ../4_5e.new/w1/freeout.c	Sun Jun 21 18:28:04 1998
+--- ../4_5e.new/w1/freeout.c	Thu Jul  2 15:14:31 1998
 ***************
 *** 173,178 ****
 --- 173,193 ----
@@ -59,7 +59,7 @@ diff -N -c -r ./w1/freeout.c ../4_5e.new/w1/freeout.c
   { static Array buf = 0 ;
 diff -N -c -r ./w1/freesubs.c ../4_5e.new/w1/freesubs.c
 *** ./w1/freesubs.c	Tue Jul  1 10:59:31 1997
---- ../4_5e.new/w1/freesubs.c	Sun Jun 21 18:41:05 1998
+--- ../4_5e.new/w1/freesubs.c	Thu Jul  2 15:14:31 1998
 ***************
 *** 16,22 ****
    *-------------------------------------------------------------------
@@ -106,7 +106,7 @@ diff -N -c -r ./w1/freesubs.c ../4_5e.new/w1/freesubs.c
    
 diff -N -c -r ./w1/messubs.c ../4_5e.new/w1/messubs.c
 *** ./w1/messubs.c	Fri Aug  8 16:10:01 1997
---- ../4_5e.new/w1/messubs.c	Sun Jun 21 17:43:55 1998
+--- ../4_5e.new/w1/messubs.c	Thu Jul  2 15:14:31 1998
 ***************
 *** 88,94 ****
   				*/
@@ -127,7 +127,7 @@ diff -N -c -r ./w1/messubs.c ../4_5e.new/w1/messubs.c
   #ifdef SGI			/* work around SGI library bug */
 diff -N -c -r ./w1/timesubs.c ../4_5e.new/w1/timesubs.c
 *** ./w1/timesubs.c	Mon Mar  3 05:30:17 1997
---- ../4_5e.new/w1/timesubs.c	Sun Jun 21 17:41:12 1998
+--- ../4_5e.new/w1/timesubs.c	Thu Jul  2 15:14:32 1998
 ***************
 *** 201,206 ****
 --- 201,213 ----
@@ -146,7 +146,7 @@ diff -N -c -r ./w1/timesubs.c ../4_5e.new/w1/timesubs.c
   mytime_t timeNow(void)
 diff -N -c -r ./w2/graphgd.c ../4_5e.new/w2/graphgd.c
 *** ./w2/graphgd.c	Tue May 20 23:28:11 1997
---- ../4_5e.new/w2/graphgd.c	Sun Jun 21 18:26:15 1998
+--- ../4_5e.new/w2/graphgd.c	Thu Jul  2 15:14:32 1998
 ***************
 *** 467,472 ****
 --- 467,497 ----
@@ -183,7 +183,7 @@ diff -N -c -r ./w2/graphgd.c ../4_5e.new/w2/graphgd.c
   int graphGIFread (FILE *fil, float x0, float y0)
 diff -N -c -r ./w2/graphsub.c ../4_5e.new/w2/graphsub.c
 *** ./w2/graphsub.c	Thu May 22 15:46:43 1997
---- ../4_5e.new/w2/graphsub.c	Sun Jun 21 19:09:51 1998
+--- ../4_5e.new/w2/graphsub.c	Thu Jul  2 15:14:32 1998
 ***************
 *** 310,334 ****
     for (i = 0 ; i < arrayMax(gActive->boxes) ; ++i)
@@ -250,7 +250,7 @@ diff -N -c -r ./w2/graphsub.c ../4_5e.new/w2/graphsub.c
   
 diff -N -c -r ./w4/command.c ../4_5e.new/w4/command.c
 *** ./w4/command.c	Fri Aug  8 16:19:56 1997
---- ../4_5e.new/w4/command.c	Sun Jun 21 17:57:31 1998
+--- ../4_5e.new/w4/command.c	Thu Jul  2 15:14:32 1998
 ***************
 *** 679,688 ****
         case 'c':  /* Class */
@@ -299,7 +299,7 @@ diff -N -c -r ./w4/command.c ../4_5e.new/w4/command.c
   		{ look->notListable++ ; continue ; }
 diff -N -c -r ./w4/gifacemain.c ../4_5e.new/w4/gifacemain.c
 *** ./w4/gifacemain.c	Fri Aug  8 16:19:12 1997
---- ../4_5e.new/w4/gifacemain.c	Sun Jun 21 18:20:55 1998
+--- ../4_5e.new/w4/gifacemain.c	Thu Jul  2 15:14:32 1998
 ***************
 *** 131,137 ****
     KEY key ;
@@ -364,7 +364,7 @@ diff -N -c -r ./w4/gifacemain.c ../4_5e.new/w4/gifacemain.c
   	    word = freeword() ;
 diff -N -c -r ./wgd/gd.h ../4_5e.new/wgd/gd.h
 *** ./wgd/gd.h	Tue Sep 19 12:14:43 1995
---- ../4_5e.new/wgd/gd.h	Sun Jun 21 18:19:00 1998
+--- ../4_5e.new/wgd/gd.h	Thu Jul  2 15:14:32 1998
 ***************
 *** 1,8 ****
   #ifndef GD_H
@@ -523,17 +523,17 @@ diff -N -c -r ./wgd/gd.h ../4_5e.new/wgd/gd.h
   	these values will NOT have the desired result. */
 diff -N -c -r ./wgd/io.h ../4_5e.new/wgd/io.h
 *** ./wgd/io.h	Wed Dec 31 19:00:00 1969
---- ../4_5e.new/wgd/io.h	Sun Jun 21 18:19:05 1998
+--- ../4_5e.new/wgd/io.h	Thu Jul  2 15:14:32 1998
 ***************
 *** 0 ****
 --- 1,4 ----
-+ /* $Id: acedb_4_5e.patch,v 1.3 1998/07/02 16:03:06 lstein Exp $
++ /* $Id: acedb_4_5e.patch,v 1.4 1998/07/02 20:28:48 lstein Exp $
 +  * skeletonized -- had been a longer version for perlio LS */
 + 
 + #include <stdio.h>
 diff -N -c -r ./wgd/libgd.c ../4_5e.new/wgd/libgd.c
 *** ./wgd/libgd.c	Wed Dec 31 19:00:00 1969
---- ../4_5e.new/wgd/libgd.c	Sun Jun 21 18:19:05 1998
+--- ../4_5e.new/wgd/libgd.c	Thu Jul  2 15:14:32 1998
 ***************
 *** 0 ****
 --- 1,2762 ----
@@ -3301,7 +3301,7 @@ diff -N -c -r ./wgd/libgd.c ../4_5e.new/wgd/libgd.c
 + }
 diff -N -c -r ./wgd/mtables.h ../4_5e.new/wgd/mtables.h
 *** ./wgd/mtables.h	Wed Dec 31 19:00:00 1969
---- ../4_5e.new/wgd/mtables.h	Sun Jun 21 18:19:05 1998
+--- ../4_5e.new/wgd/mtables.h	Thu Jul  2 15:14:33 1998
 ***************
 *** 0 ****
 --- 1,2195 ----
@@ -5502,7 +5502,7 @@ diff -N -c -r ./wgd/mtables.h ../4_5e.new/wgd/mtables.h
 + #endif
 diff -N -c -r ./wh/graph.h ../4_5e.new/wh/graph.h
 *** ./wh/graph.h	Tue May 20 23:28:11 1997
---- ../4_5e.new/wh/graph.h	Sun Jun 21 18:27:07 1998
+--- ../4_5e.new/wh/graph.h	Thu Jul  2 15:14:33 1998
 ***************
 *** 338,343 ****
 --- 338,344 ----
@@ -5515,7 +5515,7 @@ diff -N -c -r ./wh/graph.h ../4_5e.new/wh/graph.h
    
 diff -N -c -r ./wmake/LINUX_4_OPT_DEF ../4_5e.new/wmake/LINUX_4_OPT_DEF
 *** ./wmake/LINUX_4_OPT_DEF	Fri Mar 22 15:42:08 1996
---- ../4_5e.new/wmake/LINUX_4_OPT_DEF	Sun Jun 21 17:41:12 1998
+--- ../4_5e.new/wmake/LINUX_4_OPT_DEF	Thu Jul  2 15:14:33 1998
 ***************
 *** 20,25 ****
 --- 20,26 ----
@@ -5528,7 +5528,7 @@ diff -N -c -r ./wmake/LINUX_4_OPT_DEF ../4_5e.new/wmake/LINUX_4_OPT_DEF
   #################################################################
 diff -N -c -r ./wmake/SOLARIS_4_DEF ../4_5e.new/wmake/SOLARIS_4_DEF
 *** ./wmake/SOLARIS_4_DEF	Thu Dec 21 02:13:46 1995
---- ../4_5e.new/wmake/SOLARIS_4_DEF	Sun Jun 21 18:58:50 1998
+--- ../4_5e.new/wmake/SOLARIS_4_DEF	Thu Jul  2 15:14:33 1998
 ***************
 *** 15,22 ****
   #################################################################
@@ -5550,7 +5550,7 @@ diff -N -c -r ./wmake/SOLARIS_4_DEF ../4_5e.new/wmake/SOLARIS_4_DEF
   LIBS = -lm -lsocket -lnsl
 diff -N -c -r ./wmake/makefile ../4_5e.new/wmake/makefile
 *** ./wmake/makefile	Fri Aug  8 18:43:41 1997
---- ../4_5e.new/wmake/makefile	Sun Jun 21 17:41:12 1998
+--- ../4_5e.new/wmake/makefile	Thu Jul  2 15:14:33 1998
 ***************
 *** 4,10 ****
   #  MAKE = /usr/local/bin/gmake
@@ -5586,8 +5586,9 @@ diff -N -c -r ./wmake/makefile ../4_5e.new/wmake/makefile
   	echo 'making' $@ 'for $(ACEDB_MACHINE)'
   	cd bin.$(ACEDB_MACHINE) ; \
   	cp ../wmake/truemake ./makefile ; \
+diff -N -c -r ./wmake/truemake ../4_5e.new/wmake/truemake
 *** ./wmake/truemake	Fri Aug  8 18:43:25 1997
---- ../4_5e.new/wmake/truemake	Thu Jul  2 10:01:22 1998
+--- ../4_5e.new/wmake/truemake	Thu Jul  2 15:14:33 1998
 ***************
 *** 207,213 ****
   GRAPH_OBJS = graphcon.o graphsub.o graphps.o graphselect.o \
@@ -5673,10 +5674,70 @@ diff -N -c -r ./wmake/makefile ../4_5e.new/wmake/makefile
   
   tace : $(TACE_OBJS)
   	$(COMPILER) -c linkdate.c
+diff -N -c -r ./wrpc/aceserver.c ../4_5e.new/wrpc/aceserver.c
+*** ./wrpc/aceserver.c	Mon Sep  1 07:35:49 1997
+--- ../4_5e.new/wrpc/aceserver.c	Thu Jul  2 15:15:26 1998
+***************
+*** 74,81 ****
+--- 74,83 ----
+  #include "aceclient.h"
+  #include "parse.h"
+  #include <signal.h>
++ #include <netinet/in.h>
+  
+  static BOOL isDaemon = FALSE ;
++ static BOOL isInetd = FALSE ;
+  
+  #if defined(WIN32)
+  #define DCESERVER
+***************
+*** 173,179 ****
+  #if defined(DCESERVER)
+    stopDCEServer() ;
+  #else
+!   if (TRUE) closePortMap();	/* was !isDaemon once ? */
+  #endif
+  
+    if (isWriteAccess())
+--- 175,181 ----
+  #if defined(DCESERVER)
+    stopDCEServer() ;
+  #else
+!   if (!isInetd) closePortMap();	/* was !isDaemon once ? */
+  #endif
+  
+    if (isWriteAccess())
+***************
+*** 623,628 ****
+--- 625,633 ----
+    int n, t ;
+    char *cp ;
+  
++   /* Declarations for inetd detection LDS 7/2/98 */
++   struct sockaddr_in saddr;
++   int asize = sizeof (saddr);
+  
+  #ifdef GIFACESERVER
+    extern void (*gifEntry)(KEYSET,int,BOOL) ;	/* entry point in command.c */
+***************
+*** 631,636 ****
+--- 636,648 ----
+    freeinit () ;			/* must come before graphInit */
+    graphInit (&argc, argv) ;	/* before calls to messcrash() */
+  #endif
++ 
++   /* This code determines whether we are running from inetd.
++      It relies on the fact that if we are running under inetd,
++      file descriptor 0 will be a socket.
++      LDS 7/2/98 */
++   if (getsockname(0, (struct sockaddr *)&saddr, &asize) == 0)
++     isInetd = TRUE;
+  
+    out = stderr ; /* this static cannot be initialized at file scope in WIN32? */
   
 diff -N -c -r ./wtools/MAKE_OTHERS.g ../4_5e.new/wtools/MAKE_OTHERS.g
 *** ./wtools/MAKE_OTHERS.g	Thu Jul  3 17:31:58 1997
---- ../4_5e.new/wtools/MAKE_OTHERS.g	Wed Dec 31 19:00:00 1969
+--- ../4_5e.new/wtools/MAKE_OTHERS.g	Thu Jul  2 15:14:33 1998
 ***************
 *** 1,28 ****
 - #!/bin/csh -f
