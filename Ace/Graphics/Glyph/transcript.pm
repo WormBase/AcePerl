@@ -76,6 +76,7 @@ sub draw {
   my $gray = $self->factory->translate($implied_intron_color);
   my $fg     = $self->fgcolor;
   my $fill   = $self->fillcolor;
+  my $fontcolor = $self->fontcolor;
   my $curated_exon   = $self->option('curatedexon')   ? $self->color('curatedexon') : $fill;
   my $curated_intron = $self->option('curatedintron') ? $self->color('curatedintron') : $fg;
 
@@ -161,7 +162,7 @@ sub draw {
 
     # draw description
     if (my $d = $self->description) {
-      $gd->string($self->font,$x1,$y2,$d,$fill);
+      $gd->string($self->font,$x1,$y2,$d,$fontcolor);
     }
   }
 

@@ -31,6 +31,7 @@ sub new {
   $options{fillcolor} ||= 'turquoise';
   $options{height}    ||= 10;
   $options{font}      ||= gdSmallFont;
+  $options{fontcolor} ||= 'black';
 
   return bless {
 		glyphclass => $glyphclass,
@@ -114,7 +115,9 @@ sub fgcolor {
 
 sub fontcolor {
   my $self = shift;
-  return $self->_fgcolor;
+  my $c = $self->option('fontcolor',@_);
+  $self->translate($c);
+#  return $self->_fgcolor;
 }
 
 sub bgcolor {
