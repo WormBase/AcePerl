@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.32 2001/04/03 21:37:50 lstein Exp $
+# $Id: Object.pm,v 1.33 2001/04/17 15:07:28 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -585,6 +585,7 @@ sub _split_tags {
   $tag =~ s/\\\./$;/g; # protect backslashed dots
   return map { (my $x=$_)=~s/$;/./g; $x } split(/\./,$tag);
 }
+
 
 1;
 
@@ -1348,6 +1349,8 @@ be detected and reported at commit() time however.
 
 The add() method is an alias for add_row().
 
+See also the Ace->new() method.
+
 =head2 add_tree()
 
   $result_code = $object->add_tree($tag=>$ace_object);
@@ -1747,34 +1750,6 @@ sub tags {
     return @tags;
 }
 
-################# delete a portion of the tree #############
-# Only changes local copy until you perform commit() #
-#  returns true if this is a valid thing to do.
-sub delete {
-  my $self = shift;
-  my($tag,$oldvalue,@rest) = rearrange([['TAG','PATH'],['VALUE','OLDVALUE','OLD']],@_);
-  
-  # flatten array refs into array
-  my @values;
-  @values = map { ref($_) && ref($_) eq 'ARRAY' ? @$_ : $_ } ($oldvalue,@rest) 
-    if defined($oldvalue);
-  my $row = join(".",($tag,map { (my $x = $_) =~s/\./\\./g; $x } @values));
-  my $subtree = $self->at($row,undef,1);  # returns the parent
-
-  if (@values
-      && defined($subtree->{'.right'})
-      && "$subtree->{'.right'}" eq $oldvalue) {
-    $subtree->{'.right'} = $subtree->{'.right'}->down;
-  } else {
-    $subtree->{'.down'} = $subtree->{'.down'}->{'.down'}
-  }
-
-  push(@{$self->{'.update'}},join(' ','-D',
-				 map { Ace->freeprotect($_) } ($self->_split_tags($tag),@values)));
-  delete $self->{'.PATHS'}; # uncache cached values
-  1;
-}
-
 ################# kill an object ################
 # Removes the object from the database immediately.
 sub kill {
@@ -1815,9 +1790,14 @@ sub add_row {
   my @values = map { ref($_) && ref($_) eq 'ARRAY' ? @$_ : $_ } @newvalue;
 
   # make sure that this entry doesn't already exist
+  unless ($tag =~ /\./) {
+    my $model = $self->model;
+    my @intermediate_tags = $model->path($tag);
+    $tag = join '.',@intermediate_tags,$tag;
+  }
   my $row = join(".",($tag,map { (my $x = $_) =~s/\./\\./g; $x } @values));
   return if $self->at($row);  # an identical row already exists in the object
-  
+
   # If we get here then we need to turn @values into an array of Ace::Objects
   # for insertion.  Also need to link them together into a row.
   my $previous;
@@ -1861,6 +1841,12 @@ sub add_tree {
   my($tag,$value,@rest) = rearrange([['TAG','PATH'],['VALUE','TREE']],@_);
   croak "Value must be an Ace::Object" unless ref($value) && $value->isa('Ace::Object');
 
+  unless ($tag =~ /\./) {
+    my $model = $self->model;
+    my @intermediate_tags = $model->path($tag);
+    $tag = join '.',@intermediate_tags,$tag;
+  }
+
   # position at the indicated tag, creating it if necessary
   my (@tags) = $self->_split_tags($tag);
   my $p = $self;
@@ -1882,6 +1868,42 @@ sub add_tree {
   delete $self->{'.PATHS'}; # uncache cached values
   1;
 }
+
+################# delete a portion of the tree #############
+# Only changes local copy until you perform commit() #
+#  returns true if this is a valid thing to do.
+sub delete {
+  my $self = shift;
+  my($tag,$oldvalue,@rest) = rearrange([['TAG','PATH'],['VALUE','OLDVALUE','OLD']],@_);
+
+  # flatten array refs into array
+  my @values;
+  @values = map { ref($_) && ref($_) eq 'ARRAY' ? @$_ : $_ } ($oldvalue,@rest) 
+    if defined($oldvalue);
+
+  unless ($tag =~ /\./) {
+    my $model = $self->model;
+    my @intermediate_tags = $model->path($tag);
+    $tag = join '.',@intermediate_tags,$tag;
+  }
+
+  my $row = join(".",($tag,map { (my $x = $_) =~s/\./\\./g; $x } @values));
+  my $subtree = $self->at($row,undef,1);  # returns the parent
+
+  if (@values
+      && defined($subtree->{'.right'})
+      && "$subtree->{'.right'}" eq $oldvalue) {
+    $subtree->{'.right'} = $subtree->{'.right'}->down;
+  } else {
+    $subtree->{'.down'} = $subtree->{'.down'}->{'.down'}
+  }
+
+  push(@{$self->{'.update'}},join(' ','-D',
+				 map { Ace->freeprotect($_) } ($self->_split_tags($tag),@values)));
+  delete $self->{'.PATHS'}; # uncache cached values
+  1;
+}
+
 
 ################# delete a portion of the tree #############
 # Only changes local copy until you perform commit() #
@@ -1911,7 +1933,7 @@ sub commit {
 
   $Ace::Error = '';
   my $result = '';
-  
+
   # bad design alert: the following breaks encapsulation
   if ($db->{database}->can('write')) { # new way for socket server
     my $cmd = join "\n","$self->{'class'} : $name",@{$self->{'.update'}};
@@ -1929,8 +1951,13 @@ sub commit {
   } elsif (defined($result) and $result =~ /sorry|parse error/mi) {
     $Ace::Error = $result;
   }
+  return if $Ace::Error;
   undef $self->{'.update'};
-  return !$Ace::Error;
+  # this will force a fresh retrieval of the object
+  # and synchronize our in-memory copy with the db
+  delete $self->{'.right'};
+  delete $self->{'.PATHS'};
+  return 1;
 }
 
 # undo changes
@@ -1940,6 +1967,7 @@ sub rollback {
     # this will force object to be reloaded from database
     # next time it is needed.
     delete $self->{'.right'};
+    delete $self->{'.PATHS'};
     1;
 }
 
