@@ -402,6 +402,7 @@ sub AceRedirect {
   print start_html (
 			 '-Title' => 'Redirect',
 			 '-Style' => Style(),
+		         '-head'  => meta({-http_equiv=>'Refresh',-content=>"1; URL=$destination"})
 			),
     h1('Redirect'),
     p("This request is being redirected to the \U$report\E display"),
