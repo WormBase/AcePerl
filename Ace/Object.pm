@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.48 2004/09/22 02:48:32 todd Exp $
+# $Id: Object.pm,v 1.49 2004/11/30 18:06:18 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -567,10 +567,10 @@ sub _fromRaw {
   # Let's purge text entries of leading space and format them appropriate.
   # This should probably be handled in Freesubs.xs / Ace::split
   my $temp = $raw->[$start_row][$col];
-  if ($temp =~ /^\?txt\?\s*\n*/) {
-    $temp =~ s/^\?txt\?(\s*\\n*)/\?txt\?/;
-    $temp .= '?';
-  }
+#  if ($temp =~ /^\?txt\?\s*\n*/) {
+#    $temp =~ s/^\?txt\?(\s*\\n*)/\?txt\?/;
+#    $temp .= '?';
+#  }
   my ($class,$name,$ts) = Ace->split($temp);
 
   my $self = $pack->new($class,$name,$db,!($start_row || $col));
