@@ -19,6 +19,6 @@ use constant ENTREZP     => 'http://www.ncbi.nlm.nih.gov/htbin-post/Entrez/query
 use constant NCBI        => 'http://www.ncbi.nlm.nih.gov/htbin-post/Entrez/query';
 use constant PROTEOME    => 'http://www.proteome.com/WormPD/';
 use constant SWISSPROT   => 'http://www.ncbi.nlm.nih.gov/htbin-post/Entrez/query?db=p&form=1&field=Sequence+ID&term=';
-use constant PUBMED      => 'http://www.ncbi.nlm.nih.gov/htbin-post/Entrez/query?db=m&form=4&term=Caenorhabditis+elegans[ORGANISM]+AND+';
+use constant PUBMED      => 'http://www.ncbi.nlm.nih.gov/htbin-post/Entrez/query?db=m&form=4&term=nematode [ORGANISM]+AND+';
 
 1;
