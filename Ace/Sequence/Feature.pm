@@ -23,6 +23,7 @@ sub new {
 
   # for efficiency/performance, we don't use superclass new() method, but modify directly
   # handling coordinates.  See SCRAPS below for what should be in here
+  $strand = '+' if $strand eq '-' && $r_strand eq '-';  # two wrongs do make a right
   ($start,$end) = ($end,$start) if $strand eq '-';
   my $offset = $start - 1;
   my $length = ($end > $start) ? $end - $offset : $end - $offset - 2;

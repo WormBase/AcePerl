@@ -37,6 +37,10 @@ sub asString {
   shift->{base}->info;
 }
 
+sub type {
+  return 'Transcript';
+}
+
 sub relative {
   my $self = shift;
   my $d = $self->{relative};

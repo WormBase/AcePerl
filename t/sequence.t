@@ -113,23 +113,23 @@ test(43,$features[0]->length == 57,'absolute coordinate error');
 # Test the Ace::Sequence::Gene thing
 $zk154 = Ace::Sequence->new(-seq=>'ZK154',-db=>$db);
 @genes = $zk154->transcripts;
-test(44,@genes,'gene fetch error');
+test(44,scalar(@genes),'gene fetch error');
 $forward = (grep {$_->strand eq '+'} @genes)[0];
 $reverse = (grep {$_->strand eq '-'} @genes)[0];
 test(45,$forward && $reverse,'failed to find forward and reverse genes');
 @exons1 = $forward->exons;
-test(46,@exons1,'failed to find exons on forward gene');
+test(46,scalar @exons1,'failed to find exons on forward gene');
 $forward->relative(1);
 @exons2 = $forward->exons;
-test(47,@exons2,'failed to find relative exons on forward gene');
+test(47,scalar @exons2,'failed to find relative exons on forward gene');
 test(48,$exons2[0]->start == 1,"relative exons on forward gene don't start with 1");
 test(49,$exons1[0]->dna eq $exons2[0]->dna,"absolute and relative exons don't match");
 
 @exons1 = $reverse->exons;
-test(50,@exons1,'failed to find exons on reverse gene');
+test(50,scalar @exons1,'failed to find exons on reverse gene');
 $reverse->relative(1);
 @exons2 = $reverse->exons;
-test(51,@exons2,'failed to find relative exons on reverse gene');
+test(51,scalar @exons2,'failed to find relative exons on reverse gene');
 test(52,$exons2[0]->start == 1,"relative exons on reverse gene don't start with 1");
 test(53,$exons1[-1]->dna eq $exons2[0]->dna,"absolute and relative exons don't match (1)");
 test(54,$exons1[0]->dna eq $exons2[-1]->dna,"absolute and relative exons don't match (2)");

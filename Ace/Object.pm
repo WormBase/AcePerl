@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.30 2001/01/05 22:19:22 lstein Exp $
+# $Id: Object.pm,v 1.31 2001/01/10 05:42:23 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -525,7 +525,7 @@ sub _parse {
 
 sub _fromRaw {
   my $pack = shift;
-  $pack = $pack->factory();
+#  $pack = $pack->factory();
 
   my ($raw,$start_row,$col,$end_row,$db) = @_;
   return unless $raw->[$start_row][$col];
@@ -1537,6 +1537,8 @@ Ace::error(), this string will only have meaning if the previous
 operation returned a result code indicating an error.
 
 =head2 factory() method
+
+WARNING - THIS IS DEFUNCT AND NO LONGER WORKS.  USE THE Ace->class() METHOD INSTEAD
 
     $package = $object->factory;
 

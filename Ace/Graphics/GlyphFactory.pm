@@ -33,12 +33,12 @@ sub new {
   $options{bgcolor}   ||= 'white';
   $options{fgcolor}   ||= 'black';
   $options{fillcolor} ||= 'turquoise';
+  $options{height}    ||= 10;
 
   return bless {
 		glyphclass => $glyphclass,
 		font       => gdSmallFont,
 		scale      => 1,   # 1 pixel per kb
-		height     => 10,  # 10 pixels high
 		options    => \%options,
 	       },$class;
 }
@@ -69,9 +69,7 @@ sub font {
 # set the height for glyphs we create
 sub height {
   my $self = shift;
-  my $g = $self->{height};
-  $self->{height} = shift if @_;
-  $g;
+  $self->option('height',@_);
 }
 
 # set the color translation table

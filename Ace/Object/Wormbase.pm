@@ -3,7 +3,7 @@ use strict;
 use Carp;
 use Ace::Object;
 
-# $Id: Wormbase.pm,v 1.1 2001/01/04 23:21:57 lstein Exp $
+# $Id: Wormbase.pm,v 1.2 2001/01/10 05:42:23 lstein Exp $
 use vars '@ISA';
 @ISA = 'Ace::Object';
 
@@ -17,5 +17,16 @@ sub Locus {
     return $self->Locus_genomic_seq || $self->Locus_other_seq;
   }
 }
+
+sub Sequence {
+  my $self = shift;
+  return $self->SUPER::Sequence(@_) unless $self->class eq 'Locus';
+  if (wantarray) {
+    return ($self->Genomic_sequence,$self->Other_sequence);
+  } else {
+    return $self->Genomic_sequence || $self->Other_sequence;
+  }
+}
+
 
 1;

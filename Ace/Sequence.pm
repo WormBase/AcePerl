@@ -325,10 +325,11 @@ sub features {
   my @features = $self->_make_features($gff,$filter);
 
   # fetch out constructed transcripts and clones
-  my %types = map {$_=>1} @_;
+  my %types = map {lc($_)=>1} @_;
   if ($types{'transcript'}) {
     push @features,$self->_make_transcripts(\@features);
-  } elsif ($types{'clone'}) {
+  }
+  if ($types{'clone'}) {
     push @features,$self->_make_clones(\@features);
   }
 
@@ -385,9 +386,11 @@ sub _make_clones {
   my $clones = shift;
 
   my %clones;
+  my $start_label = $self->strand eq '-' ? 'end' : 'start';
+  my $end_label   = $self->strand eq '-' ? 'start' : 'end';
   for my $clone (@$clones) {
-    $clones{$clone->info}{start} = $clone->start if $clone->type eq 'Clone_left_end';
-    $clones{$clone->info}{end}   = $clone->start if $clone->type eq 'Clone_right_end';
+    $clones{$clone->info}{$start_label} = $clone->start if $clone->type eq 'Clone_left_end';
+    $clones{$clone->info}{$end_label}   = $clone->start if $clone->type eq 'Clone_right_end';
   }
   my $main_clone = $self->source->Clone;
   unless ($main_clone) {
@@ -474,7 +477,7 @@ sub find_parent {
   # otherwise, if we are passed an Ace::Object, then we must
   # traverse upwards until we find a suitable parent
   return _traverse($obj) if $obj->isa('Ace::Object');
-  
+
   # otherwise, we don't know what to do...
   croak "Source sequence not an Ace::Object or an Ace::Sequence";
 }
@@ -573,7 +576,7 @@ sub _make_filter {
       $filter{$type} = $filter;
     }
   }
-  
+
   # create pattern-match sub
   my $sub;
   if (%filter) {
@@ -585,7 +588,7 @@ sub _make_filter {
 	$expr = "return 1 if \$d[2]=~/$type/i && \$d[1]=~/$subtype/i;\n"
       } else {
 	$expr = defined($subtype) ? "return 1 if \$d[1]=~/$subtype/i;\n" 
-	  : "return 1 if \$d[2]=~/$type/i;\n" 
+	  : "return 1 if \$d[2]=~/$type/i;\n"
 	}
       $s .= $expr;
     }
@@ -599,13 +602,13 @@ sub _make_filter {
 }
 
 # turn a GFF file and a filter into a list of Ace::Sequence::Feature objects
-sub _make_features { 
+sub _make_features {
   my $self = shift;
   my ($gff,$filter) = @_;
 
   my ($r,$r_offset,$r_strand) = $self->refseq;
   my $parent = $self->parent;
-  my @features = map {Ace::Sequence::Feature->new($parent,$r,$r_offset,$r_strand,$_)} 
+  my @features = map {Ace::Sequence::Feature->new($parent,$r,$r_offset,$r_strand,$_)}
                  grep !m@^(?:\#|//)@ && $filter->($_),split("\n",$gff);
 }
 
