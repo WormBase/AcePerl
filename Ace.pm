@@ -97,8 +97,18 @@ sub connect {
 		    'date_style' => 'java',
 		    'auto_save' => 0,
 		   },$class;
-  eval "require $self->{class}";
+  eval "require $self->{class}" or warn $@;
   return $self;
+}
+
+sub class {
+  my $self = shift;
+  my $d = $self->{class};
+  if (@_) {
+    $self->{class} = shift;
+    eval "require $self->{class}" or warn $@;
+  }
+  $d;
 }
 
 sub process_url {
