@@ -1656,7 +1656,7 @@ internally.
 
 =head2 file_cache_delete($obj)
 
-Delete an object from the memory cache.  This is ordinarily called
+Delete an object from the file cache.  This is ordinarily called
 internally.
 
 =head1 THE LOW LEVEL C API
