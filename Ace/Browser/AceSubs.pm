@@ -286,6 +286,7 @@ sub Object2URL {
     }
     my $display = url(-relative=>1);
     my ($disp,$parameters) = Configuration->map_url($display,$name,$class);
+    return $disp unless $parameters;
     return Url($disp,$parameters);
 }
 
