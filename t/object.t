@@ -1,9 +1,9 @@
-#!/usr/local/bin/perl -w
+#!/opt/bin/perl -w
 
 # Tests of object-level fetches and following
 ######################### We start with some black magic to print on failure.
 use lib '../blib/lib','../blib/arch';
-use constant HOST => $ENV{ACEDB_HOST} || 'www.wormbase.org';
+use constant HOST => $ENV{ACEDB_HOST} || 'aceserver.cshl.org';
 use constant PORT => $ENV{ACEDB_PORT} || 2007;
 
 BEGIN {$| = 1; print "1..36\n"; }
@@ -46,12 +46,12 @@ test(8,defined($obj) && $obj->Also_known_as eq 'John Sulston',"automatic method 
 test(9,defined($obj) && $obj->Also_known_as->pick eq 'John Sulston',"pick failure");
 test(10,defined($obj) && (@obj = $obj->Address(2)) == 9,"col failure");
 test(11,defined($obj) && ($lab = $obj->Laboratory),"fetch failure");
-test(12,defined($lab) && join(' ',sort($lab->tags)) eq 'Address CGC Staff',"tags failure");
+test(12,defined($lab) && join(' ',sort($lab->tags)) =~ /^Address CGC Staff$/,"tags failure");
 test(13,defined($lab) && $lab->at('CGC.Allele_designation')->at eq 'e',"compound path failure");
 test(14,defined($obj) && $obj->Address(0)->asString eq $DATA,"asString() method");
 test(15,$db->ping,"can't ping");
 test(16,$db->classes,"can't count classes");
-test(17,defined($obj) && join(' ',sort $obj->fetch('Laboratory')->tags) eq "Address CGC Staff","fetch failure");
+test(17,defined($obj) && join(' ',sort $obj->fetch('Laboratory')->tags) =~ /^Address CGC Staff/,"fetch failure");
 test(18,defined($obj) && join(' ',$obj->Address(0)->row) eq "Address Mail The Sanger Centre","row() failure");
 test(19,defined($obj) && join(' ',$obj->Address(0)->row(1)) eq "Mail The Sanger Centre","row() failure");
 test(20,defined($obj) && (@h=$obj->Address(2)),"tag[2] failure");

@@ -4,7 +4,7 @@
 # Tests of Ace::Sequence and Ace::Sequence::Feature
 ######################### We start with some black magic to print on failure.
 use lib '..','../blib/lib','../blib/arch';
-use constant HOST => $ENV{ACEDB_HOST} || 'www.wormbase.org';
+use constant HOST => $ENV{ACEDB_HOST} || 'aceserver.cshl.org';
 use constant PORT => $ENV{ACEDB_PORT} || 2007;
 
 BEGIN {$| = 1; print "1..54\n"; }

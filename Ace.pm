@@ -198,6 +198,7 @@ sub fetch {
     croak "must call fetch() with the -class or -query arguments";
   }
   my $r = $self->raw_query($query);
+
   my ($cnt) = $r =~ /Found (\d+) objects/m;
   $$total = $cnt if defined $total;
 
@@ -1698,7 +1699,8 @@ sub split {
   my $text = shift;
   $text =~ s/\\n/\n/g;
   $text =~ s/\\t/\t/g;
-  my ($class,$id,$ts) = $text=~m/^\?(.+)(?<!\\)\?(.+)(?<!\\)\?([^?]*)$/s;
+  my ($id,$ts);
+  ($class,$id,$ts) = $text=~m/^\?(.+)(?<!\\)\?(.+)(?<!\\)\?([^?]*)$/s;
   $class ||= '';  # fix uninitialized variable warnings
   $id    ||= '';
   $class =~ s/\\\?/?/g;

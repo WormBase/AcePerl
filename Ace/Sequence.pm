@@ -613,6 +613,7 @@ sub _get_toplevel {
   my ($parent,$pstart,$pstop,$tstart,$tstop,$map_type) = 
     $smap =~ /^SMAP\s+(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(.+)/;
 
+  $parent ||= '';
   $parent =~ s/^Sequence://;  # remove this in next version of Acedb
   return ($parent,$pstart,$pstop);
 }

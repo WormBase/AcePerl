@@ -109,7 +109,6 @@ sub AceSearchTable {
     start_form(-action=>url(-absolute=>1,-path_info=>1).'#results',%attributes),
     a({-name=>'search'},''),
     table({-border=>0,-width=>'100%'},
-	  TR(th({-class=>'searchtitle'},$title)),
 	  TR({-valign=>'MIDDLE'},
 	     td({-class=>'searchbody'},@body))),
     end_form;

@@ -3,10 +3,13 @@
 # Low level tests of connectivity
 ######################### We start with some black magic to print on failure.
 use lib '../blib/lib','../blib/arch';
-use constant HOST => $ENV{ACEDB_HOST} || 'www.wormbase.org';
+use constant HOST => $ENV{ACEDB_HOST} || 'aceserver.cshl.org';
 use constant PORT => $ENV{ACEDB_PORT} || 2007;
 
-BEGIN {$| = 1; print "1..10\n"; }
+BEGIN {
+  $| = 1; print "1..10\n"; 
+  print STDERR "Waiting for remote acedb regression database to start up.  This may take a few minutes.\n";
+}
 END {print "not ok 1\n" unless $loaded;}
 use Ace qw/STATUS_WAITING STATUS_PENDING/;
 use Ace::SocketServer;
