@@ -1,6 +1,7 @@
 1.76
 	1. Changes to AceBrowser to improve AceRedirect() call and make more robust.
 	2. Can now redirect to other class.
+	3. Numerous enhancements to Ace::Graphics glyphs, including directional glyphs.
 1.75
 	1. Fixed a bad bug involving inability to index into portions of the subtree anchored by
 		numeric 0.
