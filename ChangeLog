@@ -1,3 +1,5 @@
+1.69	10/17/2000
+	1. fixes to url processing
 1.67	9/5/2000
 	1. Many updates to support socket server.
 	2. find_many() will now be much faster for complex queries.

@@ -17,7 +17,7 @@ use overload
 
 # Optional exports
 @EXPORT_OK = qw(rearrange ACE_PARSE);
-$VERSION = '1.68';
+$VERSION = '1.69';
 
 use constant STATUS_WAITING => 0;
 use constant STATUS_PENDING => 1;
@@ -69,7 +69,7 @@ sub connect {
   } else { # either RPC or socket server
     $host      ||= 'localhost';
     $user      ||= $u || '';
-    $pass      ||= $p || '';
+    $path      ||= $p || '';
     $port        ||= $server_type eq 'Ace::SocketServer' ? DEFAULT_SOCKET : DEFAULT_PORT;
     $query_timeout ||= 120;
     $timeout = 25 unless defined $timeout;
@@ -79,8 +79,11 @@ sub connect {
   
   # we've normalized parameters, so do the actual connect
   eval "require $server_type" || croak "Module $server_type not loaded: $@";
-  $database = $server_type->connect($path) if $path;
-  $database = $server_type->connect($host,$port,$query_timeout,$user,$pass) if $host && $port;
+  if ($path) {
+    $database = $server_type->connect($path);
+  } else {
+    $database = $server_type->connect($host,$port,$query_timeout,$user,$pass);
+  }
   
   unless ($database) {
     $Ace::Error ||= "Couldn't open database";

@@ -8,7 +8,7 @@
 bool_t
 xdr_ace_data (XDR *xdrs, ace_data *objp)
 {
-	 register long *buf;
+	register int32_t *buf;
 
 
 	if (xdrs->x_op == XDR_ENCODE) {
@@ -91,7 +91,7 @@ xdr_ace_data (XDR *xdrs, ace_data *objp)
 bool_t
 xdr_ace_reponse (XDR *xdrs, ace_reponse *objp)
 {
-	 register long *buf;
+	register int32_t *buf;
 
 	 if (!xdr_int (xdrs, &objp->ernumber))
 		 return FALSE;
