@@ -9,7 +9,6 @@
 # explorer.
 
 use strict;
-use vars '$DB';
 
 use Ace 1.51;
 use File::Path;
@@ -310,7 +309,7 @@ sub build_map_navigation_panel {
   $map_start ||= $start;
   $map_stop  ||= $stop;
 
-  my($min,$max)    = get_extremes($DB,$name);
+  my($min,$max)    = get_extremes($obj->db,$name);
 
   # this section is responsible for centering on the place the user clicks
   if (param('click')) {
@@ -328,7 +327,7 @@ sub build_map_navigation_panel {
   }
 
 
-  my $self = url();
+  my $self = url(-path_info=>1);
   my $half = ($map_stop - $map_start)/2;
   my $a1   = $map_start - $half;
   $a1      = $min if $min > $a1;
