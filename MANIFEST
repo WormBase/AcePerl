@@ -4,7 +4,6 @@ Ace/Browser/GeneSubs.pm
 Ace/Browser/SearchSubs.pm
 Ace/Browser/SiteDefs.pm
 Ace/Browser/TreeSubs.pm
-Ace/Factory.pm
 Ace/Graphics/Fk.pm
 Ace/Graphics/Glyph.pm
 Ace/Graphics/Glyph/anchored_arrow.pm
@@ -202,4 +201,3 @@ t/sequence.t
 t/update.t
 typemap
 util/install.PL
-util/install.pl

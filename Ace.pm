@@ -17,7 +17,7 @@ use overload
 
 # Optional exports
 @EXPORT_OK = qw(rearrange ACE_PARSE);
-$VERSION = '1.77';
+$VERSION = '1.79';
 
 use constant STATUS_WAITING => 0;
 use constant STATUS_PENDING => 1;

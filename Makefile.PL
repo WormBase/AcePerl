@@ -52,7 +52,7 @@ exit 0;
 
 sub setup_sitedefs {
   my ($conf_path,$cgi_path,$html_path);
-  eval { use Ace::Browser::LocalSiteDefs qw($SITE_DEFS $CGI_PATH $HTML_PATH)};
+  eval 'use Ace::Browser::LocalSiteDefs qw($SITE_DEFS $CGI_PATH $HTML_PATH)';
   if ($SITE_DEFS) {
     print "\n";
     print "You have installed Ace::Browser before, using old settings for defaults.\n";

@@ -33,7 +33,7 @@ copy_tree($source,'.',$dest);
 
 sub copy_tree {
   my ($base,$subdir,$dest) = @_;
-  -d "$dest/$subdir" || mkdir("$dest/$subdir");
+  -d "$dest/$subdir" || mkdir("$dest/$subdir",0777);
 
   my $dir = IO::Dir->new("$base/$subdir") or die "Can't opendir() $source: $!";
   while (my $thing = $dir->read) {
