@@ -1074,6 +1074,7 @@ objects.
                          -offset=> $offset,
                          -count => $count,
                          -fill  => $fill,
+                         -filltag => $filltag,
 			 -total => \$total,
                          -long  => 1,
 			);
@@ -1652,15 +1653,20 @@ sub count {
 # of retrieved objects in a list context.
 sub grep {
   my $self = shift;
-  my ($pattern,$count,$offset,$filled,$total,$long) = 
-      rearrange(['PATTERN','COUNT','OFFSET',['FILL','FILLED'],'TOTAL','LONG'],@_);
+  my ($pattern,$count,$offset,$filled,$filltag,$total,$long) = 
+      rearrange(['PATTERN','COUNT','OFFSET',['FILL','FILLED'],'FILLTAG','TOTAL','LONG'],@_);
   $offset += 0;
   my $grep = defined($long) && $long ? 'LongGrep' : 'grep';
   my $r = $self->raw_query("$grep $pattern");
   my ($cnt) = $r =~ /Found (\d+) objects/m;
   $$total = $cnt if defined $total;
   return $cnt if !wantarray;
-  return $filled ? $self->_fetch($count,$offset) : $self->_list($count,$offset);
+  if ($filltag) {
+    @h = $self->_fetch($count,$offset,$filltag);
+  } else {
+    @h = $filled ? $self->_fetch($count,$offset) : $self->_list($count,$offset);
+  }
+  @h;
 }
 
 sub pick {
