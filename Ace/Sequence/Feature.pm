@@ -133,26 +133,27 @@ sub tag2ace {
     my ($tag,@data) = @_;
 
     # Special cases, hardcoded in Ace GFF code...
+    my $db = $self->db;;
+    my $class = $db->class;
 
     # for Notes we just return a text, no database associated
-    return Ace::Object->new(Text=>$data[0]) if $tag eq 'Note';
+    return $class->new(Text=>$data[0]) if $tag eq 'Note';
     
     # for homols, we create the indicated Protein or Sequence object
     # then generate a bogus Homology object (for future compatability??)
     if ($tag eq 'Target') {
-	my $db = $self->db;;
 	my ($objname,$start,$end) = @data;
-	my ($class,$name) = $objname =~ /^(\w+):(.+)/;
-	return Ace::Sequence::Homol->new($class,$name,$db,$start,$end);
+	my ($classe,$name) = $objname =~ /^(\w+):(.+)/;
+	return Ace::Sequence::Homol->new($classe,$name,$db,$start,$end);
     }
 
     # General case:
-    my $obj = Ace::Object->new($tag=>$data[0],$self->db);
+    my $obj = $class->new($tag=>$data[0],$self->db);
 
     return $obj if defined $obj;
 
     # Last resort, return a Text
-    return Ace::Object->new(Text=>$data[0]);
+    return $class->new(Text=>$data[0]);
 }
 
 1;

@@ -9,7 +9,7 @@ use vars '@ISA';
 
 sub new {
   my ($pack,$tclass,$tname,$db,$start,$end) = @_;
-  return unless my $obj = Ace::Object->new($tclass,$tname,$db,1);
+  return unless my $obj = $db->class->new($tclass,$tname,$db,1);
   @$obj{'start','end'} = ($start,$end);
   return bless $obj,$pack;
 }
