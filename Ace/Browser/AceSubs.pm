@@ -12,9 +12,9 @@ require Exporter;
 
 ######################### This is the list of exported subroutines #######################
 @EXPORT = qw(
-	     AceInit AceHeader AceError AceMissing AceRedirect AceMultipleChoices
-	     OpenDatabase TypeSelector Style Url Object2URL ObjectLink Header Footer 
-	     Configuration DB_Name);
+	     GetAceObject AceInit AceHeader AceError AceMissing AceRedirect 
+	     AceMultipleChoices OpenDatabase TypeSelector Style Url Object2URL
+	     ObjectLink Header Footer Configuration DB_Name);
 @EXPORT_OK = qw(DoRedirect Toggle ResolveUrl);
 %EXPORT_TAGS = ( );
 
@@ -93,7 +93,7 @@ sub Style {
 # Will generate an HTTP 'document not found' error if you try to get an 
 # undefined database name.  Check the return code from this function and
 # return immediately if not true (actually, not needed because we exit).
-sub AceInit   { 
+sub AceInit   {
   $HEADER = 0;
 
   %OPEN = map {$_ => 1} split(' ',param('open')) if param('open');
@@ -312,6 +312,8 @@ sub AceError {
 
 sub AceMissing {
     my ($class,$name) = @_;
+    $class ||= param('class');
+    $name  ||= param('name');
     print header() unless $HEADER++;
     print
       start_html(-title=>"$name",
@@ -464,4 +466,93 @@ sub Toggle {
     }
 }
 
+# open database, return object requested by CGI parameters
+sub GetAceObject {
+  my $db = OpenDatabase() ||  AceError("Couldn't open database."); # exits
+  my $name = param('name') or return;
+  my $class = param('class') or return;
+  my @objs = $db->fetch($class => $name);
+  if (@objs > 1) {
+    AceMultipleChoices($name,'',\@objs);
+    return;
+  }
+  return $objs[0];
+}
+
 1;
+
+=head1 NAME
+
+Ace::Browser::AceSubs - Subroutines for AceBrowser
+
+=head1 SYNOPSIS
+
+  use Ace;
+  use Ace::Browser::AceSubs;
+  use CGI qw(:standard);
+
+  my $obj = GetAceObject() || AceMissing();
+  AceHeader();
+
+  print start_html('AceBrowser Report');
+  print Header();
+  print TypeSelector($obj);
+  print h1("Report for $obj");
+  print Footer();
+
+  See L<Ace::Graphics::Panel> and L<Ace::Graphics::Glyph>.
+
+=head1 DESCRIPTION
+
+This glyph draws a series of filled rectangles connected by up-angled
+connectors or "hats".  The rectangles indicate exons; the hats are
+introns.  The direction of transcription is indicated by a small arrow
+at the end of the glyph, rightward for the + strand.
+
+The feature must respond to the exons() and optionally introns()
+methods, or it will default to the generic display.  Implied introns
+(not returned by the introns() method) are drawn in a contrasting
+color to explicit introns.
+
+=head2 OPTIONS
+
+In addition to the common options, the following glyph-specific
+option is recognized:
+
+  Option                Description                    Default
+  ------                -----------                    -------
+
+  -implied_intron_color The color to use for gaps      gray
+                        not returned by the introns()
+                        method.
+
+  -draw_arrow           Whether to draw arrowhead      true
+                        indicating direction of
+                        transcription.
+
+=head1 BUGS
+
+Please report them.
+
+=head1 SEE ALSO
+
+L<Ace::Sequence>, L<Ace::Sequence::Feature>, L<Ace::Graphics::Panel>,
+L<Ace::Graphics::Track>, L<Ace::Graphics::Glyph::anchored_arrow>,
+L<Ace::Graphics::Glyph::arrow>,
+L<Ace::Graphics::Glyph::box>,
+L<Ace::Graphics::Glyph::primers>,
+L<Ace::Graphics::Glyph::segments>,
+L<Ace::Graphics::Glyph::toomany>,
+L<Ace::Graphics::Glyph::transcript>,
+
+=head1 AUTHOR
+
+Lincoln Stein <lstein@cshl.org>.
+
+Copyright (c) 2001 Cold Spring Harbor Laboratory
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.  See DISCLAIMER.txt for
+disclaimers of warranty.
+
+=cut

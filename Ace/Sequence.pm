@@ -96,7 +96,7 @@ sub new {
 
   # get source
   my $source = $obj->can('smapped') ? $obj->source : $obj;
-  
+
   # store the object into our instance variables
   my $self = bless {
 		    obj        => $source,
@@ -108,7 +108,7 @@ sub new {
 		    strand     => $strand,
 		    absolute   => 0,
 		   },$pack;
-  
+
   # set the reference sequence
   eval { $self->refseq($refseq) } or return if defined $refseq;
 
@@ -612,38 +612,47 @@ sub _make_filter {
   # parse out the filter
   my %filter;
   foreach (@_) {
-    my ($type,$filter) = split(':');
+    my ($type,$filter) = split(':',$_,2);
     if (lc($type) eq 'transcript') {
-      @filter{'exon','intron','Sequence'} = (undef,undef,undef);
+      @filter{'exon','intron','Sequence'} = ([undef],[undef],[undef]);
     } elsif (lc($type) eq 'clone') {
-      @filter{'Clone_left_end','Clone_right_end','Sequence'} = (undef,undef);
+      @filter{'Clone_left_end','Clone_right_end','Sequence'} = ([undef],[undef],[undef]);
     } else {
-      $filter{$type} = $filter;
+      push @{$filter{$type}},$filter;
     }
   }
 
   # create pattern-match sub
   my $sub;
+  my $promiscuous;  # indicates that there is a subtype without a type
+
   if (%filter) {
     my $s = "sub { my \@d = split(\"\\t\",\$_[0]);\n";
     for my $type (keys %filter) {
       my $expr;
-      my $subtype = $filter{$type};
-      if (defined($type) && defined($subtype)) {
-	$expr = "return 1 if \$d[2]=~/$type/i && \$d[1]=~/$subtype/i;\n"
-      } else {
-	$expr = defined($subtype) ? "return 1 if \$d[1]=~/$subtype/i;\n" 
-	  : "return 1 if \$d[2]=~/$type/i;\n"
+      my $subtypes = $filter{$type};
+      if ($type ne '') {
+	for my $st (@$subtypes) {
+	  $expr .= defined $st ? "return 1 if \$d[2]=~/$type/i && \$d[1]=~/$st/i;\n"
+	                       : "return 1 if \$d[2]=~/$type/i;\n"
 	}
+      } else {  # no type, only subtypes
+	$promiscuous++;
+	for my $st (@$subtypes) {
+	  next unless defined $st;
+	  $expr .= "return 1 if \$d[1]=~/$st/i;\n";
+	}
+      }
       $s .= $expr;
     }
     $s .= "return;\n }";
+
     $sub = eval $s;
     croak $@ if $@;
   } else {
     $sub = sub { 1; }
   }
-  return ($sub,[keys %filter]);
+  return ($sub,$promiscuous ? [] : [keys %filter]);
 }
 
 # turn a GFF file and a filter into a list of Ace::Sequence::Feature objects

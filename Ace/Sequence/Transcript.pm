@@ -8,6 +8,9 @@ use overload
   '""' => 'asString',
   ;
 
+# for compatibility with the Ace::Graphics::Glyph::segments glyph, and
+# with Bioperl SeqFeatureI:
+*sub_SeqFeature = *merged_segments = *segments = \&exons;
 
 # autoload delegates everything to the Sequence feature
 sub AUTOLOAD {

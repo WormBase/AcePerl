@@ -74,10 +74,6 @@ sub _field {
 
 sub strand { return $_[0]->{fstrand} }
 
-1;
-
-# __END__
-
 sub seqname   { 
   my $self = shift;
   my $seq = $self->_field('seqname');
@@ -99,11 +95,15 @@ sub info      {                  # returns Ace::Object(s) with info about the fe
   return wantarray ? @{$self->{group}} : $self->{group}->[0];
 }
 
+# bioperl compatibility
+sub primary_tag { shift->type(@_)    }
+sub source_tag  { shift->subtype(@_) }
+
 sub db { # database identifier (from Ace::Sequence::Multi)
   my $self = shift;
   my $db = $self->_field('db',@_);
   return $db || $self->SUPER::db;
-}    
+}
 
 sub group  { $_[0]->info; }
 sub target { $_[0]->info; }

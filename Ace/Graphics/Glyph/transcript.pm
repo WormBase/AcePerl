@@ -5,22 +5,22 @@ use strict;
 use vars '@ISA';
 @ISA = 'Ace::Graphics::Glyph';
 
-use constant GRAY  => 'gray';
+use constant IMPLIED_INTRON_COLOR  => 'gray';
 use constant ARROW => 4;
 
 # override the left and right methods in order to
 # provide extra room for arrows at the end
-sub _left {
+sub calculate_left {
   my $self = shift;
-  my $val = $self->SUPER::_left(@_);
+  my $val = $self->SUPER::calculate_left(@_);
   $val -= ARROW if $self->feature->strand < 0 && $val >= 4;
   $val;
 }
 
-sub _right {
+sub calculate_right {
   my $self = shift;
   my $left = $self->left;
-  my $val = $self->SUPER::_right(@_);
+  my $val = $self->SUPER::calculate_right(@_);
   $val = $left + ARROW if $left + ARROW > $val;
 
   if ($self->option('label') && (my $description = $self->description)) {
@@ -32,9 +32,9 @@ sub _right {
 
 # override the bottom method in order to provide extra room for
 # the label
-sub _height {
+sub calculate_height {
   my $self = shift;
-  my $val = $self->SUPER::_height(@_);
+  my $val = $self->SUPER::calculate_height(@_);
   $val += $self->labelheight if $self->option('label') && $self->description;
   $val;
 }
@@ -49,8 +49,10 @@ sub draw {
   # get parameters
   my $gd = shift;
   my ($x1,$y1,$x2,$y2) = $self->calculate_boundaries(@_);
+  my ($left,$top) = @_;
 
-  my $gray = $self->color(GRAY);
+  my $implied_intron_color = $self->option('implied_intron_color') || IMPLIED_INTRON_COLOR;
+  my $gray = $self->factory->translate($implied_intron_color);
 
   my @exons   = sort {$a->start<=>$b->start} $self->feature->exons;
   my @introns = $self->feature->introns;
@@ -61,20 +63,20 @@ sub draw {
     my ($start,$stop) = ($_->start,$_->stop);
     ($start,$stop) = ($stop,$start) if $start > $stop;
     $istart{$start}++;
-    push @intron_boxes,[$self->map_pt($start),$self->map_pt($stop)];
+    push @intron_boxes,[$left+$self->map_pt($start),$left+$self->map_pt($stop)];
   }
 
   for (my $i=0; $i < @exons; $i++) {
     my ($start,$stop) = ($exons[$i]->start,$exons[$i]->stop);
     ($start,$stop) = ($stop,$start) if $start > $stop;
-    push @exon_boxes,[$self->map_pt($start),my $stop_pos = $self->map_pt($stop)];
+    push @exon_boxes,[$left+$self->map_pt($start),my $stop_pos = $left + $self->map_pt($stop)];
 
     next unless my $next_exon = $exons[$i+1];
 
     my $next_start = $next_exon->start < $next_exon->stop ?
       $next_exon->start : $next_exon->stop;
 
-    my $next_start_pos = $self->map_pt($next_start);
+    my $next_start_pos = $left + $self->map_pt($next_start);
     # fudge boxes that are within two pixels of each other
     if ($next_start_pos - $stop_pos < 2) {
       $exon_boxes[-1][1] = $next_start_pos;
@@ -111,11 +113,15 @@ sub draw {
     }
   }
 
-  # draw little arrows to indicate direction of transcription
-  # plus strand is to the right
-  my $a2 = ARROW/2;
-  my $s = $self->map_pt($self->feature->end);
-  if ($self->feature->strand > 0) {
+  my $draw_arrow = $self->option('draw_arrow');
+  $draw_arrow = 1 unless defined $draw_arrow;
+
+  if ($draw_arrow) {
+    # draw little arrows to indicate direction of transcription
+    # plus strand is to the right
+    my $a2 = ARROW/2;
+    my $s = $left + $self->map_pt($self->feature->end);
+    if ($self->feature->strand > 0) {
       $gd->line($s,$center,$s + ARROW,$center,$fg);
       $gd->line($s+ARROW,$center,$s+$a2,$center-$a2,$fg);
       $gd->line($s+ARROW,$center,$s+$a2,$center+$a2,$fg);
@@ -124,6 +130,7 @@ sub draw {
       $gd->line($s - ARROW,$center,$s-$a2,$center-$a2,$fg);
       $gd->line($s - ARROW,$center,$s-$a2,$center+$a2,$fg);
     }
+  }
 
   # draw label
   if ($self->option('label')) {
@@ -140,6 +147,8 @@ sub draw {
 sub description {
   my $self = shift;
   my $t = $self->feature->info;
+  return $t unless ref $t;
+
   my $id = $t->Brief_identification;
   my $comment = $t->Locus;
   $comment .= $comment ? " ($id)" : $id if $id;
@@ -147,3 +156,68 @@ sub description {
 }
 
 1;
+
+__END__
+
+=head1 NAME
+
+Ace::Graphics::Glyph::transcript - The "gene" glyph
+
+=head1 SYNOPSIS
+
+  See L<Ace::Graphics::Panel> and L<Ace::Graphics::Glyph>.
+
+=head1 DESCRIPTION
+
+This glyph draws a series of filled rectangles connected by up-angled
+connectors or "hats".  The rectangles indicate exons; the hats are
+introns.  The direction of transcription is indicated by a small arrow
+at the end of the glyph, rightward for the + strand.
+
+The feature must respond to the exons() and optionally introns()
+methods, or it will default to the generic display.  Implied introns
+(not returned by the introns() method) are drawn in a contrasting
+color to explicit introns.
+
+=head2 OPTIONS
+
+In addition to the common options, the following glyph-specific
+option is recognized:
+
+  Option                Description                    Default
+  ------                -----------                    -------
+
+  -implied_intron_color The color to use for gaps      gray
+                        not returned by the introns()
+                        method.
+
+  -draw_arrow           Whether to draw arrowhead      true
+                        indicating direction of
+                        transcription.
+
+=head1 BUGS
+
+Please report them.
+
+=head1 SEE ALSO
+
+L<Ace::Sequence>, L<Ace::Sequence::Feature>, L<Ace::Graphics::Panel>,
+L<Ace::Graphics::Track>, L<Ace::Graphics::Glyph::anchored_arrow>,
+L<Ace::Graphics::Glyph::arrow>,
+L<Ace::Graphics::Glyph::box>,
+L<Ace::Graphics::Glyph::primers>,
+L<Ace::Graphics::Glyph::segments>,
+L<Ace::Graphics::Glyph::toomany>,
+L<Ace::Graphics::Glyph::transcript>,
+
+=head1 AUTHOR
+
+Lincoln Stein <lstein@cshl.org>.
+
+Copyright (c) 2001 Cold Spring Harbor Laboratory
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.  See DISCLAIMER.txt for
+disclaimers of warranty.
+
+=cut

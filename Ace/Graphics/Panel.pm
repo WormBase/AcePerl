@@ -6,6 +6,8 @@ use GD;
 use Carp 'croak';
 use strict;
 
+*push_track = \&add_track;
+
 # package global
 my %COLORS;
 
@@ -19,6 +21,7 @@ sub new {
 
   my $length = $options{-length} || 0;
   my $offset = $options{-offset} || 0;
+  my $spacing = $options{-spacing} || 5;
 
   $length   ||= $options{-segment}->length  if $options{-segment};
   $offset   ||= $options{-segment}->start-1 if $options{-segment};
@@ -26,12 +29,14 @@ sub new {
   return bless {
 		tracks => [],
 		width  => $options{-width} || 600,
-		pad_top    => $options{-pad_top},
-		pad_bottom => $options{-pad_bottom},
+		pad_top    => $options{-pad_top}||0,
+		pad_bottom => $options{-pad_bottom}||0,
+		pad_left   => $options{-pad_left}||0,
+		pad_right  => $options{-pad_right}||0,
 		length => $length,
 		offset => $offset,
 		height => 0, # AUTO
-		spacing => 5,
+		spacing => $spacing,
 	       },$class;
 }
 
@@ -39,7 +44,7 @@ sub width {
   my $self = shift;
   my $d = $self->{width};
   $self->{width} = shift if @_;
-  $d;
+  $d + $self->pad_left + $self->pad_right;
 }
 
 sub spacing {
@@ -74,37 +79,71 @@ sub pad_bottom {
   $d || 0;
 }
 
+sub pad_left {
+  my $self = shift;
+  my $d = $self->{pad_left};
+  $self->{pad_left} = shift if @_;
+  $d || 0;
+}
+
+sub pad_right {
+  my $self = shift;
+  my $d = $self->{pad_right};
+  $self->{pad_right} = shift if @_;
+  $d || 0;
+}
+
 sub add_track {
   my $self = shift;
-  my ($features,$glyph_type,@options) = @_;
 
-  # if the first argument is a string, then assume features is empty
-  if ( !ref($features) ) {
-    unshift @options,$glyph_type;
-    $glyph_type = $features;
-    $features = [];
+  # due to indecision, we accept features
+  # and/or glyph types in the first two arguments
+  my ($features,$glyph_name) = ([],'generic');
+  while ( $_[0] !~ /^-/) {
+    my $arg = shift;
+    $features   = $arg and next if ref($arg);
+    $glyph_name = $arg and next unless ref($arg);
   }
 
-  # if glyph_type begins with a dash, then this is the beginning
-  # of the options
-  if ($glyph_type =~ /^-/) {
-    unshift @options,$glyph_type;
-    undef $glyph_type;
+  $self->_add_track($glyph_name,$features,+1,@_);
+}
+
+sub unshift_track {
+  my $self = shift;
+  # due to indecision, we accept features
+  # and/or glyph types in the first two arguments
+  my ($features,$glyph_name) = ([],'generic');
+  while ( (my $arg = shift) !~ /^-/) {
+    $features   = $arg and next if ref($arg);
+    $glyph_name = $arg and next unless ref($arg);
   }
-  unshift @options,'offset' => $self->{offset} if defined $self->{offset};
-  unshift @options,'length' => $self->{length} if defined $self->{length};
+
+  $self->_add_track($glyph_name,$features,-1,@_);
+}
+
+sub _add_track {
+  my $self = shift;
+  my ($glyph_type,$features,$direction,@options) = @_;
+
+  unshift @options,'-offset' => $self->{offset} if defined $self->{offset};
+  unshift @options,'-length' => $self->{length} if defined $self->{length};
 
   $features = [$features] unless ref $features eq 'ARRAY';
-  my $track  = Ace::Graphics::Track->new($features,$glyph_type,@options);
-  $track->set_scale($self->length,$self->width);
-  push @{$self->{tracks}},$track;
+  my $track  = Ace::Graphics::Track->new($glyph_type,$features,@options);
+  $track->set_scale($self->length,$self->{width});
+  $track->panel($self);
+  if ($direction >= 0) {
+    push @{$self->{tracks}},$track;
+  } else {
+    unshift @{$self->{tracks}},$track;
+  }
   return $track;
 }
 
 sub height {
   my $self = shift;
-  my $height = 0;
   my $spacing = $self->spacing;
+  my $height = 0;
   $height += $_->height + $spacing foreach @{$self->{tracks}};
   $height + $self->pad_top + $self->pad_bottom;
 }
@@ -123,17 +162,55 @@ sub gd {
     $translation_table{$name} = $idx;
   }
 
-  my $offset = $self->pad_top;
+  $self->{translations} = \%translation_table;
+  $self->{gd}                = $gd;
+  my $offset = 0;
+  my $pl = $self->pad_left;
+  my $pt = $self->pad_top;
+
   for my $track (@{$self->{tracks}}) {
-    $track->color_translations(\%translation_table);
-    $track->draw($gd,0,$offset);
+    $track->draw($gd,$pl,$offset+$pt);
     $offset += $track->height + $self->spacing;
   }
 
   return $self->{gd} = $gd;
 }
 
-sub draw {
+# reverse of translate(); given index, return rgb tripler
+sub rgb {
+  my $self = shift;
+  my $idx  = shift;
+  my $gd = $self->{gd} or return;
+  return $gd->rgb($idx);
+}
+
+sub translate {
+  my $self = shift;
+  my $color = shift;
+  if ($color =~ /^\#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})$/i) {
+    my $gd = $self->gd or return $self->fgcolor;
+    my ($r,$g,$b) = (hex($1),hex($2),hex($3));
+    return $gd->colorClosest($r,$g,$b);
+  } else {
+    my $table = $self->{translations} or return $self->fgcolor;
+    return defined $table->{$color} ? $table->{$color} : $self->fgcolor;
+  }
+}
+
+sub set_pen {
+  my $self = shift;
+  my ($linewidth,$color) = @_;
+  return $self->{pens}{$linewidth} if $self->{pens}{$linewidth};
+
+  my $pen = $self->{pens}{$linewidth} = GD::Image->new($linewidth,$linewidth);
+  my @rgb = $self->rgb($color);
+  my $bg = $pen->colorAllocate(255,255,255);
+  my $fg = $pen->colorAllocate(@rgb);
+  $pen->fill(0,0,$fg);
+  $self->{gd}->setBrush($pen);
+}
+
+sub png {
   my $gd = shift->gd;
   $gd->png;
 }
@@ -142,22 +219,30 @@ sub boxes {
   my $self = shift;
   my @boxes;
   my $offset = 0;
-  my $pad = $self->pad_top;
+  my $pl = $self->pad_left;
+  my $pt = $self->pad_top;
   for my $track (@{$self->{tracks}}) {
-    my $boxes = $track->boxes(0,$offset+$pad);
+    my $boxes = $track->boxes($pl,$offset+$pt);
     push @boxes,@$boxes;
     $offset += $track->height + $self->spacing;
   }
-  return \@boxes;
+  return wantarray ? @boxes : \@boxes;
 }
 
 sub read_colors {
   my $class = shift;
   while (<DATA>) {
     chomp;
+    last if /^__END__/;
     my ($name,$r,$g,$b) = split /\s+/;
     $COLORS{$name} = [hex $r,hex $g,hex $b];
   }
+}
+
+sub color_names {
+    my $class = shift;
+    $class->read_colors unless %COLORS;
+    return wantarray ? keys %COLORS : [keys %COLORS];
 }
 
 
@@ -304,3 +389,370 @@ wheat                F5           DE            B3
 whitesmoke           F5           F5            F5
 yellow               FF           FF            00
 yellowgreen          9A           CD            32
+__END__
+
+=head1 NAME
+
+Ace::Graphics::Panel - PNG graphics of Ace::Sequence::Feature objects
+
+=head1 SYNOPSIS
+
+  use Ace::Sequence;
+  use Ace::Graphics::Panel;
+
+  my $db     = Ace->connect(-host=>'brie2.cshl.org',-port=>2005) or die;
+  my $cosmid = Ace::Sequence->new(-seq=>'Y16B4A',
+				  -db=>$db,-start=>-15000,-end=>15000) or die;
+
+  my @transcripts = $cosmid->transcripts;
+
+  my $panel = Ace::Graphics::Panel->new(
+				      -segment => $cosmid,
+				      -width  => 800
+				     );
+
+
+  $panel->add_track(arrow => $cosmid,
+ 		  -bump => 0,
+ 		  -tick=>2);
+
+  $panel->add_track(transcript => \@transcripts,
+ 		    -fillcolor =>  'wheat',
+ 		    -fgcolor   =>  'black',
+ 		    -bump      =>  +1,
+ 		    -height    =>  10,
+ 		    -label     =>  1);
+
+  my $boxes = $panel->boxes;
+  print $panel->png;
+
+=head1 DESCRIPTION
+
+The Ace::Graphics::Panel class provides drawing and formatting
+services for Ace::Sequence::Feature objects or Das::Segment::Feature
+objects.
+
+Typically you will begin by creating a new Ace::Graphics::Panel
+object, passing it the width of the visual display and the length of
+the segment.  
+
+You will then call add_track() one or more times to add sets of
+related features to the picture.  When you have added all the features
+you desire, you may call png() to convert the image into a PNG-format
+image, or boxes() to return coordinate information that can be used to
+create an imagemap.
+
+Note that this modules depends on GD.
+
+=head1 METHODS
+
+This section describes the class and object methods for
+Ace::Graphics::Panel.
+
+=head2 CONSTRUCTORS
+
+There is only one constructor, the new() method.
+
+=over 4
+
+=item $panel = Ace::Graphics::Panel->new(@options)
+
+The new() method creates a new panel object.  The options are
+a set of tag/value pairs as follows:
+
+  Option      Value                                Default
+  ------      -----                                -------
+
+  -length     Length of sequence segment, in bp    0
+
+  -segment    An Ace::Sequence or Das::Segment     none
+              object, used to derive length if
+	      not provided
+
+  -offset     Base pair to place at extreme left   $segment->start
+	      of image.
+
+  -width      Desired width of image, in pixels    600
+
+  -spacing    Spacing between tracks, in pixels    5
+
+  -pad_top    Additional whitespace between top    0
+	      of image and contents, in pixels
+
+  -pad_bottom Additional whitespace between top    0
+	      of image and bottom, in pixels
+
+  -pad_left   Additional whitespace between left   0
+	      of image and contents, in pixels
+
+  -pad_right  Additional whitespace between right  0
+	      of image and bottom, in pixels
+
+Typically you will pass new() an object that implements the
+Bio::RangeI interface, providing a length() method, from which the
+panel will derive its scale.
+
+  $panel = Ace::Graphics::Panel->new(-segment => $sequence,
+				     -width   => 800);
+
+new() will return undef in case of an error. If the specified glyph
+name is not a valid one, new() will throw an exception.
+
+=back
+
+=head2 OBJECT METHODS
+
+=over 4
+
+=item $track = $panel->add_track($glyph,$features,@options)
+
+The add_track() method adds a new track to the image. 
+
+Tracks are horizontal bands which span the entire width of the panel.
+Each track contains a number of graphical elements called "glyphs",
+each corresponding to a sequence feature. There are different glyph
+types, but each track can only contain a single type of glyph.
+Options passed to the track control the color and size of the glyphs,
+whether they are allowed to overlap, and other formatting attributes.
+The height of a track is determined from its contents and cannot be
+directly influenced.
+
+The first two arguments are the glyph name and an array reference
+containing the list of features to display.  The order of the
+arguments is irrelevant, allowing either of these idioms:
+
+  $panel->add_track(arrow => \@features);
+  $panel->add_track(\@features => 'arrow');
+
+The glyph name indicates how each feature is to be rendered.  A
+variety of glyphs are available, and the number is growing.
+Currently, the following glyphs are available:
+
+  Name        Description
+  ----        -----------
+
+  box	      A filled rectangle, nondirectional.
+
+  arrow	      An arrow; can be unidirectional or bidirectional.
+	      It is also capable of displaying a scale with
+	      major and minor tickmarks, and can be oriented
+	      horizontally or vertically.
+
+  segments    A set of filled rectangles connected by solid lines.
+	      Used for interrupted features, such as gapped
+	      alignments.
+
+  transcript  Similar to segments, but the connecting line is
+	      a "hat" shape, and the direction of transcription
+	      is indicated by a small arrow.
+
+  primers     Two inward pointing arrows connected by a line.
+	      Used for STSs.
+
+  toomany     A "cloud", to indicate too many features to show
+	      individually.  This is a placeholder that will be
+	      replaced by something more clever, such as a histogram
+	      or density plot.
+
+  group	      A group of related features connected by a dashed line.
+	      This is used internally by the Track class and should
+	      not be called explicitly.
+
+If the glyph name is omitted from add_track(), the "box" glyph will be
+used by default.
+
+The @options array is a list of name/value pairs that control the
+attributes of the track.  The options are in turn passed to the
+glyphs.  Each glyph has its own specialized subset of options, but
+some are shared by all glyphs:
+
+  Option      Description               Default
+  ------      -----------               -------
+
+  -fgcolor    Foreground color		black
+
+  -outlinecolor				black
+	      Synonym for -fgcolor
+
+  -bgcolor    Background color          white
+
+  -fillcolor  Interior color of filled  turquoise
+	      images
+
+  -linewidth  Width of lines drawn by	1
+		    glyph
+
+  -height     Height of glyph		10
+
+  -font       Glyph font		gdSmallFont
+
+  -label      Whether to draw a label	false
+
+  -bump	      Bump direction		0
+
+  -connect_groups                       false
+              Connect groups by a
+	      dashed line (see below)
+
+Colors can be expressed in either of two ways: as symbolic names such
+as "cyan" and as HTML-style #RRGGBB triples.  The symbolic names are
+the 140 colors defined in the Netscape/Internet Explorer color cube,
+and can be retrieved using the Ace::Graphics::Panel->color_names()
+method.
+
+The background color is used for the background color of the track
+itself.  The foreground color controls the color of lines and strings.
+The interior color is used for filled objects such as boxes.
+
+The -label argument controls whether or not the ID of the feature
+should be printed next to the feature.  It is accepted by most, but
+not all of the glyphs.
+
+The -bump argument controls what happens when glyphs collide.  By
+default, they will simply overlap (value 0).  A -bump value of +1 will
+cause overlapping glyphs to bump downwards until there is room for
+them.  A -bump value of -1 will cause overlapping glyphs to bump
+upwards.
+
+add_track() returns an Ace::Graphics::Track object.  You can use this
+object to add additional features or to control the appearance of the
+track with greater detail, or just ignore it.  Tracks are added in
+order from the top of the image to the bottom.  To add tracks to the
+top of the image, use unshift_track().
+
+Typical usage is:
+
+ $panel->add_track( thistle    => \@genes,
+ 		    -fillcolor =>  'green',
+ 		    -fgcolor   =>  'black',
+ 		    -bump      =>  +1,
+ 		    -height    => 10,
+ 		    -label     => 1);
+
+=item $track = unshift_track($glyph,$features,@options)
+
+unshift_track() works like add_track(), except that the new track is
+added to the top of the image rather than the bottom.
+
+B<Adding groups of features:> It is not uncommon to add a group of
+features which are logically connected, such as the 5' and 3' ends of
+EST reads.  To group features into sets that remain on the same
+horizontal position and bump together, pass the sets as an anonymous
+array.  To connect the groups by a dashed line, pass the
+-connect_groups argument with a true value.  For example:
+
+  $panel->add_track(segments => [[$abc_5,$abc_3],
+				 [$xxx_5,$xxx_3],
+				 [$yyy_5,$yyy_3]],
+		    -connect_groups => 1);
+
+=item $gd = $panel->gd
+
+The gd() method lays out the image and returns a GD::Image object
+containing it.  You may then call the GD::Image object's png() or
+jpeg() methods to get the image data.
+
+=item $png = $panel->png
+
+The png() method returns the image as a PNG-format drawing, without
+the intermediate step of returning a GD::Image object.
+
+=item $boxes = $panel->boxes
+
+=item @boxes = $panel->boxes
+
+The boxes() method returns the coordinates of each glyph, useful for
+constructing an image map.  In a scalar context, boxes() returns an
+array ref.  In an list context, the method returns the array directly.
+
+Each member of the list is an anonymous array of the following format:
+
+  [ $feature, $x1, $y1, $x2, $y2 ]
+
+The first element is the feature object; either an
+Ace::Sequence::Feature, a Das::Segment::Feature, or another Bioperl
+Bio::SeqFeatureI object.  The coordinates are the topleft and
+bottomright corners of the glyph, including any space allocated for
+labels.
+
+=back
+
+=head2 ACCESSORS
+
+The following accessor methods provide access to various attributes of
+the panel object.  Called with no arguments, they each return the
+current value of the attribute.  Called with a single argument, they
+set the attribute and return its previous value.
+
+Note that in most cases you must change attributes prior to invoking
+gd(), png() or boxes().  These three methods all invoke an internal
+layout() method which places the tracks and the glyphs within them,
+and then caches the result.
+
+   Accessor Name      Description
+   -------------      -----------
+
+   width()	      Get/set width of panel
+   spacing()	      Get/set spacing between tracks
+   length()	      Get/set length of segment (bp)
+   pad_top()	      Get/set top padding
+   pad_left()	      Get/set left padding
+   pad_bottom()	      Get/set bottom padding
+   pad_right()	      Get/set right padding
+
+=head2 INTERNAL METHODS
+
+The following methods are used internally, but may be useful for those
+implementing new glyph types.
+
+=over 4
+
+=item @names = Ace::Graphics::Panel->color_names
+
+Return the symbolic names of the colors recognized by the panel
+object.  In a scalar context, returns an array reference.
+
+=item @rgb = $panel->rgb($index)
+
+Given a GD color index (between 0 and 140), returns the RGB triplet
+corresponding to this index.  This method is only useful within a
+glyph's draw() routine, after the panel has allocated a GD::Image and
+is populating it.
+
+=item $index = $panel->translate($color)
+
+Given a color, returns the GD::Image index.  The color may be
+symbolic, such as "turquoise", or a #RRGGBB triple, as in #F0E0A8.
+This method is only useful within a glyph's draw() routine, after the
+panel has allocated a GD::Image and is populating it.
+
+=item $panel->set_pen($width,$color)
+
+Changes the width and color of the GD drawing pen to the values
+indicated.  This is called automatically by the GlyphFactory fgcolor()
+method.
+
+=back
+
+=head1 BUGS
+
+Please report them.
+
+=head1 SEE ALSO
+
+L<Ace::Sequence>,L<Ace::Sequence::Feature>,
+L<Ace::Graphics::Track>,L<Ace::Graphics::Glyph>,
+L<GD>
+
+=head1 AUTHOR
+
+Lincoln Stein <lstein@cshl.org>.
+
+Copyright (c) 2001 Cold Spring Harbor Laboratory
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.  See DISCLAIMER.txt for
+disclaimers of warranty.
+
+=cut
+

@@ -30,6 +30,9 @@ WriteMakefile(
 	      'DEFINE'	     => '',
 	      'XSPROTOARG'   => '-noprototypes',
 	      'INC'	     => "-I$headers",
+	      PREREQ_PM      => {
+				 'Digest::MD5' => 0,
+				 },
 	      'dist'         => {'COMPRESS'=>'gzip -9f', 
                                  'SUFFIX' => 'gz',
 	                         'ZIP'=>'/usr/bin/zip','ZIPFLAGS'=>'-rl'

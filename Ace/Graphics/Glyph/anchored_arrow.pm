@@ -50,3 +50,56 @@ sub draw_label {
 }
 
 1;
+
+__END__
+
+=head1 NAME
+
+Ace::Graphics::Glyph::anchored_arrow - The "anchored_arrow" glyph
+
+=head1 SYNOPSIS
+
+  See L<Ace::Graphics::Panel> and L<Ace::Graphics::Glyph>.
+
+=head1 DESCRIPTION
+
+This glyph draws an arrowhead which is anchored at one or both ends
+(has a vertical base) or has one or more arrowheads.  The arrowheads
+indicate that the feature does not end at the edge of the picture, but
+continues.  For example:
+
+    |-----------------------------|          both ends in picture
+ <----------------------|                    left end off picture
+         |---------------------------->      right end off picture
+ <------------------------------------>      both ends off picture
+
+
+=head2 OPTIONS
+
+No additional options are recognized.
+=head1 BUGS
+
+Please report them.
+
+=head1 SEE ALSO
+
+L<Ace::Sequence>, L<Ace::Sequence::Feature>, L<Ace::Graphics::Panel>,
+L<Ace::Graphics::Track>, L<Ace::Graphics::Glyph::anchored_arrow>,
+L<Ace::Graphics::Glyph::arrow>,
+L<Ace::Graphics::Glyph::box>,
+L<Ace::Graphics::Glyph::primers>,
+L<Ace::Graphics::Glyph::segments>,
+L<Ace::Graphics::Glyph::toomany>,
+L<Ace::Graphics::Glyph::transcript>,
+
+=head1 AUTHOR
+
+Lincoln Stein <lstein@cshl.org>.
+
+Copyright (c) 2001 Cold Spring Harbor Laboratory
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.  See DISCLAIMER.txt for
+disclaimers of warranty.
+
+=cut

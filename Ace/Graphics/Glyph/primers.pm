@@ -9,7 +9,7 @@ use vars '@ISA';
 use constant HEIGHT => 4;
 
 # we do not need the default amount of room
-sub _height {
+sub calculate_height {
   my $self = shift;
   return $self->option('label') ? HEIGHT + $self->labelheight + 2 : HEIGHT;
 }
@@ -42,7 +42,7 @@ sub draw {
 
   # connect the dots if requested
   if ($self->option('connect')) {
-    my $c = $self->color('connector');
+    my $c = $self->color('connect_color');
     $gd->line($x1 + HEIGHT + 2,$center,$x2 - HEIGHT - 2,$center,$c);
   }
 
@@ -51,5 +51,62 @@ sub draw {
 
 }
 
-
 1;
+
+__END__
+
+=head1 NAME
+
+Ace::Graphics::Glyph::primers - The "STS primers" glyph
+
+=head1 SYNOPSIS
+
+  See L<Ace::Graphics::Panel> and L<Ace::Graphics::Glyph>.
+
+=head1 DESCRIPTION
+
+This glyph draws two arrows oriented towards each other and connected
+by a line of a contrasting color.  The length of the arrows is
+immaterial, but the length of the glyph itself corresponds to the
+length of the scaled feature.
+
+=head2 OPTIONS
+
+In addition to the common options, the following glyph-specific
+options are recognized:
+
+  Option      Description               Default
+  ------      -----------               -------
+
+  -connect    Whether to connect the      false
+              two arrowheads by a line.
+
+  -connect_color  The color to use for the    fgcolor
+              connecting line.
+
+=head1 BUGS
+
+Please report them.
+
+=head1 SEE ALSO
+
+L<Ace::Sequence>, L<Ace::Sequence::Feature>, L<Ace::Graphics::Panel>,
+L<Ace::Graphics::Track>, L<Ace::Graphics::Glyph::anchored_arrow>,
+L<Ace::Graphics::Glyph::arrow>,
+L<Ace::Graphics::Glyph::box>,
+L<Ace::Graphics::Glyph::primers>,
+L<Ace::Graphics::Glyph::segments>,
+L<Ace::Graphics::Glyph::toomany>,
+L<Ace::Graphics::Glyph::transcript>,
+
+=head1 AUTHOR
+
+Lincoln Stein <lstein@cshl.org>.
+
+Copyright (c) 2001 Cold Spring Harbor Laboratory
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.  See DISCLAIMER.txt for
+disclaimers of warranty.
+
+=cut

@@ -108,3 +108,57 @@ sub draw {
 }
 
 1;
+
+=head1 NAME
+
+Ace::Graphics::Glyph::group - The group glyph
+
+=head1 SYNOPSIS
+
+none
+
+=head1 DESCRIPTION
+
+This is an internal glyph type, used by Ace::Graphics::Track for
+moving sets of glyphs around as a group.  This glyph is created
+automatically when processing a set of features passed to
+Ace::Graphics::Panel->new as an array ref.
+
+=head2 OPTIONS
+
+In addition to the common options, the following glyph-specific
+options are recognized:
+
+  Option      Description               Default
+  ------      -----------               -------
+
+  -connect    Whether to connect members  false
+              of the group by a dashed
+              line.
+
+=head1 BUGS
+
+Please report them.
+
+=head1 SEE ALSO
+
+L<Ace::Sequence>, L<Ace::Sequence::Feature>, L<Ace::Graphics::Panel>,
+L<Ace::Graphics::Track>, L<Ace::Graphics::Glyph::anchored_arrow>,
+L<Ace::Graphics::Glyph::arrow>,
+L<Ace::Graphics::Glyph::box>,
+L<Ace::Graphics::Glyph::primers>,
+L<Ace::Graphics::Glyph::segments>,
+L<Ace::Graphics::Glyph::toomany>,
+L<Ace::Graphics::Glyph::transcript>,
+
+=head1 AUTHOR
+
+Lincoln Stein <lstein@cshl.org>.
+
+Copyright (c) 2001 Cold Spring Harbor Laboratory
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.  See DISCLAIMER.txt for
+disclaimers of warranty.
+
+=cut

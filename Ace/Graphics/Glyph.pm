@@ -26,18 +26,18 @@ sub new {
 # any of these can be overridden safely
 sub factory   {  shift->{-factory}            }
 sub feature   {  shift->{-feature}            }
-
-sub fgcolor   {  shift->factory->fgcolor   }
+sub fgcolor   {  shift->factory->fgcolor      }
 sub bgcolor   {  shift->factory->bgcolor   }
+sub fontcolor {  shift->factory->fontcolor      }
 sub fillcolor {  shift->factory->fillcolor }
 sub scale     {  shift->factory->scale     }
 sub width     {  shift->factory->width     }
 sub font      {  shift->factory->font      }
-sub option    {  shift->factory->option(@_) }
-sub color     {  
+sub option    {  shift->factory->option(shift) }
+sub color     {
   my $self    = shift;
   my $factory = $self->factory;
-  my $color   = $factory->option(@_) or return $self->fgcolor;
+  my $color   = $factory->option(shift) or return $self->fgcolor;
   $factory->translate($color);
 }
 
@@ -52,10 +52,10 @@ sub length    { shift->factory->length      }
 sub height   {
   my $self = shift;
   return $self->{cache_height} if defined $self->{cache_height};
-  return $self->{cache_height} = $self->_height;
+  return $self->{cache_height} = $self->calculate_height;
 }
 
-sub _height {
+sub calculate_height {
   my $self = shift;
   my $val = $self->factory->height;
   $val += $self->labelheight if $self->option('label');
@@ -76,21 +76,21 @@ sub bottom { my $s = shift; $s->top + $s->height   }
 sub left {
   my $self = shift;
   return $self->{cache_left} if defined $self->{cache_left};
-  $self->{cache_left} = $self->_left;
+  $self->{cache_left} = $self->calculate_left;
 }
 sub right {
   my $self = shift;
   return $self->{cache_right} if defined $self->{cache_right};
-  return $self->{cache_right} = $self->_right;
+  return $self->{cache_right} = $self->calculate_right;
 }
 
-sub _left {
+sub calculate_left {
   my $self = shift;
   my $val = $self->{left} + $self->map_pt($self->{start} - 1);
   $val > 0 ? $val : 0;
 }
 
-sub _right {
+sub calculate_right {
   my $self = shift;
   my $val = $self->{left} + $self->map_pt($self->{end} - 1);
   $val = 0 if $val < 0;
@@ -121,7 +121,11 @@ sub labelheight {
 }
 
 sub label {
-  shift->feature->info;
+  my $f = shift->feature;
+  my $info = eval {$f->info};
+  return $info if $info;
+  return $f->seqname if $f->can('seqname');
+  return $f->primary_tag;
 }
 
 # return array containing the left,top,right,bottom
@@ -156,11 +160,12 @@ sub filled_box {
   my $gd = shift;
   my ($x1,$y1,$x2,$y2) = @_;
 
-  # draw a box
+  my $linewidth = $self->option('linewidth') || 1;
+  $gd->filledRectangle($x1,$y1,$x2,$y2,$self->fillcolor);
   $gd->rectangle($x1,$y1,$x2,$y2,$self->fgcolor);
 
   # and fill it
-  $self->fill($gd,$x1,$y1,$x2,$y2);
+#  $self->fill($gd,$x1,$y1,$x2,$y2);
 
   # if the left end is off the end, then cover over
   # the leftmost line
@@ -172,6 +177,26 @@ sub filled_box {
     if $x2 > $width;
 }
 
+sub filled_oval {
+  my $self = shift;
+  my $gd = shift;
+  my ($x1,$y1,$x2,$y2) = @_;
+  my $cx = ($x1+$x2)/2;
+  my $cy = ($y1+$y2)/2;
+
+  my $linewidth = $self->option('linewidth') || 1;
+  if ($linewidth > 1) {
+    my $pen = $self->make_pen($linewidth);
+    # draw a box
+    $gd->setBrush($pen);
+    $gd->arc($cx,$cy,$x2-$x1,$y2-$y1,0,360,gdBrushed);
+  } else {
+    $gd->arc($cx,$cy,$x2-$x1,$y2-$y1,0,360,$self->fgcolor);
+  }
+
+  # and fill it
+  $gd->fill($cx,$cy,$self->fillcolor);
+}
 sub fill {
   my $self = shift;
   my $gd   = shift;
@@ -202,7 +227,328 @@ sub draw_label {
   my $self = shift;
   my ($gd,$left,$top) = @_;
   my $label = $self->label or return;
-  $gd->string($self->font,$left + $self->left,$top + $self->top,$label,$self->fgcolor);
+  $gd->string($self->font,$left + $self->left,$top + $self->top,$label,$self->fontcolor);
 }
 
 1;
+
+=head1 NAME
+
+Ace::Graphics::Glyph - Base class for Ace::Graphics::Glyph objects
+
+=head1 SYNOPSIS
+
+See L<Ace::Graphics::Panel>.
+
+=head1 DESCRIPTION
+
+Ace::Graphics::Glyph is the base class for all glyph objects.  Each
+glyph is a wrapper around an Ace::Sequence::Feature object, knows how
+to render itself on an Ace::Graphics::Panel, and has a variety of
+configuration variables.
+
+End developers will not ordinarily work directly with
+Ace::Graphics::Glyph, but may want to subclass it for customized
+displays.
+
+=head1 METHODS
+
+This section describes the class and object methods for
+Ace::Graphics::Glyph.
+
+=head2 CONSTRUCTORS
+
+Ace::Graphics::Glyph objects are constructed automatically by an
+Ace::Graphics::GlyphFactory, and are not usually created by
+end-developer code.
+
+=over 4
+
+=item $glyph = Ace::Graphics::Glyph->new(-feature=>$feature,-factory=>$factory)
+
+Given a sequence feature, creates an Ace::Graphics::Glyph object to
+display it.  The -feature argument points to the
+Ace::Sequence::Feature object to display.  -factory indicates an
+Ace::Graphics::GlyphFactory object from which the glyph will fetch all
+its run-time configuration information.
+
+A standard set of options are recognized.  See L<OPTIONS>.
+
+=back
+
+=head2 OBJECT METHODS
+
+Once a glyph is created, it responds to a large number of methods.  In
+this section, these methods are grouped into related categories.
+
+Retrieving glyph context:
+
+=over 4
+
+=item $factory = $glyph->factory
+
+Get the Ace::Graphics::GlyphFactory associated with this object.  This
+cannot be changed once it is set.
+
+=item $feature = $glyph->feature
+
+Get the sequence feature associated with this object.  This cannot be
+changed once it is set.
+
+=back
+
+Retrieving glyph options:
+
+=over 4
+
+=item $fgcolor = $glyph->fgcolor
+
+=item $bgcolor = $glyph->bgcolor
+
+=item $fontcolor = $glyph->fontcolor
+
+=item $fillcolor = $glyph->fillcolor
+
+These methods return the configured foreground, background, font and
+fill colors for the glyph in the form of a GD::Image color index.
+
+=item $width = $glyph->width
+
+Return the maximum width allowed for the glyph.  Most glyphs will be
+smaller than this.
+
+=item $font = $glyph->font
+
+Return the font for the glyph.
+
+=item $option = $glyph->option($option)
+
+Return the value of the indicated option.
+
+=item $index = $glyph->color($color)
+
+Given a symbolic or #RRGGBB-form color name, returns its GD index.
+
+=back
+
+
+Retrieving information about the sequence:
+
+=over 4
+
+=item $start = $glyph->start
+
+=item $end   = $glyph->end
+
+These methods return the start and end of the glyph in base pair
+units.
+
+=item $offset = $glyph->offset
+
+Returns the offset of the segment (the base pair at the far left of
+the image).
+
+=item $length = $glyph->length
+
+Returns the length of the sequence segment.
+
+=back
+
+
+Retrieving formatting information:
+
+=over 4
+
+=item $top = $glyph->top
+
+=item $left = $glyph->left
+
+=item $bottom = $glyph->bottom
+
+=item $right = $glyph->right
+
+These methods return the top, left, bottom and right of the glyph in
+pixel coordinates.
+
+=item $height = $glyph->height
+
+Returns the height of the glyph.  This may be somewhat larger or
+smaller than the height suggested by the GlyphFactory, depending on
+the type of the glyph.
+
+=item $scale = $glyph->scale
+
+Get the scale for the glyph in pixels/bp.
+
+=item $height = $glyph->labelheight
+
+Return the height of the label, if any.
+
+=item $label = $glyph->label
+
+Return a human-readable label for the glyph.
+
+=back
+
+These methods are called by Ace::Graphics::Track during the layout
+process:
+
+=over 4
+
+=item $glyph->move($dx,$dy)
+
+Move the glyph in pixel coordinates by the indicated delta-x and
+delta-y values.
+
+=item ($x1,$y1,$x2,$y2) = $glyph->box
+
+Return the current position of the glyph.
+
+=back
+
+These methods are intended to be overridden in subclasses:
+
+=over 4
+
+=item $glyph->calculate_height
+
+Calculate the height of the glyph.
+
+=item $glyph->calculate_left
+
+Calculate the left side of the glyph.
+
+=item $glyph->calculate_right
+
+Calculate the right side of the glyph.
+
+=item $glyph->draw($gd,$left,$top)
+
+Optionally offset the glyph by the indicated amount and draw it onto
+the GD::Image object.
+
+
+=item $glyph->draw_label($gd,$left,$top)
+
+Draw the label for the glyph onto the provided GD::Image object,
+optionally offsetting by the amounts indicated in $left and $right.
+
+=back
+
+These methods are useful utility routines:
+
+=over 4
+
+=item $pixels = $glyph->map_pt($bases);
+
+Map the indicated base position, given in base pair units, into
+pixels, using the current scale and glyph position.
+
+=item $glyph->filled_box($gd,$x1,$y1,$x2,$y2)
+
+Draw a filled rectangle with the appropriate foreground and fill
+colors, and pen width onto the GD::Image object given by $gd, using
+the provided rectangle coordinates.
+
+=item $glyph->filled_oval($gd,$x1,$y1,$x2,$y2)
+
+As above, but draws an oval inscribed on the rectangle.
+
+=back
+
+=head2 OPTIONS
+
+The following options are standard among all Glyphs.  See individual
+glyph pages for more options.
+
+  Option      Description               Default
+  ------      -----------               -------
+
+  -fgcolor    Foreground color		black
+
+  -outlinecolor				black
+	      Synonym for -fgcolor
+
+  -bgcolor    Background color          white
+
+  -fillcolor  Interior color of filled  turquoise
+	      images
+
+  -linewidth  Width of lines drawn by	1
+		    glyph
+
+  -height     Height of glyph		10
+
+  -font       Glyph font		gdSmallFont
+
+  -label      Whether to draw a label	false
+
+=head1 SUBCLASSING Ace::Graphics::Glyph
+
+By convention, subclasses are all lower-case.  Begin each subclass
+with a preamble like this one:
+
+ package Ace::Graphics::Glyph::crossbox;
+
+ use strict;
+ use vars '@ISA';
+ @ISA = 'Ace::Graphics::Glyph';
+
+Then override the methods you need to.  Typically, just the draw()
+method will need to be overridden.  However, if you need additional
+room in the glyph, you may override calculate_height(),
+calculate_left() and calculate_right().  Do not directly override
+height(), left() and right(), as their purpose is to cache the values
+returned by their calculating cousins in order to avoid time-consuming
+recalculation.
+
+A simple draw() method looks like this:
+
+ sub draw {
+  my $self = shift;
+  $self->SUPER::draw(@_);
+  my $gd = shift;
+
+  # and draw a cross through the box
+  my ($x1,$y1,$x2,$y2) = $self->calculate_boundaries(@_);
+  my $fg = $self->fgcolor;
+  $gd->line($x1,$y1,$x2,$y2,$fg);
+  $gd->line($x1,$y2,$x2,$y1,$fg);
+ }
+
+This subclass draws a simple box with two lines criss-crossed through
+it.  We first call our inherited draw() method to generate the filled
+box and label.  We then call calculate_boundaries() to return the
+coordinates of the glyph, disregarding any extra space taken by
+labels.  We call fgcolor() to return the desired foreground color, and
+then call $gd->line() twice to generate the criss-cross.
+
+For more complex draw() methods, see Ace::Graphics::Glyph::transcript
+and Ace::Graphics::Glyph::segments.
+
+=head1 BUGS
+
+Please report them.
+
+=head1 SEE ALSO
+
+L<Ace::Sequence>, L<Ace::Sequence::Feature>, L<Ace::Graphics::Panel>,
+L<Ace::Graphics::Track>, L<Ace::Graphics::Glyph::anchored_arrow>,
+L<Ace::Graphics::Glyph::arrow>,
+L<Ace::Graphics::Glyph::box>,
+L<Ace::Graphics::Glyph::primers>,
+L<Ace::Graphics::Glyph::segments>,
+L<Ace::Graphics::Glyph::toomany>,
+L<Ace::Graphics::Glyph::transcript>,
+
+=head1 AUTHOR
+
+Lincoln Stein <lstein@cshl.org>.
+
+Copyright (c) 2001 Cold Spring Harbor Laboratory
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.  See DISCLAIMER.txt for
+disclaimers of warranty.
+
+=cut

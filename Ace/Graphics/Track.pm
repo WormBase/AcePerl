@@ -18,15 +18,19 @@ sub AUTOLOAD {
 # Pass a list of Ace::Sequence::Feature objects, and a glyph name
 sub new {
   my $class = shift;
-  my ($objects,$glyph,@options) = @_;
-  my $glyph_factory = $class->make_factory($glyph,@options);
-  $objects ||= [];  # empty, if not provided
-  return bless {
-		features => $objects,                    # list of Ace::Sequence::Feature objects
-		factory  => $glyph_factory,              # the glyph class associated with this track
-		bump     => 1,                           # bump by default
-		glyphs   => undef,                       # list of glyphs
-	       },$class;
+  my ($glyph_name,$features,@options) = @_;
+
+  $glyph_name ||= 'generic';
+  $features   ||= [];
+
+  my $glyph_factory = $class->make_factory($glyph_name,@options);
+  my $self = bless {
+		    features => [],                     # list of Ace::Sequence::Feature objects
+		    factory  => $glyph_factory,         # the glyph class associated with this track
+		    glyphs   => undef,                  # list of glyphs
+		   },$class;
+  $self->add_feature($_) foreach @$features;
+  $self;
 }
 
 # control bump direction:
@@ -40,19 +44,22 @@ sub bump {
 
 # add a feature (or array ref of features) to the list
 sub add_feature {
-  my $self = shift;
-  my $feature = shift;
-  push @{$self->{features}},ref($feature) ? @$feature : $feature;
+  my $self       = shift;
+  my $feature    = shift;
+  if (ref($feature) eq 'ARRAY') {
+    my $name     = ++$self->{group_name};
+    $self->{group_ids}{$name} = $feature;
+  } else {
+    push @{$self->{features}},$feature;
+  }
 }
 
 # link a set of features together so that they bump as a group
-
 sub add_group {
-  my $self = shift;
+  my $self     = shift;
   my $features = shift;
   ref($features) eq 'ARRAY' or croak("Usage: Ace::Graphics::Track->add_group(\$arrayref)");
-  my $name     = ++$self->{group_name};
-  $self->{groups}{$name} = $features;
+  $self->add_feature($features);
 }
 
 # delegate lineheight to the glyph
@@ -114,7 +121,7 @@ sub boxes {
 
   }
 
-  return \@result;
+  return wantarray ? @result : \@result;
 }
 
 # draw glyphs onto a GD object at the indicated position
@@ -122,6 +129,17 @@ sub draw {
   my $self = shift;
   my ($gd,$left,$top) = @_;
   $top  += 0;  $left += 0;
+
+  # draw background
+  my $bgcolor = $self->factory->bgcolor;
+  $gd->filledRectangle($left,$top,$left+$self->width,$top+$self->height,$bgcolor);
+
+  if (my $label = $self->factory->option('track_label')) {
+    my $font = $self->factory->font;
+    my $y = $top + ($self->height-$font->height)/2;
+    my $x = $left - length($label) * $font->width;
+    $gd->string($font,$x,$y,$label,$self->factory->fontcolor);
+  }
 
   my $glyphs = $self->layout;
   $_->draw($gd,$left,$top) foreach @$glyphs;
@@ -147,7 +165,7 @@ sub layout {
 
   # create linked groups of glyphs
   my @groups;
-  if (my $groups = $self->{groups}) {
+  if (my $groups = $self->{group_ids}) {
     my $groupfactory = Ace::Graphics::GlyphFactory->new('group');
     for my $g (values %$groups) {
       my @g = map { $factory->glyph($_) } @$g;
@@ -221,3 +239,184 @@ sub make_factory {
 
 
 1;
+__END__
+
+=head1 NAME
+
+Ace::Graphics::Track - PNG graphics of Ace::Sequence::Feature objects
+
+=head1 SYNOPSIS
+
+  use Ace::Sequence;
+  use Ace::Graphics::Panel;
+
+  my $db     = Ace->connect(-host=>'brie2.cshl.org',-port=>2005) or die;
+  my $cosmid = Ace::Sequence->new(-seq=>'Y16B4A',
+				  -db=>$db,-start=>-15000,-end=>15000) or die;
+
+  my @transcripts = $cosmid->transcripts;
+
+  my $panel = Ace::Graphics::Panel->new(
+				      -segment => $cosmid,
+				      -width  => 800
+				     );
+
+
+  my $track = $panel->add_track('transcript'
+   		                -fillcolor =>  'wheat',
+				-fgcolor   =>  'black',
+				-bump      =>  +1,
+				-height    =>  10,
+				-label     =>  1);
+  foreach (@transcripts) {
+     $track->add_feature($_);
+  }
+
+  my $boxes = $panel->boxes;
+  print $panel->png;
+
+
+=head1 DESCRIPTION
+
+The Ace::Graphics::Track class is used by Ace::Graphics::Panel to lay
+out a set of sequence features using a uniform glyph type. You will
+ordinarily work with panels rather than directly with tracks.
+
+=head1 METHODS
+
+This section describes the class and object methods for
+Ace::Graphics::Panel.
+
+=head2 CONSTRUCTORS
+
+There is only one constructor, the new() method.  It is ordinarily
+called by Ace::Graphics::Panel, and not in end-developer code.
+
+=over 4
+
+=item $track = Ace::Graphics::Track->new($glyph_name,$features,@options)
+
+The new() method creates a new track object from the provided glyph
+name and list of features.  The arguments are similar to those in
+Ace::Graphics::Panel->new().
+
+If successful new() will return a new Ace::Graphics::Track.
+Otherwise, it will return undef.
+
+If the specified glyph name is not a valid one, new() will throw an
+exception.
+
+=back
+
+=head2 OBJECT METHODS
+
+Once a track is created, the following methods can be invoked.
+
+=over 4
+
+=item $track->add_feature($feature)
+
+This adds a new feature to the track.  The feature can either be a
+single object that implements the Bio::SeqFeatureI interface (such as
+an Ace::Sequence::Feature or Das::Segment::Feature), or can be an
+anonymous array containing a set of related features.  In the latter
+case, the track will attempt to keep the features in the same
+horizontal band and will not allow any other features to overlap.
+
+=item $track->add_group($group)
+
+This behaves the same as add_feature(), but requires that its argument
+be an array reference containing a list of grouped features.
+
+=item $track->draw($gd,$left,$top)
+
+Render the track on a previously-created GD::Image object.  The $left
+and $top arguments indicate the position at which to start rendering.
+
+=item $boxes = $track->boxes($left,$top)
+
+=item @boxes = $track->boxes($left,$top)
+
+Return an array of array references indicating glyph coordinates for
+each of the render features.  $left and $top indicate the offset for
+the track on the image plane.  In a scalar context, this method
+returns an array reference of glyph coordinates.  In a list context,
+it returns the list itself.
+
+See Ace::Graphics::Panel->boxes() for the format of the result.
+
+=back
+
+=head2 ACCESSORS
+
+The following accessor methods provide access to various attributes of
+the track object.  Called with no arguments, they each return the
+current value of the attribute.  Called with a single argument, they
+set the attribute and return its previous value.
+
+Note that in most cases you must change attributes before the track's
+layout() method is called.
+
+   Accessor Name      Description
+   -------------      -----------
+
+   scale()	      Get/set the track scale, measured in pixels/bp
+   lineheight()	      Get/set the height of each glyph, pixels
+   width()	      Get/set the width of the track
+   bump()	      Get/set the bump direction
+
+=head2 INTERNAL METHODS
+
+The following methods are used internally, but may be useful for those
+implementing new glyph types.
+
+=over 4
+
+=item $glyphs = $track->layout
+
+Layout the features, and return an anonymous array of
+Ace::Graphics::Glyph objects that have been created and correctly
+positioned.
+
+Because layout is an expensive operation, calling this method several
+times will return the previously-cached result, ignoring any changes
+to track attributes.
+
+=item $height = $track->height
+
+Invokes layout() and returns the height of the track.
+
+=item $glyphs = $track->glyphs
+
+Returns the glyph cache.  Returns undef before layout() and a
+reference to an array of glyphs after layout().
+
+=item $factory = $track->make_factory(@options)
+
+Given a set of options (argument/value pairs), returns a
+Ace::Graphics::GlyphFactory for use in creating the glyphs with the
+desired settings.
+
+=back
+
+=head1 BUGS
+
+Please report them.
+
+=head1 SEE ALSO
+
+L<Ace::Sequence>,L<Ace::Sequence::Feature>,L<Ace::Graphics::Panel>,
+L<Ace::Graphics::GlyphFactory>,L<Ace::Graphics::Glyph>
+
+=head1 AUTHOR
+
+Lincoln Stein <lstein@cshl.org>.
+
+Copyright (c) 2001 Cold Spring Harbor Laboratory
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.  See DISCLAIMER.txt for
+disclaimers of warranty.
+
+=cut
+
