@@ -25,10 +25,7 @@ use overload '""' => 'asString';
 
 # Optional exports
 @EXPORT_OK = qw(rearrange);
-$VERSION = '1.61';
-
-# Return all objects (effectively infinity)
-use constant MAX => 1<<16;
+$VERSION = '1.62';
 
 require Ace::Object;
 require Ace::Iterator;
@@ -133,7 +130,6 @@ sub fetch {
     rearrange(['CLASS',['NAME','PATTERN'],'COUNT','OFFSET','QUERY',
 	       ['FILL','FILLED'],'TOTAL'],@_);
   $offset += 0;
-  $count = wantarray ? MAX : 1 unless defined $count;
   $pattern ||= '*';
   $pattern = Ace::AceDB->freeprotect($pattern);
   if (defined $query) {
@@ -303,9 +299,11 @@ sub _query {
 sub _list {
   my $self = shift;
   my ($count,$offset) = @_;
-  ($offset,$count) = (0,MAX) unless $count;
   my (@result);
-  my $result = $self->raw_query("list -j -b $offset -c $count");
+  my $query = 'list -j';
+  $query .= " -b $offset" if defined $offset;
+  $query .= " -c $count"  if defined $count;
+  my $result = $self->raw_query($query);
   $result =~ s/\0//g;  # get rid of &$#&@( nulls
   foreach (split("\n",$result)) {
     next unless my ($class,$name) = Ace::AceDB->split($_);
@@ -319,9 +317,11 @@ sub _fetch {
   my $self = shift;
   my ($count,$start) = @_;
   my (@result);
-  my $ts = $self->{'timestamps'} ? '-T' : '';
-  ($start,$count) = (0,MAX) unless $count;
-  $self->{database}->query("show -j $ts -b $start -c $count");
+  my $query = "show -j";
+  $query .= ' -T' if $self->{timestamps};
+  $query .= " -b $start"  if defined $start;
+  $query .= " -c $count"  if defined $count;
+  $self->{database}->query($query);
   while (my @objects = $self->_fetch_chunk) {
     push (@result,@objects);
   }
@@ -728,6 +728,25 @@ For example:
 
 This method can also be used to parse several objects, but only the
 last object successfully parsed will be returned.
+
+=head2 parse_longtext() method
+
+  $object = $db->parse($title,$text);
+
+This will parse the long text (which may contain carriage returns and
+other funny characters) and place it into the database with the given
+title.  In case of a parse error, the undefined value will be returned
+and a (hopefully informative) description of the error will be
+returned by Ace->error(); otherwise, a LongText object will be returned.
+
+For example:
+
+  $author = $db->parse_longtext('A Novel Inhibitory Domain',<<END);
+  We have discovered a novel inhibitory domain that inhibits
+  many classes of proteases, including metallothioproteins.
+  This inhibitory domain appears in three different gene families studied
+  to date...
+  END
 
 =head2 parse_file() method
 
@@ -1194,6 +1213,26 @@ sub parse {
   return $results[0];
 }
 
+# Parse a single object as longtext and return the result
+# as an object
+sub parse_longtext {
+  my $self  = shift;
+  my ($title,$body) = @_;
+      my $mm = "parse =
+Longtext $title
+$body
+***LongTextEnd***
+" ;
+  $mm =~ s/\//\\\//g ;
+  $mm =~ s/\n/\\n/g ;
+  $mm .= "\n" ;
+  my $result = $self->raw_query($mm) ;
+  $Ace::ERR = $result=~/sorry|parse error/mi ? $result : '';
+  my @results = $self->_list(1,0);
+  return $results[0];
+}
+
+
 # Parse a file and return all the results
 sub parse_file {
   my $self = shift;
@@ -1290,7 +1329,6 @@ sub find {
   my ($query,$count,$offset,$filled,$total) = rearrange(['QUERY','COUNT',
 							 'OFFSET',['FILL','FILLED'],'TOTAL'],@_);
   $offset += 0;
-  $count = wantarray ? MAX : 1 unless defined $count;
   $query = "find $query" unless $query=~/^find/i;
   my $cnt = $self->count(-query=>$query);
   $$total = $cnt if defined $total;
@@ -1344,7 +1382,6 @@ sub grep {
   my ($pattern,$count,$offset,$filled,$total,$long) = 
       rearrange(['PATTERN','COUNT','OFFSET',['FILL','FILLED'],'TOTAL','LONG'],@_);
   $offset += 0;
-  $count = wantarray ? MAX : 1 unless defined $count;
   my $grep = defined($long) && $long ? 'LongGrep' : 'grep';
   my $r = $self->raw_query("$grep $pattern");
   my ($cnt) = $r =~ /Found (\d+) objects/m;

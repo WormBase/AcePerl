@@ -171,6 +171,11 @@ interface to any local or remote ace database.  If you have the Perl
 Term::readline module installed, it gives you command-line editing,
 completion, and history.
 
+The script "dump_cdna.pl" shows you how to dump out all spliced cDNAs
+from wormbase.org.  Other dump scripts show similar tricks.  You can
+use these as templates for doing other biologically interesting
+tricks.
+
 There is also family of CGI scripts that run on top of AcePerl to give
 a WebAce-like interface to Ace (it is not as feature-full as WebAce,
 but it is probably easier to set up and run).  You can find the
@@ -181,5 +186,6 @@ package at this URL:
 Lincoln Stein
 lstein@cshl.org
 
-July 22, 1999
+April 26, 2000
+
 

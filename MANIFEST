@@ -104,6 +104,7 @@ examples/ace.pl
 examples/authors.pl
 examples/authors2.pl
 examples/coauthors.pl
+examples/dump_cdna.pl
 examples/gif.pl
 examples/sequence.pl
 make_docs.PL

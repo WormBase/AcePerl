@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.17 2000/03/24 18:41:56 lstein Exp $
+# $Id: Object.pm,v 1.18 2000/04/26 17:51:39 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -1764,10 +1764,10 @@ sub isComment {
 #  returns true if this is a valid thing to do #
 sub add_row {
   my $self = shift;
-  my($tag,$newvalue,@rest) = rearrange([['TAG','PATH'],'VALUE'],@_);
+  my($tag,@newvalue) = rearrange([['TAG','PATH'],'VALUE'],@_);
 
   # flatten array refs into array
-  my @values = map { ref($_) && ref($_) eq 'ARRAY' ? @$_ : $_ } ($newvalue,@rest);
+  my @values = map { ref($_) && ref($_) eq 'ARRAY' ? @$_ : $_ } @newvalue;
 
   # make sure that this entry doesn't already exist
   my $row = join(".",($tag,map { (my $x = $_) =~s/\./\\./g; $x } @values));
