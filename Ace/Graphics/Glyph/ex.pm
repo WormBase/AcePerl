@@ -18,8 +18,8 @@ sub draw {
     my $p = $self->option('point');
     my $xmid = ($x1+$x2)/2;
     my $ymid = ($y1+$y2)/2;
-    $gd->line($xmid-$p,$ymid-$p,$xmid+$p,$ymid+$p);
-    $gd->line($xmid-$p,$ymid+$p,$xmid+$p,$ymid-$p);
+    $gd->line($xmid-$p,$ymid-$p,$xmid+$p,$ymid+$p,$fg);
+    $gd->line($xmid-$p,$ymid+$p,$xmid+$p,$ymid-$p,$fg);
   } else {
     $gd->line($x1,$y1,$x2,$y2,$fg);
     $gd->line($x1,$y2,$x2,$y1,$fg);
