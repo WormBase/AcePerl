@@ -39,6 +39,13 @@ sub new {
 	       },$class;
 }
 
+sub clone {
+  my $self = shift;
+  my %val = %$self;
+  $val{options} = {%{$self->{options}}};
+  return bless \%val,ref($self);
+}
+
 # set the scale for glyphs we create
 sub scale {
   my $self = shift;

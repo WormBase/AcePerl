@@ -28,11 +28,13 @@ sub new {
 
     my @segments;
     for my $seg (@$s) {
-      push @segments,$class->new(-start=>$seg->[0],
-				 -stop=>$seg->[1],
-				 -strand=>$self->{strand}) and next
-				   if ref($seg) eq 'ARRAY';
-      push @segments,$seg;
+      if (ref($seg) eq 'ARRAY') {
+	push @segments,$class->new(-start=>$seg->[0],
+				   -stop=>$seg->[1],
+				   -strand=>$self->{strand});
+      } else {
+	push @segments,$seg;
+      }
     }
 
     $self->{segments} = [ sort {$a->start <=> $b->start } @segments ];

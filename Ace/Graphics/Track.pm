@@ -131,12 +131,12 @@ sub keyglyph {
   my $scale = 1/$self->scale;  # base pairs/pixel
   # two segments, at pixels 0->50, 60->80
   my $offset = $self->offset;
-  my $feature = Ace::Graphics::Fk->new(-segments=>[ [0+$offset,  50*$scale+$offset],
+  my $feature = Ace::Graphics::Fk->new(-segments=>[ [ 0*$scale +$offset,50*$scale+$offset],
 						    [60*$scale+$offset, 80*$scale+$offset]
 						    ],
-				       -name => $self->option('keytrack'),
+				       -name => $self->option('key'),
 				       -strand => '+1');
-  my $factory = $self->factory;
+  my $factory = $self->factory->clone;
   $factory->option(label=>1);  # turn on labels
   return $factory->glyph($feature);
 }

@@ -75,13 +75,13 @@ sub top    { shift->{top}                 }
 sub bottom { my $s = shift; $s->top + $s->height   }
 sub left {
   my $self = shift;
-  return $self->{cache_left} if defined $self->{cache_left};
-  $self->{cache_left} = $self->calculate_left;
+  return $self->{left} + $self->{cache_left} if defined $self->{cache_left};
+  return $self->{left} + ($self->{cache_left} = $self->calculate_left);
 }
 sub right {
   my $self = shift;
-  return $self->{cache_right} if defined $self->{cache_right};
-  return $self->{cache_right} = $self->calculate_right;
+  return $self->{left} + $self->{cache_right} if defined $self->{cache_right};
+  return $self->{left} + ($self->{cache_right} = $self->calculate_right);
 }
 
 sub calculate_left {
@@ -139,10 +139,10 @@ sub calculate_boundaries {
   my $self = shift;
   my ($left,$top) = @_;
 
-  my $x1 = $left + $self->{left} + $self->map_pt($self->{start} - 1);
+  my $x1 = $left + $self->map_pt($self->{start} - 1);
   $x1 = 0 if $x1 < 0;
 
-  my $x2 = $left + $self->{left} + $self->map_pt($self->{end} - 1);
+  my $x2 = $left + $self->map_pt($self->{end} - 1);
   $x2 = 0 if $x2 < 0;
 
   my $y1 = $top + $self->{top};

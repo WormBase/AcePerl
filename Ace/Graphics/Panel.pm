@@ -5,8 +5,10 @@ use Ace::Graphics::Track;
 use GD;
 use Carp 'croak';
 use strict;
-use constant KEYSPACING => 20;
-use constant KEYCOLOR   => 'cornsilk';
+use constant KEYLABELFONT => gdSmallFont;
+use constant KEYSPACING   => 10; # extra space between key columns
+use constant KEYPADTOP    => 5;  # extra padding before the key starts
+use constant KEYCOLOR     => 'cornsilk';
 
 *push_track = \&add_track;
 
@@ -24,6 +26,8 @@ sub new {
   my $length = $options{-length} || 0;
   my $offset = $options{-offset} || 0;
   my $spacing = $options{-spacing} || 5;
+  my $keycolor = $options{-keycolor} || KEYCOLOR;
+  my $keyspacing = $options{-keyspacing} || KEYSPACING;
 
   $length   ||= $options{-segment}->length  if $options{-segment};
   $offset   ||= $options{-segment}->start-1 if $options{-segment};
@@ -39,6 +43,8 @@ sub new {
 		offset => $offset,
 		height => 0, # AUTO
 		spacing => $spacing,
+		keycolor => $keycolor,
+		keyspacing => $keyspacing,
 	       },$class;
 }
 
@@ -145,10 +151,11 @@ sub _add_track {
 
 sub height {
   my $self = shift;
-  my $spacing = $self->spacing;
+  my $spacing    = $self->spacing;
+  my $key_height = $self->format_key;
   my $height = 0;
   $height += $_->height + $spacing foreach @{$self->{tracks}};
-  $height + $self->pad_top + $self->pad_bottom;
+  $height + $key_height + $self->pad_top + $self->pad_bottom;
 }
 
 sub gd {
@@ -176,39 +183,80 @@ sub gd {
     $offset += $track->height + $self->spacing;
   }
 
-  $self->draw_key($gd);
+  $self->draw_key($gd,$pl,$offset);
   return $self->{gd} = $gd;
 }
 
-# this is very crude and should be replaced by something
-# that does better formatting
 sub draw_key {
   my $self = shift;
-  my $gd = shift;
+  my ($gd,$left,$top) = @_;
+  my $key_glyphs = $self->{key_glyphs} or return;
 
-  my $height = 0;
+  my $color = $self->translate($self->{keycolor});
+  $gd->filledRectangle($left,$top,$self->width,$self->height,$color);
+  $gd->string(KEYLABELFONT,$left,KEYPADTOP+$top,"KEY:",1);
+  $top += KEYLABELFONT->height + KEYPADTOP;
+
+  $_->draw($gd,$left,$top) foreach @$key_glyphs;
+}
+
+# Format the key section, and return its height
+sub format_key {
+  my $self = shift;
+
+  return $self->{key_height} if defined $self->{key_height};
+
+  my ($height,$width) = (0,0);
   my %tracks;
+  my @glyphs;
 
+  # determine how many glyphs become part of the key
+  # and their max size
   for my $track (@{$self->{tracks}}) {
-    next unless $track->option('keytrack');
+    next unless $track->option('key');
     my $glyph = $track->keyglyph;
     $tracks{$track} = $glyph;
-    $height = $glyph->height > $height ? $glyph->height : $height;
+    my ($h,$w) = ($glyph->height,
+		  $glyph->right-$glyph->left);
+    $height = $h if $h > $height;
+    $width  = $w if $w > $width;
+    push @glyphs,$glyph;
   }
 
-  my $top  = $self->height - $height;  # move to the pad bottom area
-  my $left = 0;
+  $width += $self->{keyspacing};
 
-  my $color = $self->translate(KEYCOLOR);
-  $gd->filledRectangle($left,$self->height-$self->pad_bottom,$self->width,$self->height,$color);
-  $gd->string(gdSmallFont,$left,$self->height-$self->pad_bottom,"KEY:",1);
+  # no key glyphs, no key
+  return $self->{key_height} = 0 unless @glyphs;
 
-  for my $track (@{$self->{tracks}}) {
-    my $glyph = $tracks{$track} || next;
-    $glyph->draw($gd,$left,$top);
-    $left += $glyph->right + KEYSPACING;
+  # now height and width hold the largest glyph, and $glyph_count
+  # contains the number of glyphs.  We will format them into a
+  # box that is roughly 3 height/4 width (golden mean)
+  my $rows = 0;
+  my $cols = 0;
+  while (++$rows) {
+    $cols = @glyphs / $rows;
+    $cols = int ($cols+1) if $cols =~ /\./;  # round upward for fractions
+    my $total_width  = $cols * $width;
+    my $total_height = $rows * $width;
+    last if $total_width <= $self->width;
   }
 
+  # move glyphs into row-major format
+  my $spacing = $self->spacing;
+  my $i = 0;
+  for (my $c = 0; $c < $cols; $c++) {
+    for (my $r = 0; $r < $rows; $r++) {
+      my $x = $c * ($width  + $spacing);
+      my $y = $r * ($height + $spacing);
+      next unless defined $glyphs[$i];
+      $glyphs[$i]->move($x,$y);
+      $i++;
+    }
+  }
+
+  $self->{key_glyphs} = \@glyphs;     # remember our key glyphs
+  # remember our key height
+  return $self->{key_height} = ($height+$spacing) * $rows + KEYLABELFONT->height +KEYPADTOP;
 }
 
 # reverse of translate(); given index, return rgb tripler
@@ -454,6 +502,7 @@ Ace::Graphics::Panel - PNG graphics of Ace::Sequence::Feature objects
   $panel->add_track(transcript => \@transcripts,
  		    -fillcolor =>  'wheat',
  		    -fgcolor   =>  'black',
+                    -key       => 'Curated Genes',
  		    -bump      =>  +1,
  		    -height    =>  10,
  		    -label     =>  1);
@@ -522,6 +571,13 @@ a set of tag/value pairs as follows:
 
   -pad_right  Additional whitespace between right  0
 	      of image and bottom, in pixels
+
+  -keycolor   Background color for the key printed 'cornsilk'
+              at bottom of panel (if any)
+
+  -keyspacing Spacing between key glyphs in the    10
+              key printed at bottom of panel
+              (if any)
 
 Typically you will pass new() an object that implements the
 Bio::RangeI interface, providing a length() method, from which the
@@ -629,6 +685,9 @@ some are shared by all glyphs:
               Connect groups by a
 	      dashed line (see below)
 
+  -key        Show this track in the    undef
+              key
+
 Colors can be expressed in either of two ways: as symbolic names such
 as "cyan" and as HTML-style #RRGGBB triples.  The symbolic names are
 the 140 colors defined in the Netscape/Internet Explorer color cube,
@@ -648,6 +707,11 @@ default, they will simply overlap (value 0).  A -bump value of +1 will
 cause overlapping glyphs to bump downwards until there is room for
 them.  A -bump value of -1 will cause overlapping glyphs to bump
 upwards.
+
+The -key argument declares that the track is to be shown in a key
+appended to the bottom of the image.  The key contains a picture of a
+glyph and a label describing what the glyph means.  The label is
+specified in the argument to -key.
 
 add_track() returns an Ace::Graphics::Track object.  You can use this
 object to add additional features or to control the appearance of the

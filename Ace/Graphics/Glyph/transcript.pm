@@ -44,7 +44,7 @@ sub draw {
   my $self = shift;
 
   # bail out if this isn't the right kind of feature
-  return $self->SUPER::draw(@_) unless $self->feature->can('exons');
+  return $self->SUPER::draw(@_) unless $self->feature->can('segments');
 
   # get parameters
   my $gd = shift;
@@ -54,8 +54,8 @@ sub draw {
   my $implied_intron_color = $self->option('implied_intron_color') || IMPLIED_INTRON_COLOR;
   my $gray = $self->factory->translate($implied_intron_color);
 
-  my @exons   = sort {$a->start<=>$b->start} $self->feature->exons;
-  my @introns = $self->feature->introns;
+  my @exons   = sort {$a->start<=>$b->start} $self->feature->segments;
+  my @introns = $self->feature->introns if $self->feature->can('introns');
 
   # fill in missing introns
   my (%istart,@intron_boxes,@implied_introns,@exon_boxes);
@@ -91,14 +91,7 @@ sub draw {
   my $center  = ($y1 + $y2)/2;
   my $quarter = $y1 + ($y2-$y1)/4;
 
-  # each exon becomes a box
-  for my $e (@exon_boxes) {
-    my @rect = ($e->[0],$y1,$e->[1],$y2);
-    $self->filled_box($gd,@rect);
-  }
-
   # each intron becomes an angly thing
-
   foreach ([\@intron_boxes,$fg],[\@implied_introns,$gray]) {
     my ($i,$color) = @$_;
 
@@ -111,6 +104,12 @@ sub draw {
 	$gd->line($i->[0],$quarter,$i->[1],$quarter,$color);
       }
     }
+  }
+
+  # each exon becomes a box
+  for my $e (@exon_boxes) {
+    my @rect = ($e->[0],$y1,$e->[1],$y2);
+    $self->filled_box($gd,@rect);
   }
 
   my $draw_arrow = $self->option('draw_arrow');
