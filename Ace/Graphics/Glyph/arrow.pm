@@ -8,7 +8,7 @@ use vars '@ISA';
 sub bottom {
   my $self = shift;
   my $val = $self->SUPER::bottom(@_);
-  $val += $self->font->height if $self->option('tick'); 
+  $val += $self->font->height if $self->option('tick');
   $val;
 }
 
@@ -17,7 +17,7 @@ sub draw {
   my $self = shift;
   my $gd = shift;
   my ($x1,$y1,$x2,$y2) = $self->calculate_boundaries(@_);
-  
+
   my $fg = $self->fgcolor;
   my $a2 = $self->SUPER::height/2;
   my $center = $y1+$a2;
@@ -34,16 +34,22 @@ sub draw {
 
     # figure out tick mark scale
     # we want no more than 1 tick mark every 30 pixels
-    my $interval = 1;
-    while (1) {
-      my $pixels = $interval * $scale;
-      last if $pixels >= 30;
-      $interval *= 10;
-    }
-  
-    my $first_tick = $interval * int(1 + $self->start/$interval);
+    # and enough room for the labels
     my $font = $self->font;
     my $width = $font->width;
+
+    my $interval = 1;
+    my $mindist =  30;
+    my $widest = 5 + (length($self->end) * $width);
+    $mindist = $widest if $widest > $mindist;
+
+    while (1) {
+      my $pixels = $interval * $scale;
+      last if $pixels >= $mindist;
+      $interval *= 10;
+    }
+
+    my $first_tick = $interval * int(1 + $self->start/$interval);
 
     for (my $i = $first_tick; $i < $self->end; $i += $interval) {
       my $tickpos = $self->map_pt($i);
@@ -54,7 +60,7 @@ sub draw {
 
     if ($self->option('tick') >= 2) {
       my $a4 = $self->SUPER::height/4;
-      for (my $i = $self->start+$interval/10; $i < $self->end - $interval/10; $i += $interval/10) {
+      for (my $i = $self->start+$interval/10; $i < $self->end; $i += $interval/10) {
 	my $tickpos = $self->map_pt($i);
 	$gd->line($tickpos,$center-$a4,$tickpos,$center+$a4,$fg);
       }
