@@ -38,6 +38,7 @@ Ace/Sequence/Homol.pm
 Ace/Sequence/Multi.pm
 Ace/Sequence/Transcript.pm
 Ace/SocketServer.pm
+GFF/Filehandle.pm
 ChangeLog
 DISCLAIMER.txt
 Freesubs/Freesubs.pm
