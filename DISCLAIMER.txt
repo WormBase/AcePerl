@@ -6,7 +6,7 @@ it under the same terms as Perl itself.  See the Artistic License file
 in the main Perl distribution for specific terms and conditions of
 use.  In addition, the following disclaimers apply:
 
-CSHL makes no representations whatsoever as to the SOFTWARE contained
+THE BIG BAD WOLF makes no representations whatsoever as to the SOFTWARE contained
 herein.  It is experimental in nature and is provided WITHOUT WARRANTY
 OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE OR ANY OTHER
 WARRANTY, EXPRESS OR IMPLIED.  CSHL MAKES NO REPRESENTATION OR
