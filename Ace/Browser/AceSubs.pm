@@ -893,8 +893,7 @@ sub TypeSelector {
     my ($name,$class) = @_;
     return unless $class;
 
-    $name = "$name" if ref($name);  # fix obscure bug in escape
-    my ($n,$c) = (escape($name),escape($class));
+    my ($n,$c) = (escape("$name"),escape($class));
     my @rows;
 
     # add the special displays
