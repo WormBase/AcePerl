@@ -12,7 +12,9 @@ compile AcePerl.  The patch is contained in the file acedb_4_5e.patch.
 
 In the instructions that follow, the variable $ACEDB means the ACEDB
 build directory, and $ACEPERL means the AcePerl directory (the
-directory this file is located in.)
+directory this file is located in.)  This is for simplification of the
+instructions only.  You do not need to create environment variables
+with these names.
 
 A. Build and install the ace libraries and header file:
   1. cd $ACEDB
@@ -35,7 +37,7 @@ B. Building AcePerl
 You may "make test" to test the system.  It will attempt to open a
 connection to a database at beta.crbm.cnrs-mop.fr:20000100.  You may
 change these defaults by setting the environment variables ACEDB_HOST
-and ACEDB_PORT.  However, since some of the tests are dependant on
+and ACEDB_PORT.  However, since some of the tests are dependent on
 specific values in the database, this may cause some tests to fail.
 Do not be alarmed.
 
