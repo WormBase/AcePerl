@@ -105,6 +105,7 @@ use Ace::Browser::SiteDefs;
 use Ace 1.76;
 use CGI qw(:standard escape);
 use CGI::Cookie;
+use File::Path 'mkpath';
 
 use vars qw/@ISA @EXPORT @EXPORT_OK $VERSION %EXPORT_TAGS 
   %DB %OPEN $HEADER $TOP @COOKIES
@@ -112,7 +113,7 @@ use vars qw/@ISA @EXPORT @EXPORT_OK $VERSION %EXPORT_TAGS
 
 require Exporter;
 @ISA = qw(Exporter);
-$VERSION = 1.15;
+$VERSION = 1.20;
 
 ######################### This is the list of exported subroutines #######################
 @EXPORT = qw(
@@ -120,7 +121,7 @@ $VERSION = 1.15;
 	     OpenDatabase Object2URL Url
 	     ObjectLink Configuration PrintTop PrintBottom);
 @EXPORT_OK = qw(AceRedirect Toggle ResolveUrl AceInit AceAddCookie
-		AceHeader TypeSelector Style
+		AceHeader TypeSelector Style AcePicRoot
 		Header Footer DB_Name AceMultipleChoices);
 %EXPORT_TAGS = ( );
 
@@ -334,6 +335,36 @@ sub AceNotFound {
   Apache->exit(0) if defined &Apache::exit;
   exit(0);
 }
+
+=item ($uri,$physical_path) = AcePicRoot($directory)
+
+This function returns the physical and URL paths of a temporary
+directory in which the pic script can write pictures.  Not exported by
+default.  Returns a two-element list containing the URL and physical
+path.
+
+=cut
+
+sub AcePicRoot {
+  my $path = shift;
+  my $umask = umask();
+  umask 002;  # want this writable by group
+  my ($picroot,$uri);
+  if ($ENV{MOD_PERL}) { # we have apache, so no reason not to take advantage of it
+    my $r = Apache->request;
+    $uri  = join('/',Configuration()->Pictures->[0],"/",$path);
+    my $subr = $r->lookup_uri($uri);
+    $picroot = $subr->filename if $subr;
+  } else {
+    ($uri,$picroot) = @{Configuration()->Pictures} if Configuration()->Pictures;
+    $uri     .= "/$path";
+    $picroot .= "/$path";
+  }
+  mkpath ($picroot,0,0777) || AceError("Can't create directory to store image in") unless -d $picroot;
+  umask $umask;
+  return ($uri,$picroot);
+}
+
 
 =item AceRedirect($report,$object)
 
@@ -553,7 +584,7 @@ sub Header {
   }
   }
 
-  my ($home,$label) = @{$config->Home};
+  my ($home,$label) = @{$config->Home} if $config->Home;
 
   return table({-border=>0,-cellspacing=>1,-width=>'100%'},
 	       Tr(td({-align=>'CENTER',-class=>'searchbanner'},\@row)),

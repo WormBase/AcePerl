@@ -6,6 +6,7 @@ use Ace::Sequence::Feature;
 use vars '$AUTOLOAD';
 use overload 
   '""' => 'asString',
+  'fallback' => 'TRUE';
   ;
 use vars '$VERSION';
 $VERSION = '1.20';
