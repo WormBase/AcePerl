@@ -723,7 +723,13 @@ sub _query {
   ($start,$end) = ($end,$start) if $start > $end;  #flippity floppity
 
   my $coord   = "-coords $start $end";
-  return $db->raw_query("gif seqget $parent $coord ; $command $coord");
+
+  # BAD BAD HACK ALERT - CHECKS THE QUERY THAT IS PASSED DOWN
+  # ALSO MAKES THINGS INCOMPATIBLE WITH PRIOR 4.9 servers.
+#  my $opt     = $command =~ /seqfeatures/ ? '-nodna' : '';
+  my $opt = '';
+
+  return $db->raw_query("gif seqget $parent $opt $coord ; $command $coord");
 }
 
 # utility function -- reverse complement

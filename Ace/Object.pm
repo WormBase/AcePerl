@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.31 2001/01/10 05:42:23 lstein Exp $
+# $Id: Object.pm,v 1.32 2001/04/03 21:37:50 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -407,8 +407,11 @@ sub follow {
     return $self->fetch() unless $tag;
     my $class = $self->class;
     my $name = Ace->freeprotect($self->name);
-    return $self->db->fetch(-query=>"find $class $name ; follow $tag",
-			    '-filled'=>$filled);
+    my @options;
+    if ($filled) {
+      @options = $filled =~ /^[a-zA-Z]/ ? ('filltag' => $filled) : ('filled'=>1);
+    }
+    return $self->db->fetch(-query=>"find $class $name ; follow $tag",@options);
 }
 
 # returns true if the object has a Model, i.e, can be followed into
