@@ -983,7 +983,7 @@ sub getDatabasePorts {
   my $config = Ace::Browser::SiteDefs->getConfig($name);
   return ($config->Host,$config->Port,
 	  $config->Username,$config->Password,
-	  $config->CacheRoot,$config->CacheSize,$config->CacheExpires,$config->CachePurge,
+	  $config->Cacheroot,$config->Cachesize,$config->Cacheexpires,$config->Cachepurge,
 	 ) if $config;
 
   # If we get here, then try getservbynam()

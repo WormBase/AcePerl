@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp qw(:DEFAULT cluck);
 
-# $Id: Object.pm,v 1.53 2004/12/13 23:41:58 lstein Exp $
+# $Id: Object.pm,v 1.54 2005/01/16 21:40:58 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -130,7 +130,9 @@ sub newFromText {
   my @array;
   foreach (split("\n",$text)) {
     next unless $_;
-    s/\?txt\?(.*?)\t(.*?)\?/?txt?$1\\t$2?/g;  # hack to fix some txt fields with unescaped tabs
+    # this is a hack to fix some txt fields with unescaped tabs
+    # unfortunately it breaks other things
+    s/\?txt\?([^?]*?)\t([^?]*?)\?/?txt?$1\\t$2?/g;  
     push(@array,[split("\t")]);
   }
   my $obj = $pack->_fromRaw(\@array,0,0,$#array,$db);

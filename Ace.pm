@@ -225,8 +225,8 @@ sub get {
     || $self->file_cache_fetch($class=>$name);
   return $obj if $obj;
 
+  # _acedb_get() does the caching
   $obj = $self->_acedb_get($class,$name,$fill) or return;
-  $self->memory_cache_store($obj);
   $obj;
 }
 
@@ -285,7 +285,8 @@ sub file_cache_fetch {
   my $key = join ':',$class,$name;
   my $cache = $self->cache or return;
   my $obj   = $cache->get($key);
-  carp "cache ",$obj?'hit':'miss'," on '$key'\n" if Ace->debug;
+  #carp "cache ",$obj?'hit':'miss'," on '$key'\n" if Ace->debug;
+  warn "cache ",$obj?'hit':'miss'," on '$key'\n";
   $self->memory_cache_store($obj) if $obj;
   $obj;
 }
@@ -298,7 +299,8 @@ sub file_cache_store {
   my $key = join ':',$obj->class,$obj->name;
   my $cache = $self->cache or return;
 
-  carp "caching $key obj=",overload::StrVal($obj),"\n" if Ace->debug;
+#  carp "caching $key obj=",overload::StrVal($obj),"\n" if Ace->debug;
+  warn "caching $key obj=",overload::StrVal($obj),"\n";
   $cache->set($key,$obj);
 }
 
