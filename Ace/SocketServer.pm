@@ -8,7 +8,7 @@ use IO::Socket;
 use Digest::MD5 'md5_hex';
 
 use vars '$VERSION';
-$VERSION = '1.00';
+$VERSION = '1.01';
 
 use constant DEFAULT_USER    => 'anonymous';  # anonymous user
 use constant DEFAULT_PASS    => 'guest';      # anonymous password
@@ -52,12 +52,11 @@ sub connect {
 sub DESTROY {
   my $self = shift;
   return if $self->{last_msg} eq ACESERV_MSGKILL;
-  if (1) {  # the following block crashes the server -- maybe?
-    $self->_send_msg('quit');
-    my ($msg,$body) = $self->_recv_msg('strip');
-    warn "Did not get expected ACESERV_MSGKILL message, got $msg instead" 
-      if defined($msg) and $msg ne ACESERV_MSGKILL;
-  }
+  $self->_send_msg('quit');
+# Is _recv_msg() bringing things down in flames?  Maybe!
+#    my ($msg,$body) = $self->_recv_msg('strip');
+  warn "Did not get expected ACESERV_MSGKILL message, got $msg instead" 
+    if defined($msg) and $msg ne ACESERV_MSGKILL;
 }
 
 sub encore { return shift->{encoring} }
