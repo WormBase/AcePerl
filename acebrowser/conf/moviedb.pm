@@ -50,7 +50,7 @@ $STYLESHEET = "$DOCROOT/stylesheets/moviedb.css";
 			 url  => "$ROOT/searches/query",
 			 },
 	       );
-$SEARCH_ICON = '/ico/unknown.gif';
+$SEARCH_ICON = "$ICONS/unknown.gif";
 
 # ========= %HOME  =========
 # Home page URL

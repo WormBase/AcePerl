@@ -68,7 +68,7 @@ $PASSWORD = '';
 			 },
 	       );
 
-$SEARCH_ICON = '/ico/unknown.gif';
+$SEARCH_ICON = "$ICONS/unknown.gif";
 
 # ========= %HOME  =========
 # Home page URL
@@ -82,20 +82,20 @@ $SEARCH_ICON = '/ico/unknown.gif';
 	     tree => { 
 		      'url'     => "generic/tree",
 		      'label'   => 'Tree Display',
-		      'icon'    => '/ico/text.gif' },
+		      'icon'    => "$ICONS/text.gif" },
 	     pic => {
 		     'url'     => "generic/pic",
 		     'label'   => 'Graphic Display',
-		     'icon'    => '/ico/image2.gif' },
+		     'icon'    => "$ICONS/image2.gif" },
 	     xml => {
 		     'url'     => "generic/xml",
 		     'label'   => 'XML Display',
-		     'icon'    => '/ico/text.gif' },
+		     'icon'    => "$ICONS/text.gif" },
 
 	     model => {
 		     'url'     => "generic/model",
 		     'label'   => 'AceDB Schema',
-		     'icon'    => '/ico/text.gif' },
+		     'icon'    => "$ICONS/text.gif" },
 	    );
 
 # ========= %CLASSES =========

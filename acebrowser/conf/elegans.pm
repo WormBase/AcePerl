@@ -41,11 +41,11 @@ $PIC_SCRIPT   = "$ROOT/misc/random_pic";
 
 # ========== An icon to use for "home" ==========
 # leaving this undefined suppresses the generation of a "home" link
-# $HOME_ICON = '/ico/arrows/uarrw.gif';
+# $HOME_ICON = "$ICONS/arrows/uarrw.gif";
 
 # =========  An icon to use for searching =======
 # leaving this undefined suppresses the generation of a "search" link
-# $SEARCH_ICON = '/ico/unknown.gif';
+# $SEARCH_ICON = "$ICONS/unknown.gif";
 
 # position of the big banner
 $BANNERS   = "$WB/banners";
