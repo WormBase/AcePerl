@@ -22,7 +22,7 @@ sub test {
 
 # Test code:
 my ($db,$obj);
-test(2,$db = Ace->connect(-host=>HOST,-port=>PORT),
+test(2,$db = Ace->connect(-host=>HOST,-port=>PORT,-timeout=>50),
      "couldn't establish connection");
 die "Couldn't establish connection to database.  Aborting tests.\n" unless $db;
 test(3,$me = Ace::Object->new('Author','Dent AD',$db),"couldn't create new object");

@@ -32,7 +32,8 @@ my $DATA = q{Address  Mail    The Sanger Centre
                  1223-494958
          Fax     1223-494919
 };
-test(2,$db = Ace->connect(-host=>HOST,-port=>PORT),"connection failure");
+test(2,$db = Ace->connect(-host=>HOST,-port=>PORT,-timeout=>50),
+     "connection failure");
 die "Couldn't establish connection to database.  Aborting tests.\n" unless $db;
 test(3,$obj = $db->fetch('Author','Sulston JE'),"fetch failure");
 print STDERR "\n  ...Failed to get test object. Wrong database?\n     Expect more failures... " 

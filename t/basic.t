@@ -21,7 +21,7 @@ sub test {
 }
 
 # Test code:
-my $ptr = Ace::AceDB->new(HOST,PORT,25);
+my $ptr = Ace::AceDB->new(HOST,PORT,50);
 test(2,$ptr,"connection failed");
 die "Couldn't establish connection to database.  Aborting tests.\n" unless $ptr;
 test(3,$ptr->status() == STATUS_WAITING,"did not get wait status");

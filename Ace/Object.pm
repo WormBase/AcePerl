@@ -11,7 +11,7 @@ use Ace 1.50 qw(:DEFAULT rearrange);
 require AutoLoader;
 
 $DEFAULT_WIDTH=25;  # column width for pretty-printing
-$VERSION = '1.51';
+$VERSION = '1.52';
 
 # Pseudonyms and deprecated methods.
 *isClass        =  \&isObject;
@@ -1110,12 +1110,8 @@ asTable() returns the object as a tab-delimited text table.
 
     $object->asAce;
 
-asAce() returns the object as a tab-delimited text table with B<all>
-the intermediate tags filled in.  It is something like an Ace dump,
-but not really, because the table cells aren't escaped for proper ACE
-parsing, so it can't be fed back into ACE.  Sean Walsh
-(wsean@nasc.nott.ac.uk) thought this would be a "handy feature," and
-I've implemented it.  Suggestions are welcome.
+asAce() returns the object as a tab-delimited text table in ".ace"
+format.
 
 =head2 asHTML() method
 
@@ -1158,7 +1154,8 @@ Here's a complete example:
   ($gif,$boxes) = $object->asGIF();
   ($gif,$boxes) = $object->asGIF(-clicks=>[[$x1,$y1],[$x2,$y2]...]
 	                         -dimensions=>[$width,$height],
-				 -display => $display_type
+				 -display => $display_type,
+				 -view    => $view_type
 	                         );
 
 asGIF() returns the object as a GIF image.  The contents of the GIF
@@ -1180,6 +1177,10 @@ The optional B<-display> argument allows you to specify an alternate
 display for the object.  For example, Clones can be displayed either
 with the PMAP display or with the TREE display.  If not specified, the
 default display is used.
+
+The optional B<-view> argument allows you to specify an alternative
+view for MAP objects only.  If not specified, you'll get the default
+view.
 
 asGIF() returns a two-element array.  The first element is the GIF
 data.  The second element is an array reference that indicates special 
@@ -1569,11 +1570,18 @@ sub asString {
 #                                   -dimensions=>[$x,$y]);
 sub asGif {
   my $self = shift;
-  my ($clicks,$dimensions,$display) = rearrange(['CLICKS',
-						 ['DIMENSIONS','DIM'],
-						 'DISPLAY'],@_);
+  my ($clicks,$dimensions,$display,$view) = rearrange(['CLICKS',
+						       ['DIMENSIONS','DIM'],
+						       'DISPLAY',
+						       'VIEW'],@_);
   $display = "-D $display" if $display;
-  my @commands = "gif display $display @{[$self->class]} \"@{[$self->name]}\"";
+  $view    = "-view $view" if $view;
+  my @commands;
+  if ($view) {
+      @commands = "gif map \"@{[$self->name]}\" $view";
+  } else {
+      @commands = "gif display $display $view @{[$self->class]} \"@{[$self->name]}\"";
+  }
   push(@commands,"Dimensions @$dimensions") if ref($dimensions);
   push(@commands,map { "mouseclick @{$_}" } @$clicks) if ref($clicks);
   push(@commands,"gifdump -");

@@ -5,6 +5,7 @@ Ace/Iterator.pm
 Ace/Local.pm
 Ace/Model.pm
 Ace/Object.pm
+Ace/Sequence.pm
 ChangeLog
 DISCLAIMER.txt
 MANIFEST
