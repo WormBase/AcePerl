@@ -106,7 +106,9 @@ use Ace 1.76;
 use CGI qw(:standard escape);
 use CGI::Cookie;
 
-use vars qw/@ISA @EXPORT @EXPORT_OK $VERSION %EXPORT_TAGS %DB %OPEN $HEADER $TOP @COOKIES/;
+use vars qw/@ISA @EXPORT @EXPORT_OK $VERSION %EXPORT_TAGS 
+  %DB %OPEN $HEADER $TOP @COOKIES
+  $APACHE_CONF/;
 
 require Exporter;
 @ISA = qw(Exporter);
@@ -740,10 +742,14 @@ sub ResolveUrl {
     my ($url,$param) = @_;
     my ($main,$query,$frag) = $url =~ /^([^?\#]+)\??([^\#]*)\#?(.*)$/ if defined $url;
     $main ||= '';
+    
+    if (!defined $APACHE_CONF) {
+      $APACHE_CONF = eval { Apache->request->dir_config('AceBrowserConf') } ? 1 : 0;
+    }
 
     $main = Configuration()->resolvePath($main) unless $main =~ m!^/!;
     if (my $id = get_symbolic()) {
-      $main .= "/$id" unless $main =~ /$id/;
+      $main .= "/$id" unless $main =~ /$id/ or $APACHE_CONF;
     }
 
     $main .= "?$query" if $query; # put the query string back
