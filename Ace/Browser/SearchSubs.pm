@@ -38,11 +38,10 @@ sub AceSearchTable {
   print
     start_form(-action=>url(-absolute=>1,-path_info=>1).'#searchagain'),
     a({-name=>'search'},''),
-    table({-border=>0,-cellspacing=>2,-cellpadding=>2,-width=>'100%',-align=>'CENTER'},
+    table({-border=>0,-width=>'100%'},
 	  TR(th({-class=>'searchtitle'},$title),
-	     
-	     TR({-valign=>'CENTER'},
-		td({-class=>'searchbody'},@body)))),
+	  TR({-valign=>'CENTER'},
+	     td({-class=>'searchbody'},@body)))),
     end_form;
 }
 
@@ -56,9 +55,9 @@ sub AceResultsTable {
   $title ||= 'Search Results';
 
   print 
-    p(a({-href=>'#search',-name=>'searchagain'},
-	    'Search Again'), "|", a({-href=>(url(-absolute=>1,path_info=>1))},
-				    'Clear Search')),
+#    p(a({-href=>'#search',-name=>'searchagain'},
+#	    'Search Again'), "|", a({-href=>(url(-absolute=>1,path_info=>1))},
+#				    'Clear Search')),
     a({-name=>'results'}),
     start_table({-border=>0,-cellspacing=>2,-cellpadding=>2,-width=>'100%',-align=>'CENTER',-class=>'resultsbody'}),
     TR(th({-class=>'resultstitle'},$title));
