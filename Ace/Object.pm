@@ -227,7 +227,7 @@ sub search {
 					    );
 	  if ($subobject) {
 	    my $obj;
-	    if ($subobject->right eq $tag) { # new version of aceserver as of 11/30/98
+	    if (lc($subobject->right) eq $lctag) { # new version of aceserver as of 11/30/98
 	      $obj = $subobject->right;
 	    } else { # old version of aceserver
 	      $obj = $self->new('tag',$tag,$self->{'db'});

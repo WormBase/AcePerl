@@ -1,6 +1,8 @@
 1.54	2/10/99
 	1. Fixed spin-loop (polling) bug in Ace::Local.  Should no longer
 	consume 99% of CPU time while waiting for tace to answer a long query.
+	2. Fixed bug in get() and at() in which tags got duplicated because
+	of capitalization variations.
 1.53	1/23/99
 	1. Bug fix in Ace::find function.  Was causing a crash.
 1.52	1/21/99
