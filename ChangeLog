@@ -1,3 +1,4 @@
+1.39	1. Workaround for problem with dropped date fields
 1.38	1. list() is now deprecated.  Use fetch() instead
 	2. grep() method added
 	3. -total parameter added to fetch() grep() and find()

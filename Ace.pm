@@ -23,7 +23,7 @@ require DynaLoader;
 @EXPORT_OK = qw(
 		rearrange
 		);
-$VERSION = '1.38';
+$VERSION = '1.39';
 
 sub AUTOLOAD {
     # This AUTOLOAD is used to 'autoload' constants from the constant()
@@ -171,6 +171,7 @@ sub find {
 sub fetch_many {
   my $self = shift;
   my ($class,$pattern,$filled,$chunksize) = rearrange(['CLASS',['PATTERN','NAME'],['FILL','FILLED'],'CHUNKSIZE'],@_);
+  $pattern = '*' unless defined $pattern;
   my $iterator = Ace::Iterator->new($self,"find $class $pattern",$filled,$chunksize);
   $self->_register_iterator($iterator);
   return $iterator;
@@ -228,7 +229,9 @@ sub grep {
 sub pick {
     my ($self,$class,$item) = @_;
     undef $ERR;
-    return () unless $self->count($class,$item) == 1;
+# assumption of uniqueness of name is violated by some classes!
+#    return () unless $self->count($class,$item) == 1;
+    return () unless $self->count($class,$item) >= 1;
 
     # if we get here, then we've got some data to return.
     # yes, we're repeating code slightly...
@@ -289,6 +292,12 @@ sub classes {
   $self->_alert_iterators;
   $self->_query($query);
   return $self->_list;
+}
+
+# Return a hash of all the classes and the number of objects in each
+sub class_count {
+  my $self = shift;
+  return $self->raw_query('classes') =~ /^\s+(\S+) (\d+)/gm;
 }
 
 # return the last error
@@ -401,7 +410,6 @@ sub _alert_iterators {
 ##########################################################################
 ##########################################################################
 package Ace::Iterator;
-use constant DEFAULT_CHUNKSIZE => 40;
 
 *rearrange  = \&Ace::rearrange;
 
@@ -413,8 +421,8 @@ sub new {
 	      'query' => $query,
 	      'valid' => undef,
 	      'cached_answers' => [],
-	      'filled' => $filled || 0,
-	      'chunksize' => $chunksize || DEFAULT_CHUNKSIZE,
+	      'filled' => ($filled || 0),
+	      'chunksize' => ($chunksize || 40),
 	      'current' => 0
 	     };
   return bless $self,$pack;
@@ -457,7 +465,7 @@ use overload
 use vars qw($AUTOLOAD $DEFAULT_WIDTH $SPLIT_PATTERN %MO);
 
 $DEFAULT_WIDTH=25;  # column width for pretty-printing
-$SPLIT_PATTERN='\?([^?]*)\?([^?]*)\?';
+$SPLIT_PATTERN='\?([^?]*)\?\??([^?]*)\?';
 
 # Pseudonyms and deprecated methods.
 *isClass        =  \&isObject;
@@ -1702,8 +1710,23 @@ exposed to the user interface for browsing, the so-called "visible"
 classes.  Pass a true argument to the call to retrieve non-visible
 classes as well.
 
+=head2 class_count() method
+
+   %classes = $db->class_count()
+
+This returns a hash in which the keys are the class names and the
+values are the total number of objects in that class.  All classes
+are returned, including invisible ones.  Use this method if you need
+to count all classes simultaneously.  If you only want to count one
+or two classes, it may be more efficient to call I<count($class_name)>
+instead.
+
+This method transiently uses a lot of memory.  It should not be used
+with Ace 4.5 servers, as they contain a memory leak in the counting
+routine.
+
 =head2 date_style() method
- 
+
   $style = $db->date_style();
   $style = $db->date_style('ace');
   $style = $db->date_style('java');
