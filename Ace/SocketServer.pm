@@ -51,8 +51,7 @@ sub connect {
 sub DESTROY {
   my $self = shift;
   return if $self->{last_msg} eq ACESERV_MSGKILL;
-  # this makes the server CRASH!!!!
-  if (0) {
+  if (0) {  # the following block crashes the server
     $self->_send_msg('quit');
     my ($msg,$body) = $self->_recv_msg('strip');
     warn "Did not get expected ACESERV_MSGKILL message, got $msg instead" 

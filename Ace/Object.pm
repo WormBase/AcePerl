@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.29 2001/01/04 23:20:00 lstein Exp $
+# $Id: Object.pm,v 1.30 2001/01/05 22:19:22 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -232,13 +232,33 @@ sub col {
 
 #### Search for a tag, and return the column ####
 #### Uses a breadth-first search (cols then rows) ####
+# This is in the midst of an optimization and is more complex
+# than it should be.  It should take better advantage of the path()
+# method in Ace::Model.
 sub search {
     my ($self,$tag,$subtag,$pos) = @_;
     my $lctag = lc $tag;
 
     TRY: {
-	last TRY if exists $self->{'.PATHS'} && 
-	  exists $self->{'.PATHS'}->{$lctag};
+
+	# look in our tag cache first
+	if (exists $self->{'.PATHS'}) {
+
+	  # we've already cached the desired tree
+	  last TRY if exists $self->{'.PATHS'}{$lctag};
+
+	  # not cached, so try parents of tag
+	  my $m = $self->model;
+	  my @parents = $m->path($lctag) if $m;
+	  my $tree;
+	  foreach (@parents) {
+	    ($tree = $self->{'.PATHS'}{lc $_}) && last;
+	  }
+	  if ($tree) {
+	    $self->{'.PATHS'}{$lctag} = $tree->search($tag);
+	    last TRY;
+	  }
+	}
 
 	# If the object hasn't been filled already, then we can use
 	# acedb's query mechanism to fetch the subobject.  This is a
@@ -252,7 +272,7 @@ sub search {
 	  if ($subobject) {
 	    $self->_attach_subtree($lctag => $subobject);
 	  } else {
-	    $self->{'.PATHS'}->{$lctag} = undef;
+	    $self->{'.PATHS'}{$lctag} = undef;
 	  }
 	  last TRY;
 	}
@@ -261,7 +281,7 @@ sub search {
 	foreach (@col) {
 	  next unless $_->isTag;
 	  if (lc $_ eq $lctag) {
-	    $self->{'.PATHS'}->{$lctag} = $_;
+	    $self->{'.PATHS'}{$lctag} = $_;
 	    last TRY;
 	  }
 	}
@@ -271,17 +291,17 @@ sub search {
 	foreach (@col) {
 	  next unless $_->isTag;
 	  if (my $r = $_->search($tag)) {
-	    $self->{'.PATHS'}->{$lctag} = $r;	
+	    $self->{'.PATHS'}{$lctag} = $r;	
 	    last TRY;
 	  }
 	}
 
-	# If we got here, we didn't find it.  So tag the cache
-	# as empty.
-	$self->{'.PATHS'}->{$lctag} = undef;
+	# If we got here, we just didn't find it.  So tag the cache
+	# as empty so that we don't try again
+	$self->{'.PATHS'}{$lctag} = undef;
       }
 
-    my $t = $self->{'.PATHS'}->{$lctag};
+    my $t = $self->{'.PATHS'}{$lctag};
     return unless $t;
 
     if (defined $subtag) {
