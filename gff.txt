@@ -1,0 +1,16 @@
+##gff-version 2
+##date 2000-06-20
+##sequence-region CHROMOSOME_I 9064052 9064435 (reversed)
+CHROMOSOME_I		Sequence	-5370887	9064435	.	-	.	Sequence "CHROMOSOME_I"
+CHROMOSOME_I		Sequence	-948984	2667589	.	-	.	Sequence "SUPERLINK_CB_I"
+CHROMOSOME_I		Sequence	-948984	2667589	.	-	.	Sequence "LINK_H06O01"
+CHROMOSOME_I		Sequence	-1940	13568	.	-	.	Sequence "C03D6"
+CHROMOSOME_I	curated	Sequence	-320	1682	.	+	.	Sequence "C03D6.1"
+CHROMOSOME_I	curated	intron	148	1220	.	+	.	Sequence "C03D6.1"
+CHROMOSOME_I	curated	exon	-53	147	.	+	.	Sequence "C03D6.1"
+CHROMOSOME_I	curated	CDS	-53	147	.	+	-9064436	Sequence "C03D6.1"
+CHROMOSOME_I	TBLASTX_EST_elegans	similarity	-533	9064025	297	.	+	Target "Sequence:yk361d3.5" 36 272
+CHROMOSOME_I	TBLASTX_EST_elegans	similarity	-531	9064012	298	.	+	Target "Sequence:yk361d3.5" 38 271
+CHROMOSOME_I	EST_GENOME	similarity	-531	9064336	296	.	+	Target "Sequence:yk361d3.5" 38 273
+CHROMOSOME_I	TBLASTX_EST_elegans	similarity	-530	9064034	297	.	+	Target "Sequence:yk361d3.5" 39 272
+CHROMOSOME_I	TB

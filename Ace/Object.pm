@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.22 2000/06/16 00:36:26 lstein Exp $
+# $Id: Object.pm,v 1.23 2000/07/14 20:24:57 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -295,7 +295,7 @@ sub search {
 	$pos = $subtag;
       } else {  # position on subtag and search again
 	return $t->fetch->search($subtag,$pos) 
-	  if $t->isObject  || ($t->right && $t->right->isObject);
+	  if $t->isObject  || (defined($t->right) and $t->right->isObject);
 	return $t->search($subtag,$pos);
       }
     }
@@ -363,7 +363,7 @@ sub down {
 sub fetch {
     my ($self,$tag) = @_;
     $self = $self->search($tag) || return if defined $tag;
-    my $thing_to_pick = ($self->isTag && $self->right) ? $self->right : $self;
+    my $thing_to_pick = ($self->isTag and defined($self->right)) ? $self->right : $self;
     return $thing_to_pick->_clone;
 }
 
@@ -1687,7 +1687,7 @@ sub timestamp {
       $self->_parse;
     }
     return $self->{'.timestamp'} if $self->{'.timestamp'};
-    return unless $self->right;
+    return unless defined $self->right;
     return $self->{'.timestamp'} = $self->right->timestamp;
 }
 
@@ -1793,7 +1793,7 @@ sub add_row {
     } else {
       $_ = $self->new('scalar',$_);
     }
-    $previous->{'.right'} = $_ if $previous;
+    $previous->{'.right'} = $_ if defined $previous;
     $previous = $_;
     $_->{'.right'} = undef; # make sure it doesn't automatically expand!
   }
@@ -1966,10 +1966,10 @@ sub _asTable {
       $$out .= $self->name . "\t";
       if ($self->comment) {
 	$$out .= $self->comment;
-	$$out .= "\n" . "\t" x $level unless $self->down && !$self->right;
+	$$out .= "\n" . "\t" x $level unless $self->down && !defined($self->right);
       }
       $level = $self->right->_asTable($out,$level,$level+1)
-	if $self->right;
+	if defined $self->right;
       $$out .= "\n" if defined($self = $self->down);
       $position = 0;
     } while defined $self;
@@ -2050,7 +2050,7 @@ sub _asAce {
   
   $$out .= join("\t",@$tags) . "\t" if ($level==0) && (@$tags);
   $$out .= $self->escape . "\t";
-  if ($self->right) {
+  if (defined $self->right) {
     push(@$tags,$self->escape);
     $self->right->_asAce($out,$level+1,$tags);
     pop(@$tags);

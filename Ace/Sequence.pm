@@ -343,6 +343,15 @@ sub _get_refseq {
     croak "Source sequence not an Ace::Object or an Ace::Sequence";
   }
 
+  # if requesting a sequence that doesn't have a length, ask
+  # the server to help us out on this.  This is rather a hack
+  if (!$length and !defined($refseq)) {
+    my $gff = $obj->db->raw_query("gif seqget $parent -coords 1 2 ; seqfeatures -version 2 -feature Sequence");
+    my ($start,$end,$orientation) = $gff =~ /(\d+)\t(\d+)\t.\t([+-])\t\.\tSequence\s+"$parent"/m;
+    $offset = $start-1;
+    $length = $end-$start+1;
+  }
+
   if (defined $refseq) {
     my $db = $obj->db;
     $refseq = $db->fetch('Sequence'=>$refseq) unless ref $refseq;

@@ -107,7 +107,8 @@ sub asString {
   ($name) = $name =~ /\"([^\"]+)\"/; # get rid of quote
   my $start = $self->start;
   my $end = $self->end;
-  return "$type:$name/$start-$end";
+  return $self->strand eq '-' ? "$type:$name/$end-$start" 
+                              : "$type:$name/$start-$end";
 #  return "$name:$type [$start-$end]";
 }
 

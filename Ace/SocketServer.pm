@@ -78,7 +78,7 @@ sub query {
 sub read {
   my $self = shift;
   return _error("No pending query") unless $self->status == STATUS_PENDING;
-  return $self->do_encore if $self->encore;
+  return $self->_do_encore if $self->encore;
   # call select() here to time out
   if ($self->{timeout}) {
     my $rdr = '';
