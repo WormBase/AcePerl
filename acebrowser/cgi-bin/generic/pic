@@ -248,12 +248,10 @@ sub print_map {
 		my($db) = $2 ? $1 : 'n';
 		my($gid) = $2 || $1;
 		my $url = NCBI . "?db=$db&form=1&field=Sequence+ID&term=$gid";
-		push(@lines,Area({-shape=>'rect',
-				  -onMouseOver=>"return s(this,'$jcomment')",
-				  -coords=>$coords,
-				  -onClick=>'c()',
-				  -href=>$url,
-			      }));
+                push(@lines,qq(<AREA shape="rect"
+                                     onMouseOver="return s(this,'$jcomment')"
+                                     coords="$coords"
+                                     href="$url">));
 		last CASE;
 	    }
 
@@ -262,24 +260,21 @@ sub print_map {
 	    if ($box->{class} eq 'BUTTON') {
 		my ($c) = map { "$_->[0]-$_->[1]" } [ map { 2+$_ } @{$box->{coordinates}}[0..1]];
 		my $clicks = $old_clicks ? "$old_clicks,$c" : $c;
-		push(@lines,Area({-shape=>'rect',
-				  -coords=>$coords,
-				  -onMouseOver=>"return s(this,'$jcomment')",
-				  -target=>'_self',
-				  -href=>Url('pic',query_string() . "&click=$clicks")
-				  }));
+                my $url = Url('pic',query_string() . "&click=$clicks");
+                push(@lines,qq(<AREA shape="rect"
+                                     coords="$coords"
+                                     onMouseOver="return s(this,'$jcomment')"
+                                     target="_self"
+                                     href="$url">));
 		last CASE;
 	    }
 	    my $n = escape($box->{'name'});
 	    my $c = escape($box->{'class'});
 	    my $href = Object2URL($box->{'name'},$box->{'class'});
-	    push(@lines,Area({-shape=>'rect',
-			      -onMouseOver=>"return s(this,'$jcomment')",
-			      -coords=>$coords,
-			      -onClick=>'c()',
-			      -href=>$href,
-			  }
-			     ));
+            push(@lines,qq(<AREA shape="rect"
+                                 onMouseOver="return s(this,'$jcomment')"
+                                 coords="$coords"
+                                 href="$href">));
 	}
     }
 
@@ -288,12 +283,12 @@ sub print_map {
     my $simple_url = $url;
     $url .= "&click=$old_clicks";
     $url .= "," if $old_clicks;
-    push(@lines,Area({-shape=>'default',
-		      -alt=>'',
-		      -onClick=>"send_click(event,'$url'); return false",
-		      -onMouseOver=>"return s(this,'clickable region')",
-		      -href=>$simple_url})) if $modern;
-    print Map({-name=>'theMap'},join("\n",@lines));
+    push(@lines,qq(<AREA shape="default"
+                         alt=""
+                         onClick="send_click(event,'$url'); return false"
+                         onMouseOver="return s(this,'clickable region')"
+                         href="$simple_url">)) if $modern;
+    print qq(<map name="theMap">),join("\n",@lines),qq(</map>),"\n";
 }
 
 # special case for maps
