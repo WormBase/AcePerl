@@ -3,7 +3,6 @@ AcePerl.h
 Ace.xs
 ChangeLog
 MANIFEST
-Makefile
 Makefile.PL
 test.pl
 typemap

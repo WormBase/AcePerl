@@ -8,9 +8,9 @@
 
 use lib './blib/lib','./blib/arch';
 
-BEGIN {$| = 1; print "1..3\n"; }
+BEGIN {$| = 1; print "1..5\n"; }
 END {print "not ok 1\n" unless $loaded;}
-use AcePerl;
+use Ace;
 $loaded = 1;
 print "ok 1\n";
 
@@ -20,7 +20,12 @@ print "ok 1\n";
 # (correspondingly "not ok 13") depending on the success of chunk 13
 # of the test code):
 
-my $ptr = AcePerl::AceDB->new('localhost',200001,25);
+my $ptr = Ace::AceDB->new('formaggio.cshl.org',200001,25);
 print $ptr ? "ok 2" : "not ok 2","\n";
 my $data = $ptr->query("Find Sequence");
 print $data ? "ok 3" : "not ok 3","\n";
+my $db = Ace->connect(-host=>'formaggio.cshl.org',-port=>200001);
+print $db ? "ok 4" : "not ok 4","\n";
+my $obj = $db->fetch('Sequence','M4');
+print $obj eq 'M4' ? "ok 5" : "not ok 5","\n";
+
