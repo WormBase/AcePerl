@@ -23,6 +23,8 @@ WriteMakefile(
 	            'ZIP'=>'/usr/bin/zip','ZIPFLAGS'=>'-rl'},
 );
 
+exit 0;
+
 # search around for ace and return the location of the lib and include files
 sub find_ace {
   my @roots = qw(. .. ../.. ../../.. /usr/local);
