@@ -161,10 +161,12 @@ sub calculate_boundaries {
 sub filled_box {
   my $self = shift;
   my $gd = shift;
-  my ($x1,$y1,$x2,$y2) = @_;
+  my ($x1,$y1,$x2,$y2,$color) = @_;
+
+  my $fc = defined($color) ? $color : $self->fillcolor;
 
   my $linewidth = $self->option('linewidth') || 1;
-  $gd->filledRectangle($x1,$y1,$x2,$y2,$self->fillcolor);
+  $gd->filledRectangle($x1,$y1,$x2,$y2,$fc);
   $gd->rectangle($x1,$y1,$x2,$y2,$self->fgcolor);
 
   # and fill it
@@ -173,10 +175,10 @@ sub filled_box {
   # if the left end is off the end, then cover over
   # the leftmost line
   my ($width) = $gd->getBounds;
-  $gd->line($x1,$y1,$x1,$y2,$self->fillcolor)
+  $gd->line($x1,$y1,$x1,$y2,$fc)
     if $x1 < 0;
 
-  $gd->line($x2,$y1,$x2,$y2,$self->fillcolor)
+  $gd->line($x2,$y1,$x2,$y2,$fc)
     if $x2 > $width;
 }
 

@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.42 2001/07/25 16:26:27 lstein Exp $
+# $Id: Object.pm,v 1.43 2001/09/08 20:14:57 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -545,7 +545,7 @@ sub _parse {
 
 sub _fromRaw {
   my $pack = shift;
-#  $pack = $pack->factory();
+  $pack = $pack->factory();
 
   my ($raw,$start_row,$col,$end_row,$db) = @_;
   return unless defined $raw->[$start_row][$col];

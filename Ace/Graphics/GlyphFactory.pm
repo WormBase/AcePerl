@@ -14,12 +14,6 @@ sub new {
   my $type    = shift;
   my @options = @_;
 
-  my $glyphclass = 'Ace::Graphics::Glyph';
-  $glyphclass .= "\:\:$type" if $type && $type ne 'generic';
-
-    confess("the requested glyph class, ``$type'' is not available: $@")
-      unless (eval "require $glyphclass");
-
   # normalize options
   my %options;
   while (my($key,$value) = splice (@options,0,2)) {
@@ -32,6 +26,14 @@ sub new {
   $options{height}    ||= 10;
   $options{font}      ||= gdSmallFont;
   $options{fontcolor} ||= 'black';
+
+  $type = $options{glyph} if defined $options{glyph};
+
+  my $glyphclass = 'Ace::Graphics::Glyph';
+  $glyphclass .= "\:\:$type" if $type && $type ne 'generic';
+
+    confess("the requested glyph class, ``$type'' is not available: $@")
+      unless (eval "require $glyphclass");
 
   return bless {
 		glyphclass => $glyphclass,

@@ -23,6 +23,7 @@ Ace/Graphics/Glyph/line.pm
 Ace/Graphics/Glyph/primers.pm
 Ace/Graphics/Glyph/transcript.pm
 Ace/Graphics/Glyph/segments.pm
+Ace/Graphics/Glyph/graded_segments.pm
 Ace/Graphics/Glyph/group.pm
 Ace/Graphics/Glyph/span.pm
 Ace/Graphics/Glyph/triangle.pm

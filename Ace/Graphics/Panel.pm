@@ -259,7 +259,7 @@ sub format_key {
   return $self->{key_height} = ($height+$spacing) * $rows + KEYLABELFONT->height +KEYPADTOP;
 }
 
-# reverse of translate(); given index, return rgb tripler
+# reverse of translate(); given index, return rgb triplet
 sub rgb {
   my $self = shift;
   my $idx  = shift;
@@ -269,6 +269,13 @@ sub rgb {
 
 sub translate {
   my $self = shift;
+
+  if (@_ == 3) { # rgb triplet
+    my $gd = $self->gd or return 1;
+    return $gd->colorClosest(@_);
+  }
+
+  # otherwise...
   my $color = shift;
   if ($color =~ /^\#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})$/i) {
     my $gd = $self->gd or return 1;
@@ -666,6 +673,8 @@ some are shared by all glyphs:
   Option      Description               Default
   ------      -----------               -------
 
+  -glyph      Glyph to use              none
+
   -fgcolor    Foreground color		black
 
   -outlinecolor				black
@@ -718,6 +727,9 @@ The -key argument declares that the track is to be shown in a key
 appended to the bottom of the image.  The key contains a picture of a
 glyph and a label describing what the glyph means.  The label is
 specified in the argument to -key.
+
+If present, the -glyph argument overrides the glyph given in the first
+or second argument.
 
 add_track() returns an Ace::Graphics::Track object.  You can use this
 object to add additional features or to control the appearance of the
