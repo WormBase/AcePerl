@@ -859,7 +859,7 @@ failure to provide required arguments, cause a fatal error.
 
 When retrieving information from an I<Ace::Sequence>, the coordinate
 system is based on the sequence segment selected at object creation
-time.  That is, the "+" strand is the natural direction of the
+time.  That is, the "+1" strand is the natural direction of the
 I<Ace::Sequence> object, and base pair 1 is its first base pair.  This
 behavior can be overridden by providing a reference sequence to the
 new() method, in which case the orientation and position of the
@@ -979,6 +979,13 @@ the sequence length.
   $length = $seq->abslength;
 
 Return the absolute value of the length of the sequence.
+
+=head2 strand()
+
+  $strand = $seq->strand;
+
+Returns +1 for a sequence oriented in the natural direction of the
+genomic reference sequence, or -1 otherwise.
 
 =head2 reversed()
 

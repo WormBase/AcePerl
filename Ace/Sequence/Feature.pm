@@ -20,7 +20,11 @@ sub new {
   my $pack = shift;
   my ($parent,$ref,$r_offset,$r_strand,$gff_line,$db) = @_;
   my ($sourceseq,$method,$type,$start,$end,$score,$strand,$frame,$group) = split "\t",$gff_line;
-  $strand = $strand eq '-' ? '-1' : '+1';
+  if (defined($strand)) {
+    $strand = $strand eq '-' ? '-1' : '+1';
+  } else {
+    $strand = 0;
+  }
 
   # for efficiency/performance, we don't use superclass new() method, but modify directly
   # handling coordinates.  See SCRAPS below for what should be in here
@@ -292,8 +296,8 @@ method returns undef.
 
   $strand = $feature->strand;
 
-Returns the strandedness of this feature, either "+" or "-".  For
-features that are not stranded, returns undef.
+Returns the strandedness of this feature, either "+1" or "-1".  For
+features that are not stranded, returns 0.
 
 =item reversed()
 
