@@ -96,7 +96,10 @@ sub Style {
 sub AceInit   {
   $HEADER = 0;
 
-  %OPEN = map {$_ => 1} split(' ',param('open')) if param('open');
+#  %OPEN = map {$_ => 1} split(' ',param('open')) if param('open');
+  # keeps track of what sections should be open
+  %OPEN = map {$_ => 1} split(' ',param('open'));
+
   return 1 if Configuration();
 
   # if we get here, it is a big NOT FOUND error
