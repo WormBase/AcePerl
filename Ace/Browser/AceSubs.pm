@@ -447,7 +447,7 @@ sub DoRedirect {
 
 # Toggle a subsection open and close
 sub Toggle {
-    my ($section,$label,$count,$noplural,$nocount) = @_;
+    my ($section,$label,$count,$addplural,$addcount) = @_;
     my %open = %OPEN;
 
     $label ||= $section;
@@ -460,13 +460,13 @@ sub Toggle {
 	$open{$section}++;
 	$img =  img({-src=>'/icons/triangle_right.gif',-alt=>'&gt;',
 			-height=>11,-width=>6,-border=>0}),
-	my $plural = ($noplural or $label =~ /s$/) ? $label : "${label}s";
-	$label = font({-class=>'toggle'},$nocount ? $plural : "$count $plural");
+	my $plural = (!$addplural or $label =~ /s$/) ? $label : "${label}s";
+	$label = font({-class=>'toggle'},!$addcount ? $plural : "$count $plural");
     }
     param(-name=>'open',-value=>join(' ',keys %open));
     my $url = url(-absolute=>1,-path_info=>1,-query=>1);
 
-    my $href = a({-href=>"$url#$section",-name=>$section},$img.$label);
+    my $href = a({-href=>"$url#$section",-name=>$section},$img.'&nbsp;'.$label);
     if (wantarray ){
       return ($href,$OPEN{$section})
     } else {
