@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.51 2004/12/01 14:35:33 lstein Exp $
+# $Id: Object.pm,v 1.52 2004/12/01 18:06:34 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -121,6 +121,7 @@ sub newFromText {
   my @array;
   foreach (split("\n",$text)) {
     next unless $_;
+    s/\?txt\?(.*?)\t(.*?)\?/?txt?$1\\t$2?/g;  # hack to fix some txt fields with unescaped tabs
     push(@array,[split("\t")]);
   }
   my $obj = $pack->_fromRaw(\@array,0,0,$#array,$db);

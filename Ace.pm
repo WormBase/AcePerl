@@ -93,8 +93,8 @@ sub connect {
     return;
   }
 
-  my $cache_obj = Cache::SizeAwareFileCache->new($cache)
-    if ($cache && eval "require Cache::SizeAwareFileCache; 1;");
+  my $cache_obj = Cache::FileCache->new($cache)
+    if ($cache && eval "require Cache::FileCache; 1;");
 
   my $contents = {
 		  'database'=> $database,
@@ -263,7 +263,7 @@ sub cache_fetch {
   my $cache = $self->cache or return;
   my $obj   = $cache->get("$class:$name");
   if (DEBUG) {
-     carp "cache ",$obj?'hit':'miss'," on '$class:$name'\n";
+     warn "cache ",$obj?'hit':'miss'," on '$class:$name'\n";
   }
   $obj;
 }
@@ -273,7 +273,7 @@ sub cache_store {
   my $obj = shift;
   my $key = join ':',$obj->class,$obj->name;
   my $cache = $self->cache or return;
-  carp "caching $key obj=",overload::StrVal($obj),"\n";
+  warn "caching $key obj=",overload::StrVal($obj),"\n";
   $cache->set($key,$obj);
 }
 
