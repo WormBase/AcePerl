@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.47 2004/08/16 20:57:10 lstein Exp $
+# $Id: Object.pm,v 1.48 2004/09/22 02:48:32 todd Exp $
 
 use overload 
     '""'       => 'name',
@@ -107,6 +107,7 @@ sub new {
 sub newFromText {
   my ($pack,$text,$db) = @_;
   $pack = ref($pack) if ref($pack);
+
   my @array;
   foreach (split("\n",$text)) {
     next unless $_;
@@ -382,6 +383,7 @@ sub right {
 
   $self->_fill;
   $self->_parse;
+
   return $self->{'.right'} unless defined $pos;
   croak "Position must be positive" unless $pos >= 0;
 
@@ -493,8 +495,10 @@ sub _fill {
     my $self = shift;
     return if $self->filled;
     return unless $self->db && $self->isObject;
+
     my $data = $self->db->pick($self->class,$self->name);
     return unless $data;
+
     my $new = $self->newFromText($data,$self->db);
     %{$self}=%{$new};
 }
@@ -535,6 +539,7 @@ sub _parse {
   }
 
   my $obj_right = $self->_fromRaw($raw,$current_row,$col+1,$self->{'.end_row'},$db);
+
   # comment handling
   if (defined($obj_right)) {
     my ($t,$i);
@@ -557,7 +562,17 @@ sub _fromRaw {
 
   my ($raw,$start_row,$col,$end_row,$db) = @_;
   return unless defined $raw->[$start_row][$col];
-  my ($class,$name,$ts) = Ace->split($raw->[$start_row][$col]);
+
+  # HACK! Some LongText entries may begin with newlines. This is within the Acedb spec.
+  # Let's purge text entries of leading space and format them appropriate.
+  # This should probably be handled in Freesubs.xs / Ace::split
+  my $temp = $raw->[$start_row][$col];
+  if ($temp =~ /^\?txt\?\s*\n*/) {
+    $temp =~ s/^\?txt\?(\s*\\n*)/\?txt\?/;
+    $temp .= '?';
+  }
+  my ($class,$name,$ts) = Ace->split($temp);
+
   my $self = $pack->new($class,$name,$db,!($start_row || $col));
   @{$self}{qw(.raw .start_row .end_row .col db)} = ($raw,$start_row,$end_row,$col,$db);
   $self->{'.timestamp'} = $ts if defined $ts;
