@@ -41,7 +41,7 @@
  *-------------------------------------------------------------------
  */
 
-/* $Id: filsubs.c,v 1.1 2002/11/14 20:00:06 lstein Exp $	 */
+/* $Id: filsubs.c,v 1.2 2002/11/24 19:27:20 lstein Exp $	 */
 
 #include "regular.h"
 #include "mytime.h"
@@ -650,7 +650,7 @@ UTIL_FUNC_DEF Array filDirectoryCreate (char *dirName,
 					char *spec)
 {
   Array a ;
-#if !defined(WIN32)
+#if !defined(WIN32) && !defined(DARWIN)
   DIR	*dirp ;
   char	*dName, *dName_copy, entryPathName[MAXPATHLEN], *leaf ;
   int	dLen, endLen ;

@@ -20,7 +20,7 @@
 
 #if defined(NEXT) || defined(HP) || defined(MACINTOSH) 
 extern void* malloc(mysize_t size) ;
-#elif !defined(WIN32)
+#elif !defined(WIN32) && !defined(DARWIN)
 #include <malloc.h>   /* normal machines  */
 #endif
 
