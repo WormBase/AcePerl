@@ -88,6 +88,7 @@ sub read {
     return _error("Query timed out") unless select($rdr,undef,undef,$self->{timeout});
   }
   my ($msg,$body) = $self->_recv_msg;
+  return unless defined $msg;
   $msg =~ s/\0.+$//;  # socketserver bug workaround: get rid of junk in message
   if ($msg eq ACESERV_MSGOK or $msg eq ACESERV_MSGFAIL) {
     $self->{status}   = STATUS_WAITING;
