@@ -154,7 +154,7 @@ sub filled_arrow {
 
   my ($x1,$y1,$x2,$y2) = @_;
   my ($width) = $gd->getBounds;
-  my $indent = ($y2-$y1)/2;
+  my $indent = ($y2-$y1);
 
   return $self->filled_box($gd,@_)
     if ($orientation == 0)
@@ -169,12 +169,12 @@ sub filled_arrow {
     $gd->line($x2,($y2+$y1)/2,$x2-$indent,$y2,$fg);
     $gd->line($x2-$indent,$y2,$x1,$y2,$fg);
     $gd->line($x1,$y2,$x1,$y1,$fg);
-    $gd->line($x2,$y1,$x2,$y2,$fg);
+#    $gd->line($x2,$y1,$x2,$y2,$fg);
     $gd->fill($x1+1,($y1+$y2)/2,$self->fillcolor);
   } else {
     $gd->line($x1,($y2+$y1)/2,$x1+$indent,$y1,$fg);
     $gd->line($x1+$indent,$y1,$x2,$y1,$fg);
-    $gd->line($x2,$y1,$x2,$y2,$fg);
+#    $gd->line($x2,$y1,$x2,$y2,$fg);
     $gd->line($x2,$y2,$x1+$indent,$y2,$fg);
     $gd->line($x1+$indent,$y2,$x1,($y1+$y2)/2,$fg);
     $gd->line($x1,$y1,$x1,$y2,$fg);

@@ -81,6 +81,7 @@ sub AceSearchMenuBar {
   my $quovadis = url(-absolute=>1,-path=>1);
   my @searches = Configuration->searches;
   return unless @searches;
+  my $bgcolor = Configuration->Search_menubar_bg || "#eeeeff";
 
   my @cells;
   my ($url,$home) = @{Configuration->Home} if Configuration->Home;
@@ -99,7 +100,7 @@ sub AceSearchMenuBar {
 	    Configuration->searches($page));
   }
   return 
-    table({-border=>0,-bgcolor=>"#eeeeff",-width=>'100%',-class=>'search',-cellpadding=>0, -cellspacing=>0, -height=>20},
+    table({-border=>0,-bgcolor=>$bgcolor,-width=>'100%',-cellpadding=>0, -cellspacing=>0, -height=>20},
 	  TR({-class=>'search',-align=>'CENTER'},td({-class=>'search'},\@cells)));
 }
 
