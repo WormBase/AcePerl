@@ -51,8 +51,8 @@ sub length    { shift->factory->length      }
 # dictated by the factory, and then adjust if needed
 sub height   {
   my $self = shift;
-  return $self->{cache_height} if defined $self->{cache_height};
-  return $self->{cache_height} = $self->calculate_height;
+  $self->{cache_height} = $self->calculate_height unless exists$self->{cache_height};
+  return $self->{cache_height};
 }
 
 sub calculate_height {
@@ -75,13 +75,13 @@ sub top    { shift->{top}                 }
 sub bottom { my $s = shift; $s->top + $s->height   }
 sub left {
   my $self = shift;
-  return $self->{left} + $self->{cache_left} if defined $self->{cache_left};
-  return $self->{left} + ($self->{cache_left} = $self->calculate_left);
+  $self->{cache_left} = $self->calculate_left unless exists $self->{cache_left};
+  return $self->{left} + $self->{cache_left};
 }
 sub right {
   my $self = shift;
-  return $self->{left} + $self->{cache_right} if defined $self->{cache_right};
-  return $self->{left} + ($self->{cache_right} = $self->calculate_right);
+  $self->{cache_right} = $self->calculate_right unless exists $self->{cache_right};
+  return $self->{left} + $self->{cache_right};
 }
 
 sub calculate_left {

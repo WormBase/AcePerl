@@ -100,7 +100,7 @@ sub option {
 # expressed as GD color indices
 sub _fgcolor {
   my $self = shift;
-  my $c = $self->option('fgcolor',@_) || $self->option('outlinecolor',@_);
+  my $c = $self->option('color',@_) || $self->option('fgcolor',@_) || $self->option('outlinecolor',@_);
   $self->translate($c);
 }
 

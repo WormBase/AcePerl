@@ -346,8 +346,9 @@ sub features {
     }
     push @features,$self->_make_clones(\@features)      if $types{'clone'};
     if ($types{'similarity'}) {
-      push @features,$self->_make_alignments(\@features);
+      my @f = $self->_make_alignments(\@features);
       @features = grep {$_->type ne 'similarity'} @features;
+      push @features,@f;
     }
   }
 

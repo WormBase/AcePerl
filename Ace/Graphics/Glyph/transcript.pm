@@ -119,12 +119,13 @@ sub draw {
     # draw little arrows to indicate direction of transcription
     # plus strand is to the right
     my $a2 = ARROW/2;
-    my $s = $left + $self->map_pt($self->feature->end);
     if ($self->feature->strand > 0) {
+      my $s = $exon_boxes[-1][1];
       $gd->line($s,$center,$s + ARROW,$center,$fg);
       $gd->line($s+ARROW,$center,$s+$a2,$center-$a2,$fg);
       $gd->line($s+ARROW,$center,$s+$a2,$center+$a2,$fg);
     } else {
+      my $s = $exon_boxes[0][0];
       $gd->line($s,$center,$s - ARROW,$center,$fg);
       $gd->line($s - ARROW,$center,$s-$a2,$center-$a2,$fg);
       $gd->line($s - ARROW,$center,$s-$a2,$center+$a2,$fg);

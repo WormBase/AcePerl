@@ -137,6 +137,8 @@ sub keyglyph {
 				       -name => $self->option('key'),
 				       -strand => '+1');
   my $factory = $self->factory->clone;
+  $factory->scale($self->scale);
+  $factory->width($self->width);
   $factory->option(label=>1);  # turn on labels
   return $factory->glyph($feature);
 }
@@ -146,6 +148,7 @@ sub draw {
   my $self = shift;
   my ($gd,$left,$top) = @_;
   $top  += 0;  $left += 0;
+  my $glyphs = $self->layout;
 
   # draw background
   my $bgcolor = $self->factory->bgcolor;
@@ -158,7 +161,6 @@ sub draw {
     $gd->string($font,$x,$y,$label,$self->factory->fontcolor);
   }
 
-  my $glyphs = $self->layout;
   $_->draw($gd,$left,$top) foreach @$glyphs;
 
   if ($self->factory->option('connectgroups')) {
