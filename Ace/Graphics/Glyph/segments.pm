@@ -54,7 +54,7 @@ sub draw {
 
   for (my $i=0; $i < @segments; $i++) {
     my ($start,$stop) = ($left + $self->map_pt($segments[$i]->start),
-			 $left + $self->map_pt($segments[$i]->stop));
+			 $left + $self->map_pt($segments[$i]->end));
 
     # probably unnecessary, but we do it out of paranaoia
     ($start,$stop) = ($stop,$start) if $start > $stop;
@@ -63,7 +63,7 @@ sub draw {
 
     if (my $next_segment = $segments[$i+1]) {
       my ($next_start,$next_stop) = ($left + $self->map_pt($next_segment->start),
-				     $left + $self->map_pt($next_segment->stop));
+				     $left + $self->map_pt($next_segment->end));
       # probably unnecessary, but we do it out of paranaoia
       ($next_start,$next_stop) = ($next_stop,$next_start) if $next_start > $next_stop;
 

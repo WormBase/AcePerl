@@ -85,7 +85,7 @@ sub draw {
   # fill in missing introns
   my (%istart,@intron_boxes,@implied_introns,@exon_boxes);
   foreach (@introns) {
-    my ($start,$stop) = ($_->start,$_->stop);
+    my ($start,$stop) = ($_->start,$_->end);
     ($start,$stop) = ($stop,$start) if $start > $stop;
     $istart{$start}++;
     my $color = $_->source_tag eq 'curated' ? $curated_intron : $fg;
@@ -93,7 +93,7 @@ sub draw {
   }
 
   for (my $i=0; $i < @exons; $i++) {
-    my ($start,$stop) = ($exons[$i]->start,$exons[$i]->stop);
+    my ($start,$stop) = ($exons[$i]->start,$exons[$i]->end);
     ($start,$stop) = ($stop,$start) if $start > $stop;
     my $color = $exons[$i]->source_tag eq 'curated' ? $curated_exon : $fill;
 
@@ -101,8 +101,8 @@ sub draw {
 
     next unless my $next_exon = $exons[$i+1];
 
-    my $next_start = $next_exon->start < $next_exon->stop ?
-      $next_exon->start : $next_exon->stop;
+    my $next_start = $next_exon->start < $next_exon->end ?
+      $next_exon->start : $next_exon->end;
 
     my $next_start_pos = $left + $self->map_pt($next_start);
     # fudge boxes that are within two pixels of each other
