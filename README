@@ -29,13 +29,14 @@ highly recommended that you use it if you are not already reliant on
 an earlier version of the server.  This release of AcePerl fully
 supports the new socket interface.
 
-This advice only applies to the aceserver, gifaceserver and tace
+This advice only applies to the aceserver, sgifaceserver and tace
 applications.  You may use older versions of the graphical xace
 application freely, as this does not interact with AcePerl.
 
 If you wish to use AcePerl in a client-server fashion, you must get
-gifaceserver up and running.  Some hints on installing the
-gifaceserver application are given later in this README.
+sgifaceserver (or the older gifaceserver) up and running.  Some hints
+on installing the sgifaceserver application are given later in this
+README.
 
 Follow these steps to unpack, build and install AcePerl:
 
