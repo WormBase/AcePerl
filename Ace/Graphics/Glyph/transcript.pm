@@ -139,7 +139,7 @@ sub draw {
   my $draw_arrow = $self->option('draw_arrow');
   $draw_arrow = 1 unless defined $draw_arrow;
 
-  if ($draw_arrow) {
+  if ($draw_arrow && @exon_boxes) {
     # draw little arrows to indicate direction of transcription
     # plus strand is to the right
     my $a2 = ARROW/2;
