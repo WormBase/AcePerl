@@ -87,7 +87,7 @@ sub width {
 sub scale_to_segment {
   my $self = shift;
   my ($segment,$desired_width) = @_;
-  $self->set_scale($segment->length,$desired_width);
+  $self->set_scale(abs($segment->length),$desired_width);
 }
 
 sub set_scale {

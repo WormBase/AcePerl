@@ -92,7 +92,13 @@ sub displays {
   return keys %$d unless defined $_[0];
   my $type = ucfirst(lc($_[0]));
   return  unless exists $d->{$type};
-  return wantarray ? @{$d->{$type}} : $d->{$type};
+  my $value = $d->{$type};
+  if (ref $value eq 'CODE') { # oh, wow, a subroutine
+    my @v = $value->();  # invoke to get list of displays
+    return wantarray ? @v : \@v;
+  } else {
+    return  wantarray ? @{$value} : $value;
+  }
 }
 
 sub class2displays {

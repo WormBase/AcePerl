@@ -46,10 +46,10 @@ sub Footer {
   my $name = Configuration->Name;
 
   # set up the feedback link
-  my $feedback_link = Configuration->Feedback_recipients && 
-      $obj_name && 
+  my $feedback_link = Configuration->Feedback_recipients &&
+      $obj_name &&
 	  (url(-relative=>1) ne 'feedback') ?
-    a({-href=>ResolveUrl("misc/feedback/$name","name=$obj_name&class=$obj_class&referer=$referer")},
+    a({-href=>ResolveUrl("misc/feedback/$name","name=$obj_name;class=$obj_class;referer=$referer")},
       "Click here to send data or comments to the maintainers")
       : '';
 
@@ -203,7 +203,7 @@ sub AceMultipleChoices {
       p("Automatically transforming this query into a request for corresponding object",
 	     a({-href => Object2URL($objects->[0])},$objects->[0]->class.':',$objects->[0])),
       p("Please wait..."),
-      FOOTER(),
+      Footer(),
       end_html();
     return;
   }
@@ -263,7 +263,7 @@ sub ResolveUrl {
 
     $main .= "?$query" if $query; # put the query string back
     $main .= "?$param" if $param and !$query;
-    $main .= "&$param" if $param and  $query;
+    $main .= ";$param" if $param and  $query;
     $main .= "#$frag" if $frag;
     return $main;
 }
@@ -411,7 +411,7 @@ sub TypeSelector {
     foreach (@displays,@basic_displays) {
  	my ($url,$icon,$label) = @{$_}{qw/url icon label/};
 	next unless $url;
-	my $u = ResolveUrl($url,"name=$n&class=$c");
+	my $u = ResolveUrl($url,"name=$n;class=$c");
 	$url =~ s/\#.*$//;
 
 	my $active = $url =~ /^$display/;

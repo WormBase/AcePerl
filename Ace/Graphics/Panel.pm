@@ -138,7 +138,7 @@ sub _add_track {
 
   $features = [$features] unless ref $features eq 'ARRAY';
   my $track  = Ace::Graphics::Track->new($glyph_type,$features,@options);
-  $track->set_scale($self->length,$self->{width});
+  $track->set_scale(abs($self->length),$self->{width});
   $track->panel($self);
   if ($direction >= 0) {
     push @{$self->{tracks}},$track;
