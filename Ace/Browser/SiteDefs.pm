@@ -159,6 +159,7 @@ sub resolvePath {
   if (exists $ENV{MOD_PERL}) {
     my $r    = Apache->request;
     if (my $root = $r->dir_config('AceBrowserRoot')) {
+      $file ||= '';
       return $CACHED{$file,$r->filename} if exists $CACHED{$file,$r->filename};
       return $CACHED{$file,$r->filename} = "$root/$file";
     }

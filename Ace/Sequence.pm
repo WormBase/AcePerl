@@ -26,6 +26,10 @@ use overload
 *source_tag = \&subtype;
 *primary_tag = \&type;
 
+my %plusminus = (	 '+' => '-',
+		 '-' => '+',
+		 '.' => '.');
+
 # internal keys
 #    parent    => reference Sequence in "+" strand
 #    p_offset  => our start in the parent
@@ -509,7 +513,8 @@ sub transformGFF {
     return;
   } else {  # strand eq '-'
     my $o = defined($ref_offset) ? (2 + $ref_offset) : (2 + $self->p_offset - $self->offset);
-    $$gff =~ s/(?<!\")\s+(-?\d+)\s+(-?\d+)\s+([.\d]+)\s+(\S)/join "\t",'',$o-$2,$o-$1,$3,$4 eq '+'? '-' : '+'/eg;    
+    $$gff =~ s/(?<!\")\s+(-?\d+)\s+(-?\d+)\s+([.\d]+)\s+(\S)/join "\t",'',$o-$2,$o-$1,$3,$plusminus{$4}/eg;
+    $$gff =~ s/(Target \"[^\"]+\" )(-?\d+) (-?\d+)/$1 $3 $2/g;
     $$gff =~ s/^$parent/$source/mg;
     $$gff =~ s/\#\#sequence-region\s+\S+\s+(-?\d+)\s+(-?\d+)/"##sequence-region $ref_source " . ($o - $2) . ' ' . ($o - $1) . ' (reversed)'/em;
     $$gff =~ s/FMAP_FEATURES\s+"\S+"\s+(-?\d+)\s+(-?\d+)/"FMAP_FEATURES \"$ref_source\" " . ($o - $2) . ' ' . ($o - $1) . ' (reversed)'/em;

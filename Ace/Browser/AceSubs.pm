@@ -253,7 +253,8 @@ sub getDatabasePorts {
 
 sub ResolveUrl {
     my ($url,$param) = @_;
-    my ($main,$query,$frag) = $url =~ /^([^?\#]+)\??([^\#]*)\#?(.*)$/;
+    my ($main,$query,$frag) = $url =~ /^([^?\#]+)\??([^\#]*)\#?(.*)$/ if defined $url;
+    $main ||= '';
 
     # search is relative to the Ace::Browser::SiteDefs.pm file
     $main = Ace::Browser::SiteDefs->resolvePath($main) unless $main =~ m!^/!;
