@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp qw(:DEFAULT cluck);
 
-# $Id: Object.pm,v 1.54 2005/01/16 21:40:58 lstein Exp $
+# $Id: Object.pm,v 1.55 2005/01/17 01:32:46 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -88,6 +88,7 @@ sub AUTOLOAD {
 
 sub DESTROY {
   my $self = shift;
+  return unless defined $self->{class};      # avoid working with temp objects from a search()
   return if caller() =~ /^(Cache\:\:|DB)/;  # prevent recursion in FileCache code
   my $db = $self->db or return;
   return if $self->{'.nocache'};

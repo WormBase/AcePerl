@@ -301,6 +301,9 @@ sub file_cache_store {
 
 #  carp "caching $key obj=",overload::StrVal($obj),"\n" if Ace->debug;
   warn "caching $key obj=",overload::StrVal($obj),"\n";
+  if ($key eq ':') {  # something badly wrong
+    cluck "NULL OBJECT";
+  }
   $cache->set($key,$obj);
 }
 
