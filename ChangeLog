@@ -1,3 +1,5 @@
+1.53	1/23/99
+	1. Bug fix in Ace::find function.  Was causing a crash.
 1.52	1/21/99
 	1. Fixed bad bug in the kill method which caused objects
 	to be removed from the database seemingly randomly.
