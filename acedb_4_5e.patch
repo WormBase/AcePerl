@@ -1,0 +1,121 @@
+Index: w1/timesubs.c
+===================================================================
+RCS file: /usr/local/cvs_repository/ace/w1/timesubs.c,v
+retrieving revision 1.1
+retrieving revision 1.2
+diff -c -r1.1 -r1.2
+*** timesubs.c	1998/02/17 17:13:58	1.1
+--- timesubs.c	1998/02/17 17:19:12	1.2
+***************
+*** 201,206 ****
+--- 201,213 ----
+        tm->tm_sec = secs -1;
+      }
+    tm->tm_isdst = -1;
++ 
++   /* 
++    * strftime() was crashing under various circumstances.  These
++    * lines force tm to be internally consistent - LS 2/17/98 
++    */
++   tm->tm_wday = tm->tm_yday = 0;
++   mktime(tm);
+  }
+  
+  mytime_t timeNow(void)
+Index: wmake/LINUX_4_OPT_DEF
+===================================================================
+RCS file: /usr/local/cvs_repository/ace/wmake/LINUX_4_OPT_DEF,v
+retrieving revision 1.1
+retrieving revision 1.2
+diff -c -r1.1 -r1.2
+*** LINUX_4_OPT_DEF	1998/02/17 17:14:02	1.1
+--- LINUX_4_OPT_DEF	1998/02/17 17:19:43	1.2
+***************
+*** 20,25 ****
+--- 20,26 ----
+  LINKER = gcc
+  
+  LIBS = -lm
++ Xt_LIBS = -L/usr/X11R6/lib -lXaw -lXt -lXmu -lXext -lX11
+  
+  #################################################################
+  #################################################################
+Index: wmake/makefile
+===================================================================
+RCS file: /usr/local/cvs_repository/ace/wmake/makefile,v
+retrieving revision 1.1
+diff -c -r1.1 makefile
+*** makefile	1998/02/17 17:14:02	1.1
+--- makefile	1998/02/18 22:32:18
+***************
+*** 4,10 ****
+  #  MAKE = /usr/local/bin/gmake
+  #  /bin/make does not exist on solaris !
+  
+! .SILENT:
+  
+  # Suppress auto SCCS extraction.
+  .SCCS_GET:
+--- 4,11 ----
+  #  MAKE = /usr/local/bin/gmake
+  #  /bin/make does not exist on solaris !
+  
+! # I want to see what's happening!  LS 2/17/98
+! # .SILENT:
+  
+  # Suppress auto SCCS extraction.
+  .SCCS_GET:
+***************
+*** 20,26 ****
+  		homonym gnbk gnbkclient \
+  		aceserver gifaceserver jadeserver tqp \
+  		jade2sybase jade2ace \
+! 		libacecl.a aceclient  xaceclient synace: bin-dir
+  	echo 'making' $@ 'for $(ACEDB_MACHINE)'
+  	cd bin.$(ACEDB_MACHINE) ; \
+  	cp ../wmake/truemake ./makefile ; \
+--- 21,27 ----
+  		homonym gnbk gnbkclient \
+  		aceserver gifaceserver jadeserver tqp \
+  		jade2sybase jade2ace \
+! 		libacecl.a libace.a aceclient  xaceclient synace: bin-dir
+  	echo 'making' $@ 'for $(ACEDB_MACHINE)'
+  	cd bin.$(ACEDB_MACHINE) ; \
+  	cp ../wmake/truemake ./makefile ; \
+Index: wmake/truemake
+===================================================================
+RCS file: /usr/local/cvs_repository/ace/wmake/truemake,v
+retrieving revision 1.1
+diff -c -r1.1 truemake
+*** truemake	1998/02/17 17:14:02	1.1
+--- truemake	1998/02/26 21:11:14
+***************
+*** 340,346 ****
+  other:\
+  	acediffsorted giface xaceclient \
+  	tacembly xacembly gnbk \
+! 	libfree.a libgraph.a libacecl.a
+  
+  # Other things you might want to make...
+  # acediffsorted giface xaceclient 
+--- 340,346 ----
+  other:\
+  	acediffsorted giface xaceclient \
+  	tacembly xacembly gnbk \
+! 	libfree.a libgraph.a libacecl.a libace.a
+  
+  # Other things you might want to make...
+  # acediffsorted giface xaceclient 
+***************
+*** 445,450 ****
+--- 445,454 ----
+  libacecl.a: aceclientlib.o rpcace_clnt.o rpcace_xdr.o
+  	ar $(AR_OPTIONS) libacecl.a $?
+  	if ( $(RANLIB_NEEDED) ) then ranlib libacecl.a; fi
++ 
++ libace.a: $(CLEAN_OBJS)
++ 	ar $(AR_OPTIONS) libace.a $?
++ 	if ( $(RANLIB_NEEDED) ) then ranlib $@; fi
+  
+  #### graphical ACEDB programs #########
+  

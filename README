@@ -1,0 +1,75 @@
+This is version 0.50 of AcePerl, a Perl interface for the ACEDB
+object-oriented database.  The code is currently in alpha stage, which
+means the interface may change without warning.  Beware!
+
+INSTALLATION:
+
+You will need ACEDB 4.5e or higher.  If you are using a stock 4.5e
+distribution you will need to apply a small patch that fixes a minor
+bug on Linux systems, and adds two new targets to the makefile,
+"libacecl.a" and "libace.a".  These two library files are needed to
+compile AcePerl.  The patch is contained in the file acedb_4_5e.patch.
+
+In the instructions that follow, the variable $ACEDB means the ACEDB
+build directory, and $ACEPERL means the AcePerl directory (the
+directory this file is located in.)
+
+A. Build and install the ace libraries and header file:
+  1. cd $ACEDB
+  2. patch < $ACEPERL/acedb_4_5e.patch
+  3. setenv ACEDB_MACHINE <<your machine architecture>>
+  4. make libacecl.a libace.a
+  5. cp bin.<<your machine architecture>>/libace*.a /usr/local/lib
+  6. cp wh/aceclient.h /usr/local/include
+
+B. Building AcePerl
+  1. cd $ACEPERL
+  2. perl Makefile.PL
+     You will be prompted for the location of the ace library and
+     header files. Enter the path to the directories in which they 
+     can be found (/usr/local/lib  and /usr/local/include if you 
+     followed the recipe above).
+  3. make
+  4. make test (optional, see below)
+  5. make install
+
+You may "make test" if you like, but it currently is hard-wired to
+open an acedb database on formaggio.cshl.org.  Since this port is not
+open to the Internet, you can expect all but test 1 to fail.
+
+C. Read the copious documentation
+   1. perldoc Ace
+
+D. Install an Ace server, if you haven't already.  
+
+Here's my configuration:
+
+* /etc/rpc: 
+... lots of existing entries...
+stlace4		200001
+
+* /etc/inetd.conf:
+... lots of existing entries...
+stlace4/1  stream  rpc/tcp wait acedb  /usr/local/bin/aceserver 
+        aceserver /local/db/wustl 200001 1200:1200:0
+
+The line has been wrapped to fit on the page.  All inetd.conf entries
+should be on a single line.  Replace /usr/local/bin/aceserver with the 
+location of your aceserver binary, and /local/db/wustl with the
+location of your ACE database.  
+
+You may need to kill the inetd daemon completely and restart it in
+order to have the server come up correctly the first time.  At least I 
+did.  After that it will come up whenever it is needed.  Don't worry
+too much about picking the timeouts.  My version of portmapper is kind 
+enough to keep the aceserver running at all times -- yours probably
+will too.
+
+You'll find some test scripts in misc_tests.  None will work
+unmodified on your system because they were designed for a particular
+database on my development machine.
+
+Lincoln Stein
+lstein@cshl.org
+
+February 26, 1998

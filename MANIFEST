@@ -3,6 +3,14 @@ AcePerl.h
 Ace.xs
 ChangeLog
 MANIFEST
+README
 Makefile.PL
 test.pl
 typemap
+mist_tests/test2.pl
+mist_tests/test3.pl
+mist_tests/test5.pl
+mist_tests/test6.pl
+mist_tests/test7.pl
+
+
