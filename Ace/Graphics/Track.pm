@@ -4,6 +4,7 @@ package Ace::Graphics::Track;
 # the Ace::Graphics::Glyph class (eek!).
 
 use Ace::Graphics::GlyphFactory;
+use Ace::Graphics::Fk;
 use GD;  # maybe
 use Carp 'croak';
 use vars '$AUTOLOAD';
@@ -124,6 +125,22 @@ sub boxes {
   return wantarray ? @result : \@result;
 }
 
+# synthesize a key glyph
+sub keyglyph {
+  my $self = shift;
+  my $scale = 1/$self->scale;  # base pairs/pixel
+  # two segments, at pixels 0->50, 60->80
+  my $offset = $self->offset;
+  my $feature = Ace::Graphics::Fk->new(-segments=>[ [0+$offset,  50*$scale+$offset],
+						    [60*$scale+$offset, 80*$scale+$offset]
+						    ],
+				       -name => $self->option('keytrack'),
+				       -strand => '+1');
+  my $factory = $self->factory;
+  $factory->option(label=>1);  # turn on labels
+  return $factory->glyph($feature);
+}
+
 # draw glyphs onto a GD object at the indicated position
 sub draw {
   my $self = shift;
@@ -221,6 +238,7 @@ sub glyphs { shift->{glyphs} }
 # height is determined by the layout, and cannot be externally controlled
 sub height {
   my $self = shift;
+  return $self->{cache_height} if defined $self->{cache_height};
 
   $self->layout;
   my $glyphs = $self->{glyphs} or croak "Can't lay out";
@@ -229,7 +247,7 @@ sub height {
   my ($topmost)    = sort { $a->top    <=> $b->top }    @$glyphs;
   my ($bottommost) = sort { $b->bottom <=> $a->bottom } @$glyphs;
 
-  return $bottommost->bottom - $topmost->top;
+  return $self->{cache_height} = $bottommost->bottom - $topmost->top;
 }
 
 sub make_factory {

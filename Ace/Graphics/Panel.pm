@@ -5,6 +5,8 @@ use Ace::Graphics::Track;
 use GD;
 use Carp 'croak';
 use strict;
+use constant KEYSPACING => 20;
+use constant KEYCOLOR   => 'cornsilk';
 
 *push_track = \&add_track;
 
@@ -137,6 +139,7 @@ sub _add_track {
   } else {
     unshift @{$self->{tracks}},$track;
   }
+
   return $track;
 }
 
@@ -173,7 +176,39 @@ sub gd {
     $offset += $track->height + $self->spacing;
   }
 
+  $self->draw_key($gd);
   return $self->{gd} = $gd;
+}
+
+# this is very crude and should be replaced by something
+# that does better formatting
+sub draw_key {
+  my $self = shift;
+  my $gd = shift;
+
+  my $height = 0;
+  my %tracks;
+
+  for my $track (@{$self->{tracks}}) {
+    next unless $track->option('keytrack');
+    my $glyph = $track->keyglyph;
+    $tracks{$track} = $glyph;
+    $height = $glyph->height > $height ? $glyph->height : $height;
+  }
+
+  my $top  = $self->height - $height;  # move to the pad bottom area
+  my $left = 0;
+
+  my $color = $self->translate(KEYCOLOR);
+  $gd->filledRectangle($left,$self->height-$self->pad_bottom,$self->width,$self->height,$color);
+  $gd->string(gdSmallFont,$left,$self->height-$self->pad_bottom,"KEY:",1);
+
+  for my $track (@{$self->{tracks}}) {
+    my $glyph = $tracks{$track} || next;
+    $glyph->draw($gd,$left,$top);
+    $left += $glyph->right + KEYSPACING;
+  }
+
 }
 
 # reverse of translate(); given index, return rgb tripler

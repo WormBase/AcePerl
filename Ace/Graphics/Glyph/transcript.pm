@@ -147,7 +147,7 @@ sub draw {
 sub description {
   my $self = shift;
   my $t = $self->feature->info;
-  return $t unless ref $t;
+  return unless ref $t;
 
   my $id = $t->Brief_identification;
   my $comment = $t->Locus;

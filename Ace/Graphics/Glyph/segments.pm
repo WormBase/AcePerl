@@ -34,7 +34,7 @@ sub draw {
     @segments = $f->merged_segments;
 
   } elsif ($f->can('segments')) {
-    @segments = $f->feature->segments;
+    @segments = $f->segments;
 
   } elsif ($f->can('sub_SeqFeature')) {
     @segments = $f->sub_SeqFeature;
