@@ -5,7 +5,6 @@
 # do an internal redirect to show the model for selected object
 
 use strict;
-use Apache;
 use CGI qw(:standard escape);
 use Ace::Browser::AceSubs;
 use Ace::Browser::TreeSubs;

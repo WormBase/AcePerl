@@ -162,7 +162,7 @@ sub display_object {
   umask 002;  # want this writable by group
   my ($pic,$picroot) = @{Configuration()->Pictures};
 
-  if ($ENV{MOD_PERL}) { # we have apache, so no reason not to take advantage of it
+  if ($ENV{MOD_PERL} && Apache->can('request')) { # we have apache, so no reason not to take advantage of it
     my $r = Apache->request;
     my $subr = $r->lookup_uri($pic ."/");
     $picroot = $subr->filename if $subr;
