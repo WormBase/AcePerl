@@ -1,6 +1,7 @@
-This is version 1.XX of AcePerl, a Perl interface for the ACEDB
-object-oriented database.  The code is currently in alpha stage, which
-means the interface may change without warning.  Beware!
+This is version 1.38 of AcePerl, a Perl interface for the ACEDB
+object-oriented database.  The code is currently in beta stage, which
+means the interface will not change.  However, it may still contain
+bugs.
 
 See the ChangeLog for important notices, including user interfaces
 changes.
@@ -8,10 +9,11 @@ changes.
 INSTALLATION:
 
 You will need ACEDB 4.5e or higher.  If you are using a stock 4.5e
-distribution you will need to apply a small patch that fixes a minor
-bug on Linux systems, and adds two new targets to the makefile,
-"libacecl.a" and "libace.a".  These two library files are needed to
-compile AcePerl.  The patch is contained in the file acedb_4_5e.patch.
+distribution you will need to apply a patchfile that fixes a number of
+bugs, enhances the GIF generating facilities, and adds two new targets
+to the makefile, "libacecl.a" and "libace.a".  These two library files
+are needed to compile AcePerl.  The patch is contained in the file
+acedb_4_5e.patch.
 
 In the instructions that follow, the variable $ACEDB means the ACEDB
 build directory, and $ACEPERL means the AcePerl directory (the
@@ -19,11 +21,14 @@ directory this file is located in.)  This is for simplification of the
 instructions only.  You do not need to create environment variables
 with these names.
 
+
 A. Build and install the ace libraries and header file:
   1. cd $ACEDB
   2. patch -p0 < $ACEPERL/acedb_4_5e.patch
-  3. setenv ACEDB_MACHINE <<your machine architecture>>
-  4. make libacecl.a libace.a
+  3. ln -s wmake/makefile makefile
+  4. setenv ACEDB_MACHINE <<your machine architecture>>
+  5. make libacecl.a libace.a
+
 
 B. Building AcePerl
   1. cd $ACEPERL
@@ -42,7 +47,8 @@ connection to a database at beta.crbm.cnrs-mop.fr:20000100.  You may
 change these defaults by setting the environment variables ACEDB_HOST
 and ACEDB_PORT.  However, since some of the tests are dependent on
 specific values in the database, this may cause some tests to fail.
-Do not be alarmed.
+Do not be alarmed if a handful of tests fail.  Do be alarmed if all of
+the tests fail.
 
 You may need to be root (superuser) in order to "make install".  This
 is because Perl will want to install the newly-built files into its
@@ -56,14 +62,11 @@ keeping with the Ace build strategy, when AcePerl is built in context
 with ACEDB, its library files are installed in
 $ACEDB/bin.<<architecture>>.  To use AcePerl within your scripts, you
 will have to tell your scripts where they can find the library files,
-or move these files to the main Perl library tree.  See section (D)
+or move these files to the main Perl library tree.  See section (E)
 for the details.
 
-C. Read the copious documentation
-   
-   perldoc Ace
 
-D. Installing AcePerl in a non-standard location
+C. Installing AcePerl in a non-standard location
 
 By default, Perl will install AcePerl's library files within the
 site-specific subdirectory of its library tree, usually
@@ -105,40 +108,60 @@ Or you could reinstall AcePerl in the main Perl library tree just by
 entering the wperl/ subdirectory, and rerunning "perl Makefile.PL"
 without defining INSTALLSITELIB.
 
-E. Install an Ace server, if you haven't already.  
+
+D. Install an Ace server, if you haven't already.  
 
 Here's my configuration:
 
 * /etc/rpc: 
 ... lots of existing entries...
-stlace4		200001
+elegans		200005
 
 * /etc/inetd.conf:
 ... lots of existing entries...
-stlace4/1  stream  rpc/tcp wait acedb  /usr/local/bin/aceserver 
-        aceserver /local/db/wustl 200001 1200:1200:0
+elegans/1  stream  rpc/tcp wait acedb  /usr/local/bin/gifaceserver 
+        aceserver /local/db/elegans 200005 1200:1200:0
 
 The line has been wrapped to fit on the page.  All inetd.conf entries
-should be on a single line.  Replace /usr/local/bin/aceserver with the 
-location of your aceserver binary, and /local/db/wustl with the
-location of your ACE database.  
+should be on a single line.  Replace /usr/local/bin/gifaceserver with
+the location of your aceserver binary, and /local/db/elegans with the
+location of your ACE database.
 
 You may need to kill the inetd daemon completely and restart it in
-order to have the server come up correctly the first time.  At least I 
-did.  After that it will come up whenever it is needed.  Don't worry
-too much about picking the timeouts.  My version of portmapper is kind 
-enough to keep the aceserver running at all times -- yours probably
-will too.
+order to have the server come up correctly the first time.  At least I
+did.  After that it will come up whenever it is needed and exit after
+it has idled for the timeout period specified on the command line.
+Earlier versions of aceserver had problems with the so-called "phoenix
+effect" on certain platforms, a phenonemon which caused the server to
+be immediately relaunched after exiting, but the patchfile contains a
+fix for that problem.
 
-The examples/ subdirectory contains some example scripts that fetch
-data from a database in France.  You'll also find there a program
-called "ace.pl" which sets up a small command shell for interacting
-with an ace server.  If you have Perl readline installed, you even get 
-the benefits of command-line editing and command completion!
 
+USING ACEPERL
+
+A. Read the copious documentation
+   
+   perldoc Ace
+
+
+B. Review the examples
+
+A few useful examples can be found in the "examples" subdirectory.
+Among these is a script called "ace.pl", which implements a tace-like
+interface to a local or remote ace database.  If you have the Perl
+Term::readline module installed, it gives you command-line editing,
+completion, and history.
+
+There is also family of CGI scripts that run on top of AcePerl to give
+a WebAce-like interface to Ace (it is not as feature-full as WebAce,
+but it is probably easier to set up and run).  You can find the
+package at this URL:
+
+  http://stein.cshl.org/AcePerl/AceBrowser
+	
 
 Lincoln Stein
 lstein@cshl.org
 
-June 6, 1998
+July 2, 1998
 

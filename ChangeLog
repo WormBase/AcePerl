@@ -1,3 +1,10 @@
+1.38	1. list() is now deprecated.  Use fetch() instead
+	2. grep() method added
+	3. -total parameter added to fetch() grep() and find()
+	4. ace.pl added to exampe directory
+	5. new patch file adds a few essential bug fixes to ace 4_5e.
+	6. asGIF() method is now documented
+	
 1.37    1. Added timestamp and comment handling.
 	2. Added -filled and -chunksize arguments to fetch_many().
 	3. Quashed a bug in list(-filled).

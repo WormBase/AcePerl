@@ -23,7 +23,7 @@ require DynaLoader;
 @EXPORT_OK = qw(
 		rearrange
 		);
-$VERSION = '1.36';
+$VERSION = '1.38';
 
 sub AUTOLOAD {
     # This AUTOLOAD is used to 'autoload' constants from the constant()
@@ -51,12 +51,15 @@ bootstrap Ace $VERSION;
 # Preloaded methods go here.
 use vars qw/$ERR/;
 
+# Pseudonyms and deprecated methods.
+*list = \&fetch;
+
 sub connect {
     my $class = shift;
-    my ($host,$port,$path,$program,$objclass) = 
-      rearrange(['HOST','PORT','PATH','PROGRAM','CLASS'],@_);
+    my ($host,$port,$path,$program,$objclass,$timeout) = 
+      rearrange(['HOST','PORT','PATH','PROGRAM','CLASS','TIMEOUT'],@_);
     $host ||= 'localhost';
-    $port ||= 23456;
+    $port ||= defined(&ACE_PORT) ? &ACE_PORT : 23456;
 
     my $database;
 
@@ -65,7 +68,9 @@ sub connect {
       require Ace::Local;
       $database = Ace::Local->connect(@_);
     } else {
-      $database = Ace::AceDB->new($host,$port);
+      my @p = ($host,$port);
+      push(@p,$timeout) if defined $timeout;
+      $database = Ace::AceDB->new(@p);
     }
     unless ($database) {
 	$ACE::ERR = "Couldn't open database";
@@ -111,21 +116,38 @@ sub new (\$$$) {
   return $self->{'class'}->new($class,$name,$self);
 }
 
-# Set or retrieve the display style for dates
+# Get or set the display style for dates
 sub date_style (\$;$) {
   my $self = shift;
   $self->{'date_style'} = $_[0] if defined($_[0]);
   return $self->{'date_style'};
-} 
+}
+
+# Get or set whether we retrieve timestamps
+sub timestamps (\$;$) {
+  my $self = shift;
+  $self->{'timestamps'} = $_[0] if defined $_[0];
+  return $self->{'timestamps'};
+}
 
 # Fetch one or a group of objects from the database
 sub fetch {
   my $self = shift;
-  my ($class,$pattern,$count,$offset,$filled) = 
-    rearrange(['CLASS',['NAME','PATTERN'],'COUNT','OFFSET',['FILL','FILLED']],@_);
-  ($offset,$count) = (0,-1) unless defined $count;
-  $count = 1 unless wantarray;
-  $self->_query(qq{query find $class "$pattern"});
+  my ($class,$pattern,$count,$offset,$filled,$total) =  
+    rearrange(['CLASS',['NAME','PATTERN'],'COUNT','OFFSET',
+	       ['FILL','FILLED'],'TOTAL'],@_);
+  $offset += 0;
+  $count = wantarray ? -1 : 1 unless defined $count;
+  $pattern ||= '*';
+
+  my $r = $self->raw_query(qq{query find $class "$pattern"});
+  my ($cnt) = $r =~ /Found (\d+) objects/m;
+  $$total = $cnt if defined $total;
+
+  # Scalar context and a pattern match operation.  Return the
+  # object count without bothering to fetch the objects
+  return $cnt if !wantarray and $pattern =~ /(?:[^\\]|^)[*?]/;
+
   my (@h) = $filled ? $self->_fetch($count,$offset) : $self->_list($count,$offset);
   return wantarray ? @h : $h[0];
 }
@@ -133,20 +155,23 @@ sub fetch {
 # Perform an ace query and return the result
 sub find {
   my $self = shift;
-  my ($query,$count,$offset,$filled) = rearrange(['QUERY','COUNT','OFFSET',['FILL','FILLED']],@_);
-  ($offset,$count) = (0,-1) unless defined $count;
-  $count = 1 unless wantarray;
+  my ($query,$count,$offset,$filled,$total) = rearrange(['QUERY','COUNT',
+							 'OFFSET',['FILL','FILLED'],'TOTAL'],@_);
+  $offset += 0;
+  $count = wantarray ? -1 : 1 unless defined $count;
   $query = "find $query" unless $query=~/^find/i;
-  $self->_query("query $query");
-  my (@h) = $filled ? $self->_fetch($count,$offset) : $self->_filled($count,$offset);
-  return wantarray ? @h : $h[0];
+  my $r = $self->raw_query("query $query");
+  my ($cnt) = $r =~ /Found (\d+) objects/m;
+  $$total = $cnt if defined $total;
+  return $cnt unless wantarray;
+  $filled ? $self->_fetch($count,$offset) : $self->_list($count,$offset);
 }
 
 # Fetch many objects in iterative style
 sub fetch_many {
   my $self = shift;
-  my ($class,$pattern) = rearrange(['CLASS',['PATTERN','NAME']],@_);
-  my $iterator = Ace::Iterator->new($self,"find $class $pattern");
+  my ($class,$pattern,$filled,$chunksize) = rearrange(['CLASS',['PATTERN','NAME'],['FILL','FILLED'],'CHUNKSIZE'],@_);
+  my $iterator = Ace::Iterator->new($self,"find $class $pattern",$filled,$chunksize);
   $self->_register_iterator($iterator);
   return $iterator;
 }
@@ -161,28 +186,41 @@ sub find_many {
   return $iterator;
 }
 
-# Obtain a listing of the objects matching pattern.
-sub list {
-    my ($self,$class,$pattern,$count,$offset) = @_;
-    my @result;
-    $self->raw_query("find $class $pattern");
-    $self->_list($count,$offset);
-}
-
 # Count the objects matching pattern without fetching them.
 sub count {
-    my ($self,$class,$pattern) = @_;
-    undef $ERR;
+  my $self = shift;
+  my ($class,$pattern,$query) = rearrange(['CLASS',['NAME','PATTERN'],'QUERY'],@_);
+  undef $ERR;
 
+  if (defined $query) {
+    $query = "find $query" unless $query=~/^find/i;
+    $query = "query $query";
+  } else {
     $pattern =~ tr/\n//d;
     $pattern ||= '*';
-    my $result = $self->raw_query("find $class $pattern");
-    unless ($result =~ /Found (\d+) objects/m) {
-	$ERR = 'Unexpected close during find';
-	return undef;
-    }
+    $query = "find $class $pattern";
+  }
+  my $result = $self->raw_query($query);
+  unless ($result =~ /Found (\d+) objects/m) {
+    $ERR = 'Unexpected close during find';
+    return undef;
+  }
+  return $1;
+}
 
-    return $1;
+#########################################################
+# Grep function returns count in a scalar context, list
+# of retrieved objects in a list context.
+sub grep {
+  my $self = shift;
+  my ($pattern,$count,$offset,$filled,$total) = rearrange(['PATTERN','COUNT','OFFSET',['FILL','FILLED'],'TOTAL'],@_);
+  $offset += 0;
+  $count = wantarray ? -1 : 1 unless defined $count;
+  my $r = $self->raw_query("grep $pattern");
+  my ($cnt) = $r =~ /Found (\d+) objects/m;
+  $$total = $cnt if defined $total;
+  return $cnt if !wantarray;
+  return $filled ? $self->_fetch($count,$offset) : $self->_list($count,$offset);
 }
 
 #########################################################
@@ -195,7 +233,8 @@ sub pick {
     # if we get here, then we've got some data to return.
     # yes, we're repeating code slightly...
     my @result;
-    my $result = $self->raw_query("show -j");
+    my $ts = $self->{'timestamps'} ? '-T' : '';
+    my $result = $self->raw_query("show -j $ts");
     unless ($result =~ /(\d+) object dumped/m) {
 	$ERR = 'Unexpected close during pick';
 	return undef;
@@ -213,7 +252,8 @@ sub show {
     
     # if we get here, then we've got some data to return.
     my @result;
-    my $result = $self->raw_query("show -j $tag");
+    my $ts = $self->{'timestamps'} ? '-T' : '';
+    my $result = $self->raw_query("show -j $ts $tag");
     unless ($result =~ /(\d+) object dumped/m) {
 	$ERR = 'Unexpected close during show';
 	return undef;
@@ -318,8 +358,9 @@ sub _fetch {
   my $self = shift;
   my ($count,$start) = @_;
   my (@result);
+  my $ts = $self->{'timestamps'} ? '-T' : '';
   ($start,$count) = (0,-1) unless $count;
-  $self->{database}->query("show -j -b $start -c $count");
+  $self->{database}->query("show -j $ts -b $start -c $count");
   while (my @objects = $self->_fetch_chunk) {
     push (@result,@objects);
   }
@@ -360,14 +401,20 @@ sub _alert_iterators {
 ##########################################################################
 ##########################################################################
 package Ace::Iterator;
+use constant DEFAULT_CHUNKSIZE => 40;
+
+*rearrange  = \&Ace::rearrange;
 
 sub new {
-  my ($pack,$db,$query) = @_;
+  my $pack = shift; 
+  my ($db,$query,$filled,$chunksize) = rearrange([qw/db query filled chunksize/],@_);
   my $self = {
 	      'db'    => $db,
 	      'query' => $query,
 	      'valid' => undef,
 	      'cached_answers' => [],
+	      'filled' => $filled || 0,
+	      'chunksize' => $chunksize || DEFAULT_CHUNKSIZE,
 	      'current' => 0
 	     };
   return bless $self,$pack;
@@ -388,14 +435,14 @@ sub next {
   return $result;
 }
 
+# Fill up cache for iterator
 sub _fill_cache {
   my $self = shift;
-  if (!$self->{'valid'}) {
-    $self->{'db'}->_query($self->{'query'});
-    $self->{'db'}->_query("show -j -b $self->{'current'} -c -1");
-    $self->{'valid'}++;
-  }
-  my @objects = $self->{'db'}->_fetch_chunk;
+  my $db = $self->{'db'};
+  $db->_query($self->{'query'}) unless $self->{'valid'};
+  my @objects = $self->{'filled'} ? $db->_fetch($self->{'chunksize'},$self->{'current'}) :
+                                    $db->_list($self->{'chunksize'},$self->{'current'});
+  $self->{'valid'}++;
   $self->{'cached_answers'} = \@objects;
 }
 
@@ -413,9 +460,9 @@ $DEFAULT_WIDTH=25;  # column width for pretty-printing
 $SPLIT_PATTERN='\?([^?]*)\?([^?]*)\?';
 
 # Pseudonyms and deprecated methods.
-*isClass        =   \&isObject;
-*pick = *follow = \&fetch;
-*rearrange      = \&Ace::rearrange;
+*isClass        =  \&isObject;
+*pick = *follow =  \&fetch;
+*rearrange      =  \&Ace::rearrange;
 
 sub AUTOLOAD {
     my($pack,$func_name) = $AUTOLOAD=~/(.+)::([^:]+)$/;
@@ -468,6 +515,27 @@ sub class (\$) {
     defined($_[0])
 	? $self->{class} = shift
 	: $self->{class};
+}
+
+############## timestamp and comment information ############
+sub timestamp {
+    my $self = shift;
+    return $self->{'timestamp'} = $_[0] if defined $_[0];
+    if ($self->{'db'} && !$self->{'timestamp'}) {
+      $self->_fill;
+      $self->_parse;
+    }
+    return $self->{'timestamp'};
+}
+
+sub comment {
+    my $self = shift;
+    return $self->{'comment'} = $_[0] if defined $_[0];
+    if ($self->{'db'} && !$self->{'comment'}) {
+      $self->_fill;
+      $self->_parse;
+    }
+    return $self->{'comment'};
 }
 
 ################### handle to ace database #################
@@ -570,8 +638,9 @@ sub search (\$$;$$) {
 
 	# If the object hasn't been filled already, then we can use
 	# acedb's query mechanism to fetch the subobject.  This is a
-	# big win for large objects.
-	unless ($self->filled) {
+	# big win for large objects.  ...However, we have to disable
+	# this feature if timestamps are active.
+	unless ($self->filled || $self->{'db'}->timestamps) {
 	  my $subobject = $self->newFromText(
 					     $self->{'db'}->show($self->class,$self->name,$tag),
 					     $self->{'db'}
@@ -761,9 +830,14 @@ sub right (\$;$) {
 
 ################# object below on the tree #################
 sub down (\$) {
-  my $self = shift;
+  my ($self,$pos) = @_;
   $self->_parse;
-  return $self->{'down'};
+  return $self->{'down'} unless defined $pos;
+  my $node = $self;
+  while ($pos--) {
+    $node = $node->down or return undef;
+  }
+  $node;
 }
 
 ################# delete a portion of the tree #############
@@ -811,6 +885,18 @@ sub isTag {
     my $self = shift;
     return 1 if $self->class eq 'tag';
     undef;
+}
+
+sub isTimestamp {
+  my $self = shift;
+  return 1 if $self->class eq 'UserSession';
+  undef;
+}
+
+sub isComment {
+  my $self = shift;
+  return 1 if $self->class eq 'Comment';
+  undef;
 }
 
 ################# add a new row #############
@@ -939,26 +1025,69 @@ sub _fill {
     %{$self}=%{$new};
 }
 
-# This is an incremental parser.  It replaces one level of the data structure
-# with "right" and "down" pointers.
 sub _parse {
   my $self = shift;
   return unless my $raw = $self->{'raw'};
+  my $ts = $self->db->timestamps;
   my $col = $self->{'col'};
   my $current_obj = $self;
   my $current_row = $self->{'start_row'};
   my $db = $self->{'db'};
 
-  for (my $r=$self->{'start_row'}+1;$r<=$self->{'end_row'};$r++) {
+  my $time = $self->{'timestamp'} if $ts;
+
+  for (my $r=$current_row+1; $r<=$self->{'end_row'}; $r++) {
     next unless $raw->[$r][$col];
-    my $obj_on_right = $self->_fromRaw($raw,$current_row,$col+1,$r-1,$db);
-    $current_obj->{'right'} = $obj_on_right;
+
+    $time = $current_obj->{'timestamp'} if $ts;
+
+    my $obj_right = $self->_fromRaw($raw,$current_row,$col+1,$r-1,$db);
+
+    # timestamp and comment handling
+    if ($obj_right) {
+      my ($t,$i);
+      my $row = $current_row+1;
+      while ($obj_right->isTimestamp or $obj_right->isComment) {
+	$current_obj->comment($obj_right)   if $obj_right->isComment;
+	$t = $obj_right;
+	last unless $obj_right = $self->_fromRaw($raw,$row++,$col+1,$r-1,$db);
+	$obj_right->timestamp($t)   if $t->isTimestamp;
+      } 
+      $obj_right->timestamp($time) if $ts and $obj_right and !$obj_right->{'timestamp'};
+    }
+    $current_obj->{'right'} = $obj_right;
+
     my $obj_down = $self->new(_ace_split($raw->[$r][$col]),$db);
-    $current_obj->{'down'} = $obj_down;
-    $current_obj = $obj_down;
+
+    # timestamp handling / comments never occur at down pointers
+    if ($ts && $obj_down) {
+      ($time,$obj_down) = ($obj_down,$self->new(_ace_split($raw->[++$r][$col]),$db))
+	if $obj_down->isTimestamp;
+      $obj_down->timestamp($time) if defined $time;
+    }
+    $current_obj = $current_obj->{'down'} = $obj_down;
     $current_row = $r;
   }
-  $current_obj->{'right'} = $self->_fromRaw($raw,$current_row,$col+1,$self->{'end_row'},$db);
+
+  my $obj_right = $self->_fromRaw($raw,$current_row,$col+1,$self->{'end_row'},$db);
+  # timestamp and comment handling
+  if ($obj_right) {
+    my ($t,$i);
+    my $row = $current_row + 1;
+    while ($obj_right->isTimestamp || $obj_right->isComment) {
+      $current_obj->comment($obj_right)   if $obj_right->isComment;
+      $t = $obj_right;
+      last unless $obj_right = $self->_fromRaw($raw,$row++,$col+1,$self->{'end_row'},$db);
+      $obj_right->timestamp($t)   if $t->isTimestamp;
+    }
+    $obj_right->timestamp($time) if $ts and $obj_right and !$obj_right->{'timestamp'};
+  }
+  $current_obj->{'right'} = $obj_right;
+
+  # unstamped nodes take the timestamp on their right
+  $self->timestamp($self->{'right'}->{'timestamp'})
+    if $ts && !$self->{'timestamp'} && $self->{'right'} && $self->{'right'}->{'timestamp'};
+
   foreach (qw/raw start_row end_row col/) {
     delete $self->{$_};
   }
@@ -976,12 +1105,12 @@ sub _fromRaw ($$$$$;$) {
 }
 
 
-# This function, and the next, are overly long because they are optimized to prevent parsing
+# This function is overly long because it is optimized to prevent parsing
 # parts of the tree that haven't previously been parsed.
 sub _asTable (\%\$$$;) {
     my($self,$out,$position,$level) = @_;
 
-    if ($self->{raw}) {  # we still have raw data, so we can optimize
+    if ($self->{raw} and !$self->db->timestamps) {  # we still have raw data, so we can optimize
       my ($a,$start,$end) = @{$self}{qw/col start_row end_row/};
       my @to_append = map { join("\t",@{$_}[$a..$#{$_}]) } @{$self->{'raw'}}[$start..$end];
       my $new_row;
@@ -999,6 +1128,10 @@ sub _asTable (\%\$$$;) {
 
     $$out .= "\t" x ($level-$position-1);
     $$out .= $self->name . "\t";
+    if ($self->comment) {
+      $$out .= $self->comment;
+      $$out .= "\n" . "\t" x $level unless $self->down && !$self->right;
+    }
     $level = $self->right->_asTable($out,$level,$level+1)
       if $self->right;
     if ($self->down) {
@@ -1017,6 +1150,11 @@ sub _asHTML (\%\$$$;$$) {
   $$out .= "<TD></TD>" x ($level-$position-1);
   my ($cell,$prune) = $morph_code->($self);
   $$out .= "<TD>$cell</TD>";
+  if ($self->comment) {
+    my ($cell) = $morph_code->($self->comment);
+    $$out .= "<TD>$cell</TD>";
+    $$out .= "</TR>\n" . "<TD></TD>" x $level unless $self->down && !$self->right;
+  }
   $level = $self->right->_asHTML($out,$level,$level+1,$morph_code) if $self->right and !$prune;
   if ($self->down) {
     $$out .= "</TR>\n";
@@ -1038,7 +1176,9 @@ sub _default_makeHTML {
 
   if ($self->isTag) {
     $string = "<B>$self</B>";
-  } else {
+  } elsif ($self->isComment) {
+    $string = "<I>$self</I>";
+  }  else {
     $string = qq{<FONT COLOR="blue">$self</FONT>} ;
   }
   return ($string,$prune);
@@ -1167,7 +1307,7 @@ __END__
 
 =head1 NAME
 
-Ace - open an ACE database server for reading and writing
+Ace - Object-Oriented Access to ACEDB Databases
 
 =head1 SYNOPSIS
 
@@ -1175,9 +1315,8 @@ Ace - open an ACE database server for reading and writing
     use Ace;
     $db = Ace->connect(-host => 'sapiens.wustl.edu',
                        -port => 2000525);
-    @sequences = $db->list('Sequence','D*');
     $sequence = $db->fetch('Sequence,'D12345');
-    $number = $db->count('Sequence','D*');
+    $count = $db->count('Sequence','D*');
     @sequences = $db->fetch('Sequence','D*');
     $i = $db->fetch_many(Sequence,'*');  # fetch a cursor
     while ($obj = $i->next) {
@@ -1340,6 +1479,92 @@ Once you have established a connection and have an Ace databaes
 handle, several methods can be used to query the ACE database to
 retrieve certain objects.
 
+=head2 fetch() method
+
+    $count   = $db->fetch($class,$name_pattern);
+    $object  = $db->fetch($class,$name);
+    @objects = $db->fetch($class,$name_pattern,[$count,$offset]);
+    @objects = $db->fetch(-name=>$name_pattern,
+                          -class=>$class
+			  -count=>$count,
+			  -offset=>$offset,
+                          -fill=>$fill,
+	                  -total=>\$total);
+
+Ace::fetch() retrieves objects from the database based on their class
+and name.  You may retrieve a single object by requesting its name, or
+a group of objects by fetching a name I<pattern>.  A pattern contains
+one or more wildcard characters, where "*" stands for zero or more
+characters, and "?" stands for any single character.
+
+This method behaves differently depending on whether it is called in a
+scalar or a list context, and whether it is asked to search for a name
+pattern or a simple name.
+
+When called with a class and a simple name, it returns the object
+referenced by that time, or undef, if no such object exists.  In an
+array context, it will return an empty list.
+
+When called with a class and a name pattern in a list context, fetch()
+returns the list of objects that match the name.  When called with a
+pattern in a scalar context, fetch() returns the I<number> of objects
+that match without actually retrieving them from the database.  Thus,
+it is similar to count().
+
+In the examples below, the first line of code will fetch the Sequence
+object whose database ID is I<D12345>.  The second line will retrieve
+all objects matching the pattern I<D1234*>.  The third line will
+return the count of objects that match the same pattern.
+
+   $object = $db->fetch(Sequence,'D12345');
+   @objects = $db->fetch(Sequence,'D1234*');
+   $cnt = $db->fetch(Sequence,'D1234*');
+
+A variety of communications and database errors may occur while
+processing the request.  When this happens, undef or an empty list
+will be returned, and a string describing the error can be retrieved
+by calling Ace->error.
+
+When retrieving database objects, it is possible to retrieve a
+"filled" or an "unfilled" object.  A filled object contains the entire
+contents of the object, including all tags and subtags.  In the case
+of certain Sequence objects, this may be a significant amount of data.
+Unfilled objects consist just of the object name.  They are filled in
+from the database a little bit at a time as tags are requested.  By
+default, fetch() returns the unfilled object.  This is usually a
+performance win, but if you know in advance that you will be needing
+the full contents of the retrieved object (for example, to display
+them in a tree browser) it can be more efficient to fetch them in
+filled mode. You do this by calling fetch() with the argument of
+B<-fill> set to a true value.
+
+Other arguments in the named parameter calling form are B<-count>, to
+retrieve a certain maximum number of objects, and B<-offset>, to
+retrieve objects beginning at the indicated offset into the list.  If
+you want to limit the number of objects returned, but wish to learn
+how many objects might have been retrieved, pass a reference to a
+scalar variable in the B<-total> argument.  This will return the
+object count.  This example shows how to fetch 100 Sequence
+objects, starting at Sequence number 500:
+
+  @some_sequences = $db->fetch('Sequence','*',100,500);
+
+The next example uses the named argument form to fetch 100 Sequence
+objects starting at Sequence number 500, and leave the total number of
+Sequences in $total:
+
+  @some_sequences = $db->fetch(-class  => 'Sequence',
+	                       -count  => 100,
+	                       -offset => 500,
+	                       -total  => \$total);
+
+Notice that if you leave out the B<-name> argument the "*" wildcard is 
+assumed.
+
+If your request is likely to retrieve very many objects, fetch() many
+consume a lot of memory, even if B<-fill> is calse.  Consider using
+B<fetch_many()> instead (see below).
+
 =head2 list() method
 
     @objects = $db->list(class,pattern,[count,offset]);
@@ -1348,24 +1573,12 @@ retrieve certain objects.
                          -count=>$count,
                          -offset=>$offset);
 
-This function queries the database for a list of objects matching the
-specified class and pattern, returning a list of Ace::Objects.  The
-class may be any class name recogized by the database's model.  The
-pattern may be a full object identifier, or may contain wildcard
-characters (* and ?).  For example, you can retrieve all Sequence
-objects with this request:
-
-    @sequences = $db->list('Sequence','*');
-
-You may limit the number of objects to be listed by providing optional
-offset and count parameters.  For example, this fetches 100 sequences
-starting at the 500th.
-
-    @some_sequences = $db->list('Sequence','*',100,500);
+This is a deprecated method.  Use fetch() instead.
 
 =head2 count() method
 
-    $count = $db->list(class,pattern);
+    $count = $db->count($class,$pattern);
+    $count = $db->count(-query=>$query);
 
 This function queries the database for a list of objects matching the
 specified class and pattern, and returns the object count.  For large
@@ -1374,65 +1587,26 @@ fetching the entire list.
 
 The class and name pattern are the same as the list() method above.
 
-=head2 fetch() method
-
-    $object = $db->fetch($class,$name_pattern);
-    @objects = $db->fetch($class,$name_pattern);
-    @objects = $db->fetch(-name=>$name_pattern,
-                          -class=>$class
-			  -count=>$count,
-			  -offset=>$offset,
-                          -fill=>$fill);
-
-Ace::fetch() is similar to Ace::list(), but retrieves whole objects,
-rather than a list.  It will either return a list of Ace::Objects, or
-an empty list (or undef) in the case of an error.  Errors may occur
-when the indicated object is not found in the database, if the
-provided name contains wildcard characters, or if an error occurs
-during communications.  A string describing the error can be found in
-Ace->error.  For example, the first line of code will fetch the
-Sequence object whose database ID is I<D12345>.  The second line
-will retrieve all objects matching the pattern I<D1234*>.
-
-   $object = $db->fetch(Sequence,'D12345');
-   @objects = $db->fetch(Sequence,'D1234*');
-
-When you know you need to retrieve and manipulate multiple objects, it
-is faster to call fetch() with a pattern than to call list() and
-manipulate the objects individually.  This is because list() returns
-just the B<name> of the object, which is then filled in when needed.
-Fetch() returns the B<entire> filled-in object.  There is latency
-overhead every time you go back to the database.
-
-In the named parameter calling form, B<-count> can be used to retrieve
-a certain maximum number of objects starting at offset B<-offset>.
-The B<-fill> parameter (also known by its pseudonym B<-filled>) allows
-you to control when Ace.pm will "fill" the object.  Ordinarily, Ace.pm
-defers fetching the whole object from the remote server, only filling
-in fields at the time you request them.  This is a good heuristic for
-conserving memory, but gives lousy performance when network latency is
-high, or when you know you will be reading fields from all the
-objects.  B<-fill>, if passed a true value, will get all the
-information from the server at once, improving performance, and
-dramatically increasing the amount of memory your program needs to
-hold the objects.  Consider using B<fetch_many()> instead.
+You may also provide a B<-query> argument to instead specify an
+arbitrary ACE query such as "find Author COUNT Paper > 80".  See
+find() below.
 
 =head2 find() method
 
-    @objects = $db->query($query_string);
-    @objects = $db->query(-query=>$query_string,
-                          -offset=>$offset,
-                          -count=>$count
-                          -fill=>$fill);
+    @objects = $db->find($query_string);
+    @objects = $db->find(-query => $query_string,
+                         -offset=> $offset,
+                         -count => $count
+                         -fill  => $fill);
 
 This allows you to pass arbitrary Ace query strings to the server and
 retrieve all objects that are returned as a result.  For example, this
 code fragment retrieves all papers written by author "Meyer BF":
 
-    @papers = $db->query('author IS "Meyer BF" ; >Paper');
+    @papers = $db->find('author IS "Thierry-Mieg *" ; >Paper');
 
-The full query syntax is described in
-http://where.the.hell.is.that.bloody.doc/
+You can find the full query syntax reference guide plus multiple
+examples at http://probe.nalusda.gov:8000/acedocs/index.html#query.
 
 In the named parameter calling form, B<-count>, B<-offset>, and
 B<-fill> have the same meanings as in B<fetch()>.
@@ -1441,7 +1615,9 @@ B<-fill> have the same meanings as in B<fetch()>.
 
     $obj = $db->fetch_many($class,$pattern);
     $obj = $db->fetch_many(-class=>$class,
-                           -name=>$pattern);
+                           -name =>$pattern,
+                           -fill =>$filled,
+                           -chunksize=>$chunksize);
 
 If you expect to retrieve many objects, you can fetch an iterator
 across the data set.  This is friendly both in terms of network
@@ -1453,7 +1629,44 @@ bandwidth and memory consumption.  It is simple to use:
     }
 
 The iterator will return undef when it has finished iterating, and
-cannot be used again.
+cannot be used again.  You can have multiple iterators open at once
+and they will operate independently of each other.
+
+Like B<fetch()>, B<fetch_many()> takes an optional B<-fill> (or
+B<-filled>) argument which retrieves the entire object rather than
+just its name.  This is efficient on a network with high latency if 
+you expect to be touching many parts of the object (rather than
+just retrieving the value of a few tags).
+
+B<fetch_many()> retrieves objects from the database in groups of a
+certain maximum size, 40 by default.  This can be tuned using the
+optional B<-chunksize> argument.  Chunksize is only a hint to the
+database.  It may return fewer objects per transaction, particularly
+if the objects are large. 
+
+=head2 grep() method
+
+    @objects = $db->grep($grep_string);
+    $count   = $db->grep($grep_string);
+    @objects = $db->grep(-pattern => $grep_string,
+                         -offset=> $offset,
+                         -count => $count,
+                         -fill  => $fill,
+			 -total => \$total
+			);
+
+This performs a "grep" on the database, returning all object names or
+text that contain the indicated grep pattern.  In a scalar context
+this call will return the number of matching objects.  In an array
+context, the list of matching objects are retrieved.  There is also a
+named-parameter form of the call, which allows you to specify the
+number of objects to retrieve, the offset from the beginning of the
+list to retrieve from, whether the retrieved objects should be filled
+initially.  You can also use B<-total> to discover the total number of
+objects that match, while only retrieving a portion of the list.
+
+Due to "not listable" objects that may match during grep, the list of
+objects one can retrieve may not always match the count.
 
 =head2 new() method
 
@@ -1507,6 +1720,22 @@ Called with no arguments, it returns the current style, which will be
 one of "ace" or "java."  Called with an argument, it will set the
 style to one or the other.
 
+=head2 timestamps() method
+
+  $timestamps_on = $db->timestamps();
+  $db->timestamps(1);
+
+Whenever a data object is updated, AceDB records the time and date of
+the update, and the user ID it was running under.  Ordinarily, the
+retrieval of timestamp information is suppressed to conserve memory
+and bandwidth.  To turn on timestamps, call the B<timestamps()> method 
+with a true value.  You can retrieve the current value of the setting
+by calling the method with no arguments.
+
+Note that activating timestamps disables some of the speed
+optimizations in AcePerl.  Thus they should only be activated if you
+really need the information.
+
 =head2 error() method
 
     Ace->error;
@@ -1557,7 +1786,6 @@ Thierry-Mieg J->Full_name ->Jean Thierry-Mieg
                        How to get ACEDB for your Sun
                         |
                        ACEDB is Hungry
-
 
 Each object in the tree has two pointers, a "right" pointer to the
 node on its right, and a "down" pointer to the node beneath it.  Right
@@ -1903,6 +2131,9 @@ It is equivalent to any of these calls:
 
 Use whatever syntax is most comfortable for you.
 
+In a scalar context, B<col()> returns the number of items in the
+column.
+
 =head2 row() method
 
      @row=$object->row();
@@ -1921,9 +2152,7 @@ places before retrieving the row.  This code fragment will return
 
      @row = $object->Address->row(1);
 
-It is exactly equivalent to:
-
-     @row = $object->Address->right->row();
+In a scalar context, B<row()> returns the number of items in the row.
 
 =head2 asString() method
 
@@ -1985,6 +2214,53 @@ Here's a complete example:
 
    $object->asHTML(\&process_cell);
 
+=head2 asGIF() method
+
+  ($gif,$boxes) = $object->asGIF();
+  ($gif,$boxes) = $object->asGIF(-clicks=>[[$x1,$y1],[$x2,$y2]...]
+	                         -dimensions=>[$width,$height]
+	                         );
+
+asGIF() returns the object as a GIF image.  The contents of the GIF
+will be whatever xace would ordinarily display in graphics mode, and
+will vary for different object classes.
+
+You can optionally provide asGIF with a B<-clicks> argument to
+simulate the action of a user clicking on the image.  The click
+coordinates should be formatted as an array reference that contains a
+series of two-element subarrays, each corresponding to the X and Y
+coordinates of a single mouse click.  There is currently no way to
+pass information about middle or right mouse clicks, dragging
+operations, or keystrokes.  You may also specify a B<-dimensions> to
+control the width and height of the returned GIF.  Since there is no
+way of obtaining the preferred size of the image in advance, this is
+not usually useful.
+
+asGIF() returns a two-element array.  The first element is the GIF
+data.  The second element is an array reference that indicates special 
+areas of the image called "boxes."  Boxes are rectangular areas that
+surround buttons, and certain displayed objects.  Using the contents
+of the boxes array, you can turn the GIF image into a client-side
+image map.  Unfortunately, not everything that is clickable is
+represented as a box.  You still have to pass clicks on unknown image
+areas back to the server for processing.
+
+Each box in the array is a hash reference containing the following
+keys:
+
+    'coordinates'  => [$left,$top,$right,$bottom]
+    'class'        => object class or "BUTTON"
+    'name'         => object name, if any
+    'comment'      => a text comment of some sort
+
+I<coordinates> points to an array of points indicating the top-left and 
+bottom-right corners of the rectangle.  I<class> indicates the class
+of the object this rectangle surrounds.  It may be a database object,
+or the special word "BUTTON" for one of the display action buttons.
+I<name> indicates the name of the object or the button.  I<comment> is 
+some piece of information about the object in question.  You can
+display it in the status bar of the browser or in a popup window if
+your browser provides that facility.
 
 =head2 add() method
 
@@ -2087,6 +2363,32 @@ for all objects returned by the database.  It is exactly equivalent to
 
 Note that the text representation of the date will change for all
 objects returned from this database, not just the current one.
+
+=head2 timestamp() method
+
+   $stamp = $object->timestamp;
+
+The B<timestamp()> method will retrieve the modification time and date
+from the object.  This works both with top level objects and with
+subtrees.  Timestamp handling must be turned on in the database, or
+B<timestamp()> will return undef.
+
+The returned timestamp is actually a UserSession object which can be
+printed and explored like any other object.  However, there is
+currently no useful information in UserSession other than its name.
+
+=head2 comment() method
+
+   $comment = $object->comment;
+
+This returns the comment attached to an object or object subtree, if
+any.  Comments are I<Comment> objects and have the interesting
+property that a single comment can refer to multiple objects.  If
+there is no comment attached to the current subtree, this method will
+return undef.
+
+Currently you cannot create a new comment in AcePerl or edit an old
+one.
 
 =head2 error() method
     
@@ -2199,7 +2501,11 @@ improved.
 5. When called in an array context at("tag[0]") should return the
 current tag's entire column.  It returns the current subtree instead.
 
-6. Item number six is missing.
+6. There is no way to add comments to objects.
+
+7. When timestamps are active, many optimizations are disabled. 
+
+8. Item number eight is missing.
 
 =head1 SEE ALSO
 
@@ -2207,7 +2513,7 @@ Jade documentation
 
 =head1 AUTHOR
 
-Lincoln Stein <lstein@w3.org> with extensive help from Jean
+Lincoln Stein <lstein@cshl.org> with extensive help from Jean
 Thierry-Mieg <mieg@kaa.crbm.cnrs-mop.fr>
 
 Copyright (c) 1997-1998, Lincoln D. Stein
