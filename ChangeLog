@@ -2,6 +2,8 @@
 	1. Fixed the Ace::Sequence _make_filter() function to respect the value of automerge()
 	2. Made it possible to change the color of introns and exons depending on curation status
 		(will need more work)
+	3. Fixed Ace::Sequence to correctly report start and end of alignment targets when viewed
+		from the perspective of a reversed reference sequence (order swapped).
 1.70	3/5/2001
 	1. Folded AceBrowser functionality into package.
 	2. Added GD graphics.
