@@ -10,12 +10,14 @@ use Fcntl qw/F_SETFL O_NONBLOCK/;
 
 use vars '$VERSION';
 
-$VERSION = '1.03';
+$VERSION = '1.04';
 
 use Ace qw/rearrange STATUS_WAITING STATUS_PENDING STATUS_ERROR/;
 use constant DEFAULT_HOST=>'localhost';
 use constant DEFAULT_PORT=>200005;
 use constant DEFAULT_DB=>'/usr/local/acedb';
+use constant READSIZE   => 1024 * 5;  # read 5k units
+
 $SIG{'CHLD'} = sub { wait(); } ;
 
 sub connect {
@@ -63,17 +65,12 @@ sub connect {
     return undef;
   }
 
-  # set nonblocking reads
-  fcntl($rdr,F_SETFL,O_NONBLOCK);
-  my $select = IO::Select->new($rdr);
-
   return bless {
 		'read'   => $rdr,
 		'write'  => $wtr,
 		'prompt' => $prompt,
 		'pid'    => $pid,
 		'auto_save' => 1,
-		'select'    => $select,
 		'status' => STATUS_WAITING,
 	       },$class;
 }
@@ -128,14 +125,10 @@ sub read {
   my $self = shift;
   return undef unless $self->{'status'} == STATUS_PENDING;
   my $rdr = $self->{'read'};
-  my $select = $self->{'select'};
 
   while (1) {
-    my ($ready) = $select->can_read(); # block until tace has something for us to read
-    next unless $ready == $rdr;
-
     my $data;
-    my $bytes = read($rdr,$data,2048);
+    my $bytes = sysread($rdr,$data,READSIZE);
     $self->{'buffer'} .= $data;
 
     # check for prompt

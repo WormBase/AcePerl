@@ -13,7 +13,7 @@ use Ace 1.50 qw(:DEFAULT rearrange);
 require AutoLoader;
 
 $DEFAULT_WIDTH=25;  # column width for pretty-printing
-$VERSION = '1.52';
+$VERSION = '1.53';
 
 # Pseudonyms and deprecated methods.
 *isClass        =  \&isObject;
@@ -36,29 +36,30 @@ sub AUTOLOAD {
     my $presumed_tag = $func_name =~ /^[A-Z]/;  # initial_cap 
     $AutoLoader::AUTOLOAD = $AUTOLOAD;
     goto &AutoLoader::AUTOLOAD unless $self->isObject;
-    $self = $self->fetch unless $self->isRoot;  # dereference, if need be
-    unless ($self) {
-      croak "Null object tag \"$func_name\"" if $presumed_tag;
+
+    if ($presumed_tag) {
+      croak "Invalid object tag \"$func_name\"" 
+	if $self->db && !$self->model->valid_tag($func_name);
+
+      $self = $self->fetch if !$self->isRoot && $self->db;  # dereference, if need be
+      croak "Null object tag \"$func_name\"" unless $self;
+
+      shift();  # get rid of the object
+      my $no_dereference;
+      if (defined($_[0]) && $_[0] eq '@') {
+	$no_dereference++;
+	shift();
+      }
+      return $self->search($func_name,@_) if wantarray;
+      my $obj = $self->search($func_name,@_);
+      
+      return unless $obj;
+      return $obj if $no_dereference;
+      return $obj->fetch if $obj->isObject || ($obj->right && $obj->right->isObject);
+      return $obj;
+    } else {
       goto &AutoLoader::AUTOLOAD;
     }
-    unless ($self->model->valid_tag($func_name)) {
-      croak "Invalid object tag \"$func_name\"" if $presumed_tag;
-      goto &AutoLoader::AUTOLOAD;       
-    }
-
-    shift();  # get rid of the object
-    my $no_dereference;
-    if (defined($_[0]) && $_[0] eq '@') {
-      $no_dereference++;
-      shift();
-    }
-    return $self->search($func_name,@_) if wantarray;
-    my $obj = $self->search($func_name,@_);
-
-    return unless $obj;
-    return $obj if $no_dereference;
-    return $obj->fetch if $obj->isObject || ($obj->right && $obj->right->isObject);
-    return $obj;
 }
 
 sub DESTROY { }
@@ -1735,6 +1736,7 @@ sub add_row {
     }
     $previous->{'right'} = $_ if $previous;
     $previous = $_;
+    $_->{'right'} = undef; # make sure it doesn't automatically expand!
   }
 
   # position at the indicated tag (creating it if necessary)
@@ -1772,7 +1774,7 @@ sub add_tree {
   foreach (@tags) {
     $p = $p->_insert($_);
   }
-  # Copy the subtree to 
+  # Copy the subtree too
   if ($p->{'right'}) {
     $p = $p->{'right'};
     while (1) { 

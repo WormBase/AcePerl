@@ -72,6 +72,7 @@ sub source_coord {
 }
 
 # return a GFF version 2 table as a big string
+# may add optional arguments to list
 sub gff {
   my $self = shift;
   return $self->_query("seqfeatures -version 2 @_");
@@ -80,29 +81,59 @@ sub gff {
 # return a GFF object using the optional GFF.pm module
 sub asGFF {
     my $self = shift;
-    croak "GFF module not installed" unless eval "use GFF";
-    my @lines = $self->gff;
+
+    # can provide list of feature names, such as 'similarity', or 'all' to get 'em all
+    my $all = 1 if grep lc($_) eq 'all',@_;
+    my $opt = $all ? '' : '-feature ' . join('|',@_);
+
+    croak "GFF module not installed" unless require GFF;
+    my @lines = split "\n",$self->gff($opt);
     local *IN;
     tie *IN,'GFF::Filehandle',\@lines;
-    return GFF->read(\*IN);
+    my $gff = GFF->new;
+    $gff->read(\*IN) if $gff;
+    return $gff;
 }
 
-# Get feature lists without much overhead
+# Get the features table.  Can filter by type/subtype this way:
+# features('similarity:EST','annotation:assembly_tag')
 sub features {
   my $self = shift;
 
-  # no arguments , so just return skeleton of feature list
-  return $self->_get_feature_list unless @_;
-
+  # parse out the filter
+  my %filter;
+  foreach (@_) {
+    my ($type,$filter) = split(':');
+    $filter{$type} = $filter;
+  }
+  
   # can provide list of feature names, such as 'similarity', or
   # 'all' to get 'em all
   my $all = 1 if grep lc($_) eq 'all',@_;
-  my $opt = $all ? '' : '-feature ' . join('|',@_);
-  
+  my $opt = $all ? '' : '-feature ' . join('|',keys %filter);
+
+  # create pattern-match sub
+  my $sub;
+  if (%filter) {
+    my $s = "sub { my \@d = split(\"\\t\",\$_[0]);\n";
+    for my $type (keys %filter) {
+      my $subtype = $filter{$type};
+      my $expr = "return 1 if \$d[2] eq '$type' && \$d[1]=~/$subtype/;\n";
+      $s .= $expr;
+    }
+    $s .= "return;\n }";
+    $sub = eval $s;
+    croak $@ if $@;
+  } else {
+    $sub = sub { 1; }
+  }
   # get raw gff file
   my $gff = $self->gff($opt);
-  my @lines = grep !/^\#/,split("\n",$gff);
-  return map {Ace::Sequence::Feature->new($_)} @lines;
+  my $db = $self->_obj->db;
+  my @features = map {Ace::Sequence::Feature->new($_,$db)} 
+                 grep !m@^(?:\#|//)@ && $sub->($_),split("\n",$gff);
+
+  return wantarray ? @features : \@features;
 }
 
 # utility functions
@@ -143,7 +174,7 @@ sub _basic_info {
 				 };
 }
 
-sub _get_feature_list {
+sub feature_list {
   my $self = shift;
   return $self->{'feature_list'} if $self->{'feature_list'};
   return unless my $raw = $self->_query('seqfeatures -list');
@@ -191,6 +222,32 @@ sub types {
   return $self->{$type}{$subtype};
 }
 
+package Ace::Sequence::Homol;
+use overload '""' => 'asString';
+
+sub new {
+  my ($pack,$db,$tclass,$tname,$start,$end) = @_;
+  return bless { 'db'=>$db, 
+		 'tname'=>$tname,
+		 'tclass'=>$tclass,
+		 'start'=>$start,
+		 'end'=>$end },$pack;
+}
+sub target {  
+  unless ($_[0]->{'target'}) {
+    if ($_[0]->{'target'} = Ace::Object->new(@{$_[0]}{'tclass','tname','db'})) {
+      foreach (qw/tname tclass db/) { delete $_[0]->{$_}; }
+    }
+  }
+  return $_[0]->{'target'} || $_[0]->{'tname'}; 
+}
+sub start  {  return $_[0]->{'start'};  }
+sub end    {  return $_[0]->{'end'};    }
+sub asString { 
+  my $n = $_[0]->{'tname'} || $_[0]->{'target'};
+  "$n/$_[0]->{start}-$_[0]->{end}";
+}
+
 package Ace::Sequence::Feature;
 use Carp;
 
@@ -213,10 +270,14 @@ sub score    { _field(5,@_); }  # float indicating some sort of score
 sub strand   { _field(6,@_); }  # one of +, - or undef
 sub frame    { _field(7,@_); }  # one of 1, 2, 3 or undef
 sub info     {                  # returns Ace::Object(s) containing further information about the feature
-    my $info = _field(7,@_);    # be prepared to get an array of interesting objects!!!!
+  my ($self) = @_;
+  unless ($self->{'info'}) {
+    my $info = _field(8,@_);    # be prepared to get an array of interesting objects!!!!
     return unless $info;
     my @data = split(/\s*;\s*/,$info);
-    return map {$_[0]->toAce($_)} @data;
+    $self->{'info'} = [map {$_[0]->toAce($_)} @data];
+  }
+  return wantarray ? @{$self->{'info'}} : $self->{'info'}->[0];
 }
 
 # map info into a reasonable set of ace objects
@@ -225,7 +286,7 @@ sub toAce {
     my $thing = shift;
     my ($tag,@values) = $thing=~/(\"[^\"]+?\"|\S+)/g;
     foreach (@values) { # strip the damn quotes
-	s/^\"(.*)\"$/$1/;  # get rid of leading and trailing quotes
+      s/^\"(.*)\"$/$1/;  # get rid of leading and trailing quotes
     }
     return $self->tag2ace($tag,@values);
 }
@@ -246,15 +307,10 @@ sub tag2ace {
     # for homols, we create the indicated Protein or Sequence object
     # then generate a bogus Homology object (for future compatability??)
     if ($tag eq 'Target') {
-	my $db = $self->db;
+	my $db = $self->{'db'};
 	my ($objname,$start,$end) = @data;
-	my ($class,$name) = $objname =~ /(\S+):(.+)/;
-	my $obj   = $db->fetch($class=>$name);
-	my $homol = Ace::Object->new('Homology'=>$self->source . "->$name");
-	$homol->add_row('Target'=> $obj);
-	$homol->add_row('Start' => $start);
-	$homol->end_row('End'   => $end);
-	return $homol;
+	my ($class,$name) = $objname =~ /^(\w+):(.+)/;
+	return Ace::Sequence::Homol->new($db,$class,$name,$start,$end);
     }
 
     # Default is to return a Text
