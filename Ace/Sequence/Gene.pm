@@ -9,7 +9,8 @@ use overload
   ;
 
 
-# autoload delegates everything to the Sequence feature
+# autoload delegates everything to the Ace::Sequence::Feature object
+# contained in base
 sub AUTOLOAD {
   my($pack,$func_name) = $AUTOLOAD=~/(.+)::([^:]+)$/;
   my $self = shift;

@@ -1,4 +1,4 @@
-package Ace::Sequence::Transcript;
+package Ace::Sequence::GappedAlignment;
 
 use strict;
 use Ace;
@@ -18,19 +18,19 @@ sub AUTOLOAD {
 
 sub new {
   my $class = shift;
-  my $args = shift;
-  bless $args,$class;
-  return $args;
+  my $segments = shift;
 
-# for documentation only
-#  my %args = @_;
-#  my $introns  = $args{intron};
-#  my $exons    = $args{exon};
-#  my $sequence = $args{base};  # this is the Ace::Sequence::Feature object
-#  return bless {base => $sequence,
-#		introns  => $introns,
-#		exons    => $exons},$class;
-
+  # sort segments by position
+  my @segs = sort {$a->{offset} <=> $b->{offset}} @$segments;
+  my $offset = $segs[0]->{offset};
+  my $len    = $segs[-1]->end - $segs[0]->start + 1;
+  my $base = { %{$segs[0]} };
+  $base->{length} = $len;
+  bless $base,ref($segs[0]);
+  return bless {
+		base     => $base,
+		segments => $segments,
+	       },$class;
 }
 
 sub smapped { 1; }
@@ -40,7 +40,7 @@ sub asString {
 }
 
 sub type {
-  return 'Transcript';
+  return 'GappedAlignment';
 }
 
 sub relative {
@@ -50,21 +50,12 @@ sub relative {
   $d;
 }
 
-sub introns {
+sub segments {
   my $self = shift;
-  return $self->{intron} ? @{$self->{intron}} : () unless $self->relative;
+  return $self->{segments} ? @{$self->{segments}} : () unless $self->relative;
   # otherwise, we have to handle relative coordinates
   my $base   = $self->{base};
-  my @e = map {Ace::Sequence->new(-refseq=>$base,-seq=>$_)} @{$self->{intron}};
-  return $self->strand eq '-' ? reverse @e : @e;
-}
-
-sub exons {
-  my $self = shift;
-  return $self->{exon} ? @{$self->{exon}} : () unless $self->relative;
-  # otherwise, we have to handle relative coordinates
-  my $base   = $self->{base};
-  my @e = map {Ace::Sequence->new(-refseq=>$base,-seq=>$_)} @{$self->{exon}};
+  my @e = map {Ace::Sequence->new(-refseq=>$base,-seq=>$_)} @{$self->{segments}};
   return $self->strand eq '-' ? reverse @e : @e;
 }
 
@@ -74,11 +65,11 @@ __END__
 
 =head1 NAME
 
-Ace::Sequence::Transcript - Simple "Gene" Object
+Ace::Sequence::GappedAlignment - Gapped alignment object
 
 =head1 SYNOPSIS
 
-    # open database connection and get an Ace::Object sequence
+    # open database connection and get an Ace::Sequence object
     use Ace::Sequence;
 
     # get a megabase from the middle of chromosome I
@@ -87,29 +78,32 @@ Ace::Sequence::Transcript - Simple "Gene" Object
 			      -offset => 3_000_000,
 			      -length => 1_000_000);
 
-    # get all the transcripts
-    @genes = $seq->transcripts;
+    # get all the gapped alignments
+    @alignments = $seq->alignments('EST_GENOME');
 
-    # get the exons from the first one
-    @exons = $genes[0]->exons;
+    # get the aligned segments from the first one
+    @segs = $alignments[0]->segments;
 
-    # get the introns
-    @introns = $genes[0]->introns
+    # get the position of the first aligned segment on the
+    # source sequence:
+    ($s_start,$s_end) = ($segs[0]->start,$segs[0]->end);
 
-    # get the CDSs (NOT IMPLEMENTED YET!)
-    @cds = $genes[0]->cds;
+    # get the target position for the first aligned segment
+    ($t_start,$t_end) = ($segs[0]->target->start,$segs[0]->target->end);
 
 =head1 DESCRIPTION
 
-Ace::Sequence::Gene is a subclass of Ace::Sequence::Feature.  It
-inherits all the methods of Ace::Sequence::Feature, but adds the
-ability to retrieve the annotated introns and exons of the gene.
+Ace::Sequence::GappedAlignment is a subclass of
+Ace::Sequence::Feature.  It inherits all the methods of
+Ace::Sequence::Feature, but adds the ability to retrieve the positions
+of the aligned segments.  Each segment is an Ace::Sequence::Feature,
+from which you can retrieve the source and target coordinates.
 
 =head1  OBJECT CREATION
 
-You will not ordinarily create an I<Ace::Sequence::Gene> object
-directly.  Instead, objects will be created in response to a
-transcripts() call to an I<Ace::Sequence> object.
+You will not ordinarily create an I<Ace::Sequence::GappedAlignment>
+object directly.  Instead, objects will be created in response to a
+alignments() call to an I<Ace::Sequence> object.
 
 =head1 OBJECT METHODS
 
@@ -118,26 +112,12 @@ following methods are also supported:
 
 =over 4
 
-=item exons()
+=item segments()
 
-  @exons = $gene->exons;
-
-Return a list of Ace::Sequence::Feature objects corresponding to
-annotated exons.
-
-=item introns()
-
-  @introns = $gene->introns;
+  @segments = $gene->segments;
 
 Return a list of Ace::Sequence::Feature objects corresponding to
-annotated introns.
-
-=item cds()
-
-  @cds = $gene->cds;
-
-Return a list of Ace::Sequence::Feature objects corresponding to
-coding sequence.  THIS IS NOT YET IMPLEMENTED.
+similar segments.
 
 =item relative()
 

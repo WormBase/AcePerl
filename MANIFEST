@@ -15,6 +15,7 @@ Ace/Graphics/Glyph/transcript.pm
 Ace/Sequence.pm
 Ace/Sequence/Feature.pm
 Ace/Sequence/Transcript.pm
+Ace/Sequence/GappedAlignment.pm
 Ace/Sequence/FeatureList.pm
 Ace/Sequence/Homol.pm
 Ace/Sequence/Multi.pm

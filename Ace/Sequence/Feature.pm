@@ -55,6 +55,8 @@ sub new {
   return $self;
 }
 
+sub smapped { 1; }
+
 # $_[0] is field name, $_[1] is self, $_[2] is optional replacement value
 sub _field {
   my $self = shift;

@@ -6,7 +6,6 @@ use strict;
 use Ace 1.50 qw(:DEFAULT rearrange);
 use Ace::Sequence::FeatureList;
 use Ace::Sequence::Feature;
-use Ace::Sequence::Transcript;
 use AutoLoader 'AUTOLOAD';
 use vars '$VERSION';
 my %CACHE;
@@ -93,10 +92,10 @@ sub new {
   $offset *= -1 if $strand eq '-';
 
   # handle feature objects
-  $offset += $obj->offset if $obj->isa('Ace::Sequence');
+  $offset += $obj->offset if $obj->can('smapped');
 
   # get source
-  my $source = $obj->isa('Ace::Sequence') ? $obj->source : $obj;
+  my $source = $obj->can('smapped') ? $obj->source : $obj;
   
   # store the object into our instance variables
   my $self = bless {
@@ -149,7 +148,7 @@ sub refseq {
 	last BLOCK;
       }
 
-      if (ref($refseq) && ($refseq->isa('Ace::Sequence') || $refseq->isa('Ace::Sequence::Gene'))) {
+      if (ref($refseq) && ($refseq->can('smapped'))) {
 	croak "Reference sequence has no common ancestor with sequence"
 	  unless $self->parent eq $refseq->parent;
 	my ($a,$b,$c) = @{$refseq->{refseq}};
@@ -196,6 +195,8 @@ sub r_strand {
 
 sub offset { $_[0]->{offset} }
 sub p_offset { $_[0]->{p_offset} }
+
+sub smapped { 1; }
 
 # return the database this sequence is associated with
 sub db {
@@ -336,8 +337,8 @@ sub features {
   return wantarray ? @features : \@features;
 }
 
-# A little bit more complex - assemble a list of "genes"
-# consisting of Ace::Sequence::Gene objects.  These objects
+# A little bit more complex - assemble a list of "transcripts"
+# consisting of Ace::Sequence::Transcript objects.  These objects
 # contain a list of exons and introns.
 sub transcripts {
   my $self    = shift;
@@ -354,6 +355,7 @@ sub _make_transcripts {
   my $self = shift;
   my $features = shift;
 
+  require Ace::Sequence::Transcript;
   my %transcripts;
 
   for my $feature (@$features) {
@@ -362,11 +364,13 @@ sub _make_transcripts {
       my $type = $1;
       push @{$transcripts{$transcript}{$1}},$feature;
     } elsif ($feature->type eq 'Sequence') {
-      $transcripts{$transcript}{base} = $feature;
+      $transcripts{$transcript}{base} ||= $feature;
     }
   }
   # get rid of transcripts without exons
-  foreach (keys %transcripts) { delete $transcripts{$_} unless exists $transcripts{$_}{exon} }
+  foreach (keys %transcripts) { 
+    delete $transcripts{$_} unless exists $transcripts{$_}{exon} 
+  }
 
   # map the rest onto Ace::Sequence::Transcript objects
   return map {Ace::Sequence::Transcript->new($transcripts{$_})} keys %transcripts;
@@ -415,6 +419,43 @@ sub _make_clones {
   return @features;
 }
 
+# Assemble a list of "GappedAlignment" objects. These objects
+# contain a list of aligned segments.
+sub alignments {
+  my $self    = shift;
+  my @subtypes = @_;
+  my @types = map { "similarity:$_" } @subtypes;
+  my @features = $self->features(@types);
+  return unless @features;
+  return $self->_make_alignments(\@features);
+}
+
+sub _make_alignments {
+  my $self = shift;
+  my $features = shift;
+  require Ace::Sequence::GappedAlignment;
+
+  my %homol;
+
+  for my $feature (@$features) {
+    my $target = $feature->info;
+
+    # HACK ALERT: here's where we associated 3' and 5' ESTs by taking advantage
+    # of a C. elegans-specific sequence naming scheme:
+    my $id;
+    if ($target =~ /^(.+)\.[35]$/) {
+      $id = $1;
+    } else {
+      $id = $target;
+    }
+    push @{$homol{$id}},$feature;
+  }
+
+  # map onto Ace::Sequence::GappedAlignment objects
+  return map {Ace::Sequence::GappedAlignment->new($homol{$_})} keys %homol;
+}
+
+
 # return list of features quickly
 sub feature_list {
   my $self = shift;
@@ -437,14 +478,14 @@ sub transformGFF {
   if ($ref_strand eq '+') {
     my $o = defined($ref_offset) ? $ref_offset : ($self->p_offset + $self->offset);
     # find anything that looks like a numeric field and subtract offset from it
-    $$gff =~ s/\s+(-?\d+)\s+(-?\d+)/"\t" . ($1 - $o) . "\t" . ($2 - $o)/eg;
+    $$gff =~ s/(?<!\")\s+(-?\d+)\s+(-?\d+)/"\t" . ($1 - $o) . "\t" . ($2 - $o)/eg;
     $$gff =~ s/^$parent/$source/mg;
     $$gff =~ s/\#\#sequence-region\s+\S+/##sequence-region $ref_source/m;
     $$gff =~ s/FMAP_FEATURES\s+"\S+"/FMAP_FEATURES "$ref_source"/m;
     return;
   } else {  # strand eq '-'
     my $o = defined($ref_offset) ? (2 + $ref_offset) : (2 + $self->p_offset - $self->offset);
-    $$gff =~ s/\s+(-?\d+)\s+(-?\d+)\s+([.\d]+)\s+(\S)/join "\t",'',$o-$2,$o-$1,$3,$4 eq '+'? '-' : '+'/eg;    
+    $$gff =~ s/(?<!\")\s+(-?\d+)\s+(-?\d+)\s+([.\d]+)\s+(\S)/join "\t",'',$o-$2,$o-$1,$3,$4 eq '+'? '-' : '+'/eg;    
     $$gff =~ s/^$parent/$source/mg;
     $$gff =~ s/\#\#sequence-region\s+\S+\s+(-?\d+)\s+(-?\d+)/"##sequence-region $ref_source " . ($o - $2) . ' ' . ($o - $1) . ' (reversed)'/em;
     $$gff =~ s/FMAP_FEATURES\s+"\S+"\s+(-?\d+)\s+(-?\d+)/"FMAP_FEATURES \"$ref_source\" " . ($o - $2) . ' ' . ($o - $1) . ' (reversed)'/em;
@@ -1019,6 +1060,14 @@ See L<Ace::Feature::List> for more details.
 This returns a list of Ace::Sequence::Transcript objects, which are
 specializations of Ace::Sequence::Feature.  See L<Ace::Sequence::Transcript>
 for details.
+
+=head2 clones()
+
+This returns a list of Ace::Sequence::Feature objects containing
+reconstructed clones.  This is a nasty hack, because ACEDB currently
+records clone ends, but not the clones themselves, meaning that we
+will not always know both ends of the clone.  In this case the missing
+end has a synthetic position of -99,999,999 or +99,999,999.  Sorry.
 
 =head2 gff()
 
