@@ -14,7 +14,7 @@ $VERSION = '1.51';
 
 use constant CACHE => 1;
 
-use overload 
+use overload
   '""'       => 'asString',
   cmp        => 'cmp',
 ;
@@ -471,7 +471,7 @@ sub alignments {
 
 sub segments {
   my $self = shift;
-  return $self;
+  return;
 }
 
 sub _make_alignments {

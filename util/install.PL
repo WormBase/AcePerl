@@ -2,7 +2,8 @@
 use Config;
 use File::Basename qw(&basename &dirname);
 use Cwd;
-                                                                                                  $origdir = cwd;
+
+$origdir = cwd;
 chdir dirname($0);
 $file = basename($0, '.PL');
 $file .= $^O eq 'VMS' ? '.com' : '.pl';
