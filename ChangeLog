@@ -1,0 +1,2 @@
+1.00	First working version
+1.01	Fixed bug in _appendToTable() routine that caused asHTML to hang.
