@@ -83,11 +83,14 @@ sub read {
   return _error("No pending query") unless $self->status == STATUS_PENDING;
   $self->_do_encore || return if $self->encore;
   # call select() here to time out
+
   if ($self->{timeout}) {
-    my $rdr = '';
-    vec($rdr,fileno($self->{socket}),1) = 1;
-    return _error("Query timed out") unless select($rdr,undef,undef,$self->{timeout});
+      my $rdr = '';
+      vec($rdr,fileno($self->{socket}),1) = 1;
+      my $result = select($rdr,undef,undef,$self->{timeout});
+      return _error("Query timed out") unless $result;
   }
+
   my ($msg,$body) = $self->_recv_msg;
   return unless defined $msg;
   $msg =~ s/\0.+$//;  # socketserver bug workaround: get rid of junk in message
