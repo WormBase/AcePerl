@@ -308,6 +308,8 @@ sub file_cache_fetch {
 sub file_cache_store {
   my $self = shift;
   my $obj  = shift;
+
+  warn "file_cache_store, .PATHS keys = {".join ',',keys(%{$self->{'.PATHS'}})."}" if exists $self->{'.PATHS'};
   my $key = join ':',$obj->class,$obj->name;
   my $cache = $self->cache or return;
 
@@ -407,7 +409,8 @@ sub name2db {
   my $name = shift;
   return unless defined $name;
   my $d = $NAME2DB{$name};
-  weaken($NAME2DB{$name} = shift) if @_;
+  # weaken($NAME2DB{$name} = shift) if @_;
+  $NAME2DB{$name} = shift if @_;
   $d;
 }
 

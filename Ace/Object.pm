@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp qw(:DEFAULT cluck);
 
-# $Id: Object.pm,v 1.56 2005/03/09 15:43:56 lstein Exp $
+# $Id: Object.pm,v 1.57 2005/03/11 01:33:11 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -73,7 +73,6 @@ sub AUTOLOAD {
 
       # otherwise dereference if the current thing is an object or we are at a tag
       # and the thing to the right is an object.
-#      return $obj->fetch if $obj->isObject || ($obj->right && $obj->right->isObject);  # this heuristic stinks
       return $obj->fetch if $obj->isObject && !$obj->isRoot;  # always dereference objects
 
       # otherwise return the thing itself
@@ -88,6 +87,7 @@ sub AUTOLOAD {
 
 sub DESTROY {
   my $self = shift;
+
   return unless defined $self->{class};      # avoid working with temp objects from a search()
   return if caller() =~ /^(Cache\:\:|DB)/;  # prevent recursion in FileCache code
   my $db = $self->db or return;
