@@ -289,8 +289,7 @@ This subroutine is not exported by default.
 sub AceMultipleChoices {
   my ($symbol,$report,$objects) = @_;
   if ($objects && @$objects == 1) {
-    my $url = Configuration()->display($report,'url');
-    my $destination = ResolveUrl($url => "name=$objects->[0]");
+    my $destination = Object2URL($objects->[0]);
     AceHeader(-Refresh => "1; URL=$destination");
     print start_html (
 			   '-Title' => 'Redirect',
@@ -298,7 +297,7 @@ sub AceMultipleChoices {
 			),
       h1('Redirect'),
       p("Automatically transforming this query into a request for corresponding object",
-	     a({-href => Object2URL($objects->[0])},$objects->[0]->class.':',$objects->[0])),
+	ObjectLink($objects->[0],$objects->[0]->class.':'.$objects->[0])),
       p("Please wait..."),
       Footer(),
       end_html();
