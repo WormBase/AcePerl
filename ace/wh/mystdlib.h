@@ -30,7 +30,7 @@
  *-------------------------------------------------------------------
  */
 
-/* $Id: mystdlib.h,v 1.1 1999/01/10 23:51:40 lstein Exp $ */
+/* $Id: mystdlib.h,v 1.2 1999/07/02 21:04:55 lstein Exp $ */
 
 #ifndef DEF_MYSTDLIB_H
 #define DEF_MYSTDLIB_H
@@ -345,7 +345,9 @@ int gethostname(char *name, int namelen);
  char *vsprintf (char *buffer, const char *format, va_list arglist);
 #else
  /* !SUN */
+#ifndef HASVSPRINTF
  int vsprintf (char *buffer, const char *format, va_list arglist);
+#endif
 #endif /* !SUN */
 
 /*******************************************************************/

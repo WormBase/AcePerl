@@ -110,7 +110,7 @@ sub evaluate {
     $DB->db->query($_) || return undef;
     if ($DB->db->status == STATUS_ERROR) {
       print "[Ace error] status code ",$DB->db->status,"\n";
-      return undef; 
+      return;
     }
 
     while ($DB->db->status == STATUS_PENDING) {
@@ -118,6 +118,9 @@ sub evaluate {
       $h=~tr/\0//d; # get rid of nulls in data stream!
       print $h;
     }
+
+    die "[Ace error] status code ",$DB->db->status,"\n"
+      if $DB->db->status == STATUS_ERROR;
 
   }
 }

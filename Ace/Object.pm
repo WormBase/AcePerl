@@ -33,9 +33,7 @@ sub AUTOLOAD {
     #     croak $error unless $self->model->valid_tag($func_name);
 
      # This section works with Autoloader
-    my $presumed_tag = $func_name =~ /^[A-Z]/;  # initial_cap 
-    $AutoLoader::AUTOLOAD = $AUTOLOAD;
-    goto &AutoLoader::AUTOLOAD unless $self->isObject;
+    my $presumed_tag = $func_name =~ /^[A-Z]/ && $self->isObject;  # initial_cap 
 
     if ($presumed_tag) {
       croak "Invalid object tag \"$func_name\"" 
@@ -53,11 +51,26 @@ sub AUTOLOAD {
       return $self->search($func_name,@_) if wantarray;
       my $obj = $self->search($func_name,@_);
       
+      # these nasty heuristics simulate aql semantics.
+      # undefined return
       return unless $obj;
+
+      # don't dereference object if '@' symbol specified
       return $obj if $no_dereference;
+
+      # don't dereference if an offset was explicitly specified
+      return $obj if defined($_[0]) && $_[0] =~ /\d+/;
+
+      # otherwise dereference if the current thing is an object or we are at a tag
+      # and the thing to the right is an object.
       return $obj->fetch if $obj->isObject || ($obj->right && $obj->right->isObject);
+
+      # otherwise return the thing itself
       return $obj;
     } else {
+#      $AutoLoader::AUTOLOAD = $AUTOLOAD;
+#      $AutoLoader::AUTOLOAD = $self->factory . "::$func_name";
+      $AutoLoader::AUTOLOAD = __PACKAGE__ . "::$func_name";
       goto &AutoLoader::AUTOLOAD;
     }
 }
@@ -390,6 +403,12 @@ sub model {
   return $self->db->model($self->class);
 }
 
+### Return the class in which to bless all objects retrieved from
+# database. Might want to override in other classes
+sub factory {
+  return __PACKAGE__;
+}
+
 #####################################################################
 #####################################################################
 ############### mostly private functions from here down #############
@@ -481,7 +500,10 @@ sub _parse {
 
 sub _fromRaw {
   my $pack = shift;
-  $pack = ref($pack) if ref($pack);
+#  $pack = ref($pack) if ref($pack);
+# $pack = __PACKAGE__;
+  $pack = $pack->factory();
+
   my ($raw,$start_row,$col,$end_row,$db) = @_;
   return unless $raw->[$start_row][$col];
   my ($class,$name) = Ace::AceDB->split($raw->[$start_row][$col]);
@@ -1457,11 +1479,24 @@ one.
 
 =head2 error() method
     
-    $object->error;
+    $error = $object->error;
 
 Returns the error from the previous operation, if any.  As in
 Ace::error(), this string will only have meaning if the previous
 operation returned a result code indicating an error.
+
+=head2 factory() method
+
+    $package = $object->factory;
+
+When a root Ace object instantiates its tree of tags and values, it
+creates a hierarchical structure of Ace::Object objects.  The
+factory() method determines what class to bless these subsidiary
+objects into.  By default, they are Ace::Object objects, but you can
+override this method in a child class in order to create more
+specialized Ace::Object classes.  The method should return a string
+corresponding to the package to bless the object into.  It receives
+the current Ace::Object as its first argument.
 
 =head2 debug() method
 

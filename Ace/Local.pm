@@ -28,15 +28,15 @@ sub connect {
   # some pretty insane heuristics to handle BOTH tace and aceclient
   die "Specify either -path or -host and -port" if ($program && ($host || $port));
   die "-path is not relevant for aceclient, use -host and/or -port"
-    if $program=~/aceclient/ && $path;
+    if defined($program) && $program=~/aceclient/ && defined($path);
   die "-host and -port are not relevant for tace, use -path"
-    if $program=~/tace/ and ($port || $host);
+    if defined($program) && $program=~/tace/ and (defined $port || defined $host);
   
   # note, this relies on the programs being included in the current PATH
   if ($host || $port) {
     $program ||= 'aceclient';
   } else {
-    $program ||= 'tace';
+    $program ||= 'giface';
   }
   if ($program =~ /aceclient/) {
     $host ||= DEFAULT_HOST;
@@ -129,6 +129,10 @@ sub read {
   while (1) {
     my $data;
     my $bytes = sysread($rdr,$data,READSIZE);
+    unless ($bytes > 0) {
+      $self->{'status'} = STATUS_ERROR;
+      return;
+    }
     $self->{'buffer'} .= $data;
 
     # check for prompt

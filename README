@@ -60,9 +60,11 @@ Follow these steps to unpack, build and install AcePerl:
    You can find a list of machine definitions in
    AcePerl-X.XX/ace/wmake.  There are lots of them, but only
    one or two per operating system, so it's usually pretty
-   easy to choose the right one.  The defintions have names 
+   easy to choose the right one.  The definitions have names 
    like ALPHA_4_GCC_DEF.  Before setting the corresponding
    environment variable, remove the "_DEF" from the end of the name.
+   In case you're wondering the "4" stands for version 4 of the ACEDB
+   server.
 
    Please drop me a line to let me know what you had to do to get
    the ACEDB libraries to compile.  I'll fix up the Makefile so
