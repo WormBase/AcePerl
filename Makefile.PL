@@ -25,7 +25,7 @@ push @extlib,'RPC'      if $choice >= 3;
 print "\n";
 setup_sitedefs() if prompt("Do you want to install Ace::Browser? ","n") =~ /[yY]/;
 
-my $headers  = "./ace/wh";
+my $headers  = "./acelib/wh";
 WriteMakefile(
 	      'DISTNAME'     => 'AcePerl',
 	      'NAME'	     => 'Ace',
@@ -42,10 +42,10 @@ WriteMakefile(
                                  'SUFFIX' => 'gz',
 	                         'ZIP'=>'/usr/bin/zip','ZIPFLAGS'=>'-rl'
 			      },
-	      PL_FILES => {'make_docs.PL' => '.docs',
-			   'util/install.PL'=>'util/install.pl',
+	      PL_FILES => {'make_docs.PLS' => '.docs',
+			   'util/install.PLS'=>'util/install.pl',
 			  },
-	      'clean'        => {'FILES' => 'ace/lib* ace/*.o ace/rpcace*.[ch]'},
+	      'clean'        => {'FILES' => 'acelib/lib* acelib/*.o acelib/rpcace*.[ch]'},
 );
 
 exit 0;

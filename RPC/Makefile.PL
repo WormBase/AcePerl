@@ -3,13 +3,13 @@ use Config;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 
-$headers  = "../ace/wh";
+$headers  = "../acelib/wh";
 
 WriteMakefile(
 	      'NAME'	     => 'Ace::RPC',
 	      'VERSION_FROM' => 'RPC.pm', # finds $VERSION
 	      'DEFINE'	     => '',
-	      'MYEXTLIB'     => '../ace/libaceperl.a',
+	      'MYEXTLIB'     => '../acelib/libaceperl.a',
 	      'LIBS'         => ['-lc'],
 	      'OBJECT'       => '$(O_FILES)',
 	      'XSPROTOARG'   => '-noprototypes',
@@ -21,8 +21,8 @@ sub MY::postamble {
     my $definition = guess_definition();
     warn "Using $definition definitions to build ace library.\n";
 "
-\$(MYEXTLIB): ../ace/Makefile
-	cd ../ace && \$(MAKE) ACEDB_MACHINE=$definition all
+\$(MYEXTLIB): ../acelib/Makefile
+	cd ../acelib && \$(MAKE) ACEDB_MACHINE=$definition all
 ";
 }
 
