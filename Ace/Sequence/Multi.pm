@@ -65,7 +65,7 @@ sub gff {
   my $self = shift;
   my ($abs,$features) = rearrange([['ABS','ABSOLUTE'],'FEATURES'],@_);
 
-  my $gff = $self->SUPER::gff(-abs=>$abs,-features=>$features,-db=>$self->db);
+  my $gff = $self->SUPER::gff(-Abs=>$abs,-Features=>$features,-Db=>$self->db);
   return unless $gff;
   return $gff unless $self->secondary;
 

@@ -19,7 +19,7 @@ sub end    {  return $_[0]->{'end'};    }
 
 sub asString { 
   my $n = $_[0]->name;
-  "$n/$_[0]->{start}-$_[0]->{end}";
+  "$n/$_[0]->{'start'}-$_[0]->{'end'}";
 }
 
 1;

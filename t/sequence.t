@@ -36,7 +36,7 @@ test(6,$zk154->end==26547,"end() failure");
 
 test(7,$zk154s = Ace::Sequence->new(-seq=>$clone,
 				    -offset=>100,
-				    -length=>100),"new() failure");
+				    -Length=>100),"new() failure");
 test(8,$zk154s->start==101,"start() failure (2)");
 test(9,$zk154s->end==200,"end() failure (2)");
 
@@ -45,7 +45,7 @@ test(11,length($zk154s->dna)==100,"dna() failure");
 
 test(12,$zk154r = Ace::Sequence->new(-seq=>$clone,
 				     -offset =>  100,
-				     -length => -100),"new() failure");
+				     -Length => -100),"new() failure");
 test(13,$zk154r->start==101,"start() failure (3)");
 test(14,$zk154r->end==2,"end() failure (3)");
 
@@ -90,8 +90,8 @@ test(34,$features[0]->end == 57,'features() error');
 test(35,length($features[0]->dna) == 57,'dna() error');
 
 # test that relative offsets are working
-$zk154 = Ace::Sequence->new(-seq=>$gene,-length=>11);
-$zk154_3 = Ace::Sequence->new(-seq=>$gene,-offset=>1,-length=>10);
+$zk154 = Ace::Sequence->new(-seq=>$gene,-Length=>11);
+$zk154_3 = Ace::Sequence->new(-seq=>$gene,-offset=>1,-Length=>10);
 test(36,substr($zk154->dna,1,10) eq $zk154_3->dna,'offset error');
 
 

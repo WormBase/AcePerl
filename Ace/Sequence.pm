@@ -139,7 +139,7 @@ sub gff_reversed {
 # human readable string (for debugging)
 sub asString {
   my $self = shift;
-  return join '',$self->{parent},'/',$self->start,'-',$self->end;
+  return join '',$self->{'parent'},'/',$self->start,'-',$self->end;
 }
 
 # return reference sequence
@@ -230,7 +230,7 @@ sub features {
     $sub = sub { 1; }
   }
   # get raw gff file
-  my $gff = $self->gff(-abs=>1,-features=>[keys %filter]);
+  my $gff = $self->gff('-abs'=>1,-features=>[keys %filter]);
 
   my @features = map {Ace::Sequence::Feature->new($_,$self,$self->{norelative})} 
                  grep !m@^(?:\#|//)@ && $sub->($_),split("\n",$gff);
@@ -447,7 +447,7 @@ sub _query {
   my $end   = $self->end;
   ($start,$end) = ($end,$start) if $start > $end;  #flippity floppity
   my $coord   = "-coords $start $end";
-  $command .= " -refseq $self->{parent}" if $self->{'norelative'};
+  $command .= " -refseq $self->{'parent'}" if $self->{'norelative'};
 
   # corrects a ?bug in ace server
   if ( $self->{'source_reversed'} && !$self->{'norelative'} ) {
