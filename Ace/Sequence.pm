@@ -328,7 +328,8 @@ sub _get_refseq {
   if ( $obj->isa('Ace::Sequence') ) {
     $o      = $obj->isa('Ace::Sequence::Feature') ? $obj->parent->parent : $obj->source_seq;
     $parent = $obj->isa('Ace::Sequence::Feature') ? $o : $obj->parent;
-    unless ($obj->abs_reversed) {
+#    unless ($obj->abs_reversed) {
+    unless ($obj->{'source_reversed'}) {
       $offset = $obj->abs_start - 1;
       $length = $obj->abs_end - $obj->abs_start + 1;
     } else {
@@ -468,7 +469,10 @@ sub _query {
     my $t_coord   = "-coords 1 $length";
     return $db->raw_query("gif seqget $name $t_coord ; $command $coord");
   } else {
-    return $db->raw_query("gif seqget $name $coord ; $command");
+    my $length = CORE::abs($end - $start + 1);
+    # another bug/workaround!
+    my $t_coord   = $command eq 'seqdna' ? "-coords 1 $length" : $coord; 
+    return $db->raw_query("gif seqget $name $t_coord ; $command $coord");
   }
 }
 
