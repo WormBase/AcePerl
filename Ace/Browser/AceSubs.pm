@@ -350,7 +350,7 @@ sub AcePicRoot {
   my $umask = umask();
   umask 002;  # want this writable by group
   my ($picroot,$uri);
-  if ($ENV{MOD_PERL}) { # we have apache, so no reason not to take advantage of it
+  if ($ENV{MOD_PERL} && Apache->can('request')) { # we have apache, so no reason not to take advantage of it
     my $r = Apache->request;
     $uri  = join('/',Configuration()->Pictures->[0],"/",$path);
     my $subr = $r->lookup_uri($uri);
@@ -561,7 +561,7 @@ sub Header {
   # next select the correct search script
   my @searches = @{$searches};
   my $self = url(-relative=>1);
-  my $modperl = $ENV{MOD_PERL} && eval {Apache->request->dir_config('AceBrowserConf')};
+  my $modperl = $ENV{MOD_PERL} && Apache->can('request') && eval {Apache->request->dir_config('AceBrowserConf')};
   my @row;
   foreach (@searches) {
     my ($name,$url,$on,$off,$size) = @{$config->searches($_)}{qw/name url onimage
@@ -995,7 +995,7 @@ sub getDatabasePorts {
 
 sub get_symbolic {
 
-  if (exists $ENV{MOD_PERL}) {  # the easy way
+  if (exists $ENV{MOD_PERL} && Apache->can('request')) {  # the easy way
     if (my $r = Apache->request) {
       if (my $conf = $r->dir_config('AceBrowserConf')) {
 	my ($name) = $conf =~ m!([^/]+)\.(?:pm|conf)$!;

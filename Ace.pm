@@ -1,7 +1,9 @@
 package Ace;
 
 use strict;
-use Carp 'croak','carp';
+use Carp qw(croak carp cluck);
+use WeakRef;
+
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK $Error);
 
 require Exporter;
@@ -10,8 +12,6 @@ use overload
   '""'  => 'asString',
   'cmp' => 'cmp';
 
-use constant DEBUG=>1;
-
 @ISA = qw(Exporter AutoLoader);
 
 # Items to export into callers namespace by default.
@@ -19,7 +19,7 @@ use constant DEBUG=>1;
 
 # Optional exports
 @EXPORT_OK = qw(rearrange ACE_PARSE);
-$VERSION = '1.87';
+$VERSION = '1.88';
 
 use constant STATUS_WAITING => 0;
 use constant STATUS_PENDING => 1;
@@ -32,8 +32,19 @@ use constant DEFAULT_SOCKET => 2005;    # socket server
 require Ace::Iterator;
 eval qq{use Ace::Freesubs};  # XS file, may not be available
 
-# Map database names to objects (to fix caching bug)
+# Map database names to objects (to fix file-caching issue)
 my %NAME2DB;
+
+# internal cache of objects
+my %MEMORY_CACHE;
+
+# Debugging level
+my $DEBUG_LEVEL;
+
+my %DEFAULT_CACHE_PARAMETERS = (
+				default_expires_in  => '1 day',
+				auto_purge_interval => '12 hours',
+				);
 
 # Preloaded methods go here.
 $Error = '';
@@ -64,7 +75,7 @@ sub connect {
 		'PATH','CLASS','TIMEOUT',
 		'QUERY_TIMEOUT','URL','CACHE'],@_);
 
-  ($host,$port,$u,$p,$server_type) = $class->process_url($url) 
+  ($host,$port,$u,$pass,$p,$server_type) = $class->process_url($url) 
     or croak "Usage:  Ace->connect(-host=>\$host,-port=>\$port [,-path=>\$path]\n"
       if defined $url;
 
@@ -93,9 +104,6 @@ sub connect {
     return;
   }
 
-  my $cache_obj = Cache::FileCache->new($cache)
-    if ($cache && eval "require Cache::FileCache; 1;");
-
   my $contents = {
 		  'database'=> $database,
 		  'host'   => $host,
@@ -108,11 +116,12 @@ sub connect {
 		  'other'  => $other,
 		  'date_style' => 'java',
 		  'auto_save' => 0,
-		  filecache   => $cache_obj,
 		 };
 
-  my $self = bless {c=>$contents},ref($class)||$class;
-  eval "require $self->{c}{class}" or warn $@;
+  my $self = bless $contents,ref($class)||$class;
+  eval "require $self->{class}" or warn $@;
+
+  $self->_create_cache($cache) if $cache;
   $self->name2db("$self",$self);
   return $self;
 }
@@ -120,28 +129,28 @@ sub connect {
 sub reopen {
   my $self = shift;
   return 1 if $self->ping;
-  my $class = ref($self->{c}{database});
+  my $class = ref($self->{database});
   my $database;
-  if ($self->{c}{path}) {
-    $database = $class->connect(-path=>$self->{c}{path},%{$self->other});
+  if ($self->{path}) {
+    $database = $class->connect(-path=>$self->{path},%{$self->other});
   } else {
-    $database = $class->connect($self->{c}{host},$self->{c}{port}, $self->{c}{timeout},
-				$self->{c}{user},$self->{c}{pass},%{$self->{c}{other}});
+    $database = $class->connect($self->{host},$self->{port}, $self->{timeout},
+				$self->{user},$self->{pass},%{$self->{other}});
   }
   unless ($database) {
     $Ace::Error = "Couldn't open database";
     return;
   }
-  $self->{c}{database} = $database;
+  $self->{database} = $database;
   1;
 }
 
 sub class {
   my $self = shift;
-  my $d = $self->{c}{class};
+  my $d = $self->{class};
   if (@_) {
-    $self->{c}{class} = shift;
-    eval "require $self->{c}{class}" or warn $@;
+    $self->{class} = shift;
+    eval "require $self->{class}" or warn $@;
   }
   $d;
 }
@@ -149,14 +158,14 @@ sub class {
 sub process_url {
   my $class = shift;
   my $url = shift;
-  my ($host,$port,$user,$path,$server_type) = ('','','','','');
+  my ($host,$port,$user,$pass,$path,$server_type) = ('','','','','','');
 
   if ($url) {  # look for host:port
     local $_ = $url;
     if (m!^rpcace://([^:]+):(\d+)$!) {  # rpcace://localhost:200005
       ($host,$port) = ($1,$2);
       $server_type = 'Ace::RPC';
-    } elsif (m!^sace://(\w+)\@([^:]+):(\d+)$!) { # sace://user@localhost:2005
+    } elsif (m!^sace://([\w:]+)\@([^:]+):(\d+)$!) { # sace://user@localhost:2005
       ($user,$host,$port) = ($1,$2,$3);
       $server_type = 'Ace::SocketServer';
     } elsif (m!^sace://([^:]+):(\d+)$!) { # sace://localhost:2005
@@ -173,13 +182,17 @@ sub process_url {
     }
   }
 
-  return ($host,$port,$user,$path,$server_type);  
+  if ($user =~ /:/) {
+    ($user,$pass) = split /:/,$user;
+  }
+
+  return ($host,$port,$user,$pass,$path,$server_type);  
 
 }
 
 # Return the low-level Ace::AceDB object
 sub db {
-  return $_[0]->{c}{'database'};
+  return $_[0]->{'database'};
 }
 
 # Fetch a model from the database.
@@ -190,10 +203,118 @@ sub model {
   require Ace::Model;
   my $model       = shift;
   my $break_cycle = shift;  # for breaking cycles when following #includes
-  return $self->{c}{'models'}{$model} ||=
-    Ace::Model->new($self->raw_query("model \"$model\""),$self,$break_cycle);
+  my $key = join(':',$self,'MODEL',$model);
+  $self->{'models'}{$model} ||= eval{$self->cache->get($key)};
+  unless ($self->{models}{$model}) {
+    $self->{models}{$model} =
+      Ace::Model->new($self->raw_query("model \"$model\""),$self,$break_cycle);
+    eval {$self->cache->set($key=>$self->{models}{$model})};
+  }
+  return $self->{'models'}{$model};
 }
-	   
+
+# cached get
+# pass "1" for fill to get a full fill
+# pass any other true value to get a tag fill
+sub get {
+  my $self = shift;
+  my ($class,$name,$fill) = @_;
+
+  # look in caches first
+  my $obj = $self->memory_cache_fetch($class=>$name) 
+    || $self->file_cache_fetch($class=>$name);
+  return $obj if $obj;
+
+  $obj = $self->_acedb_get($class,$name,$fill) or return;
+  $self->memory_cache_store($obj);
+  $obj;
+}
+
+sub _acedb_get {
+  my $self = shift;
+  my ($class,$name,$filltag) = @_;
+  return unless $self->count($class,$name) >= 1;
+
+  #return $self->{class}->new($class,$name,$self,1) unless $filltag;
+  return ($self->_list)[0] unless $filltag;
+
+  if (defined $filltag && $filltag eq '1') {  # full fill
+    return $self->_fetch();
+  } else {
+    return $self->_fetch(undef,undef,$filltag);
+  }
+}
+
+
+#### CACHE AND CARRY CODE ####
+# Be very careful here.  The key used for the memory cache is in the format
+# db:class:name, but the key used for the file cache is in the format class:name.
+# The difference is that the filecache has a built-in namespace but the memory
+# cache doesn't.
+sub memory_cache_fetch {
+  my $self = shift;
+  my ($class,$name) = @_;
+  my $key = join ":",$self,$class,$name;
+  return unless defined $MEMORY_CACHE{$key};
+  carp "memory_cache hit on $key = ",overload::StrVal($MEMORY_CACHE{$key})
+    if Ace->debug;
+  return $MEMORY_CACHE{$key};
+}
+
+sub memory_cache_store {
+  my $self = shift;
+  croak "Usage: memory_cache_store(\$obj)" unless @_ == 1;
+  my $obj = shift;
+  my $key = join ':',$obj->db,$obj->class,$obj->name;
+  carp "memory_cache store on $key = ",overload::StrVal($obj) if Ace->debug;
+  weaken($MEMORY_CACHE{$key} = $obj);
+}
+
+sub memory_cache_delete {
+  my $package = shift;
+  my $obj = shift or croak "Usage: memory_cache_delete(\$obj)";
+  my $key = join ':',$obj->db,$obj->class,$obj->name;
+  delete $MEMORY_CACHE{$key};
+}
+
+# Call as:
+# $ace->file_cache_fetch($class=>$id)
+sub file_cache_fetch {
+  my $self = shift;
+  my ($class,$name) = @_;
+  my $key = join ':',$class,$name;
+  my $cache = $self->cache or return;
+  my $obj   = $cache->get($key);
+  carp "cache ",$obj?'hit':'miss'," on '$key'\n" if Ace->debug;
+  $self->memory_cache_store($obj) if $obj;
+  $obj;
+}
+
+# call as
+# $ace->file_cache_store($obj);
+sub file_cache_store {
+  my $self = shift;
+  my $obj  = shift;
+  my $key = join ':',$obj->class,$obj->name;
+  my $cache = $self->cache or return;
+
+  carp "caching $key obj=",overload::StrVal($obj),"\n" if Ace->debug;
+  $cache->set($key,$obj);
+}
+
+sub file_cache_delete {
+  my $self = shift;
+  my $obj = shift;
+  my $key = join ':',$obj->class,$obj->name;
+  my $cache = $self->cache or return;
+
+  carp "deleting $key obj=",overload::StrVal($obj),"\n" if Ace->debug;
+  $cache->remove($key,$obj);
+}
+
+#### END: CACHE AND CARRY CODE ####
+
+
 # Fetch one or a group of objects from the database
 sub fetch {
   my $self = shift;
@@ -201,7 +322,12 @@ sub fetch {
     rearrange(['CLASS',['NAME','PATTERN'],'COUNT','OFFSET','QUERY',
 	       ['FILL','FILLED'],'TOTAL','FILLTAG'],@_);
 
-  my $name = $pattern;
+  if (defined $class
+      && defined $pattern
+      && $pattern !~ /[\?\*]/
+      && !wantarray) {
+    return $self->get($class,$pattern);
+  }
 
   $offset += 0;
   $pattern ||= '*';
@@ -214,17 +340,6 @@ sub fetch {
     croak "must call fetch() with the -class or -query arguments";
   }
 
-
-  my $use_cache = ($self->cache
-                   && defined $class
-                   && defined $pattern
-                   && $pattern !~ /[\?\*]/
-                   && !wantarray);
-
-  if  ($use_cache) {
-    my $obj = $self->cache_fetch($class,$name);
-    return $obj if $obj;
-  }
 
   my $r = $self->raw_query($query);
 
@@ -245,38 +360,37 @@ sub fetch {
   return wantarray ? @h : $h[0];
 }
 
-sub cache {  shift->{c}{filecache}; }
-sub database { shift->{c}{database} }
+sub cache    { 
+  my $self = shift;
+  my $d    = $self->{filecache};
+  $self->{filecache} = shift if @_;
+  $d;
+}
+
+sub _create_cache {
+  my $self   = shift;
+  my $params = shift;
+
+  return unless eval {require Cache::SizeAwareFileCache};  # not installed
+
+  my %cache_params = (
+		      namespace    => "$self",
+		      %DEFAULT_CACHE_PARAMETERS,
+		      %$params,
+		     );
+  my $cache_obj = Cache::SizeAwareFileCache->new(\%cache_params);
+  $self->cache($cache_obj);
+}
 
 # class method
 sub name2db {
   shift;
   my $name = shift;
   return unless defined $name;
-  $NAME2DB{$name} = shift if @_;
-  $NAME2DB{$name};
+  my $d = $NAME2DB{$name};
+  weaken($NAME2DB{$name} = shift) if @_;
+  $d;
 }
-
-sub cache_fetch {
-  my $self = shift;
-  my ($class,$name) = @_;
-  my $cache = $self->cache or return;
-  my $obj   = $cache->get("$class:$name");
-  if (DEBUG) {
-     warn "cache ",$obj?'hit':'miss'," on '$class:$name'\n";
-  }
-  $obj;
-}
-
-sub cache_store {
-  my $self = shift;
-  my $obj = shift;
-  my $key = join ':',$obj->class,$obj->name;
-  my $cache = $self->cache or return;
-  warn "caching $key obj=",overload::StrVal($obj),"\n";
-  $cache->set($key,$obj);
-}
-
 
 # make a new object using indicated class and name pattern
 sub new {
@@ -305,7 +419,7 @@ sub aql {
   my $self = shift;
   my $query = shift;
   my $db = $self->db;
-  my $baseclass = $self->{c}{'class'};
+  my $baseclass = $self->{'class'};
   my $r = $self->raw_query("aql -j $query");
   if ($r =~ /(AQL error.*)/) {
     $self->error($1);
@@ -332,7 +446,6 @@ sub keyset {
 }
 
 
-
 #########################################################
 # These functions are for low-level (non OO) access only.
 # This is for low-level access only.
@@ -343,8 +456,8 @@ sub show {
 
     # if we get here, then we've got some data to return.
     my @result;
-    my $ts = $self->{c}{'timestamps'} ? '-T' : '';
-    $self->{c}{database}->query("show -j $ts $tag");
+    my $ts = $self->{'timestamps'} ? '-T' : '';
+    $self->{database}->query("show -j $ts $tag");
     my $result = $self->read_object;
     unless ($result =~ /(\d+) object dumped/m) {
 	$Ace::Error = 'Unexpected close during show';
@@ -355,10 +468,10 @@ sub show {
 
 sub read_object {
     my $self = shift;
-    return unless $self->{c}{database};
+    return unless $self->{database};
     my $result;
-    while ($self->{c}{database}->status == STATUS_PENDING()) {
-      my $data = $self->{c}{database}->read();
+    while ($self->{database}->status == STATUS_PENDING()) {
+      my $data = $self->{database}->read();
 #      $data =~ s/\0//g;  # get rid of nulls in the buffer
       $result .= $data if defined $data;
     }
@@ -369,7 +482,7 @@ sub read_object {
 sub raw_query {
   my ($self,$query,$no_alert,$parse) = @_;
   $self->_alert_iterators unless $no_alert;
-  $self->{c}{database}->query($query, $parse ? ACE_PARSE : () );
+  $self->{database}->query($query, $parse ? ACE_PARSE : () );
   return $self->read_object;
 }
 
@@ -385,16 +498,16 @@ sub error {
 sub close {
   my $self = shift;
   $self->raw_query('save') if $self->auto_save;
-  foreach (keys %{$self->{c}{iterators}}) {
+  foreach (keys %{$self->{iterators}}) {
     $self->_unregister_iterator($_);
   }
-  delete $self->{c}{database};
+  delete $self->{database};
 }
 
 sub DESTROY { 
   my $self = shift;
   return if caller() =~ /^Cache\:\:/;
-#  warn "$self->DESTROY at ", join ' ',caller();
+  warn "$self->DESTROY at ", join ' ',caller() if Ace->debug;
   $self->close;
 }
 
@@ -446,7 +559,7 @@ sub rearrange {
 sub _query {
   my ($self,@query) = @_;
   $self->_alert_iterators;
-  $self->{c}{'database'}->query("@query");
+  $self->{'database'}->query("@query");
 }
 
 # return a portion of the active list
@@ -462,7 +575,13 @@ sub _list {
   foreach (split("\n",$result)) {
     my ($class,$name) = Ace->split($_);
     next unless $class and $name;
-    push(@result,$self->{c}{'class'}->new($class,$name,$self,1));
+    my $obj = $self->memory_cache_fetch($class,$name);
+    $obj  ||= $self->file_cache_fetch($class,$name);
+    unless ($obj) {
+      $obj = $self->{'class'}->new($class,$name,$self,1);
+      $self->memory_cache_store($obj);
+    }
+    push @result,$obj;
   }
   return @result;
 }
@@ -474,19 +593,28 @@ sub _fetch {
   my (@result);
   $tag = '' unless defined $tag;
   my $query = "show -j $tag";
-  $query .= ' -T' if $self->{c}{timestamps};
+  $query .= ' -T' if $self->{timestamps};
   $query .= " -b $start"  if defined $start;
   $query .= " -c $count"  if defined $count;
-  $self->{c}{database}->query($query);
+  $self->{database}->query($query);
   while (my @objects = $self->_fetch_chunk) {
     push (@result,@objects);
   }
   # copy tag into a portion of the tree
   if ($tag) {
     for my $tree (@result) {
-      my $obj = $self->{c}{class}->new($tree->class,$tree->name,$self,1);
+      my $obj = $self->{class}->new($tree->class,$tree->name,$self,1);
       $obj->_attach_subtree($tag=>$tree);
       $tree = $obj;
+    }
+  }
+  # now recache 'em
+  for (@result) {
+    if (my $obj = $self->memory_cache_store($_)) {
+      %$obj = %$_ unless $obj->filled;  # contents copy -- replace partial object with full object
+      $_ = $obj;
+    } else {
+      $self->memory_cache_store($_);
     }
   }
   return wantarray ? @result : $result[0];
@@ -494,32 +622,32 @@ sub _fetch {
 
 sub _fetch_chunk {
   my $self = shift;
-  return unless $self->{c}{database}->status == STATUS_PENDING();
-  my $result = $self->{c}{database}->read();
+  return unless $self->{database}->status == STATUS_PENDING();
+  my $result = $self->{database}->read();
   $result =~ s/\0//g;  # get rid of &$#&@!! nulls
   my @chunks = split("\n\n",$result);
   my @result;
   foreach (@chunks) {
     next if m!^//!;
     next unless /\S/;  # occasional empty lines
-    push(@result,$self->{c}{'class'}->newFromText($_,$self));
+    push(@result,$self->{'class'}->newFromText($_,$self));
   }
   return @result;
 }
 
 sub _alert_iterators {
   my $self = shift;
-  foreach (keys %{$self->{c}{iterators}}) {
-    $self->{c}{iterators}{$_}->invalidate if $self->{c}{iterators}{$_};
+  foreach (keys %{$self->{iterators}}) {
+    $self->{iterators}{$_}->invalidate if $self->{iterators}{$_};
   }
-  undef $self->{c}{active_list};
+  undef $self->{active_list};
 }
 
 sub asString {
   my $self = shift;
-  return "tace://$self->{c}{path}" if $self->{c}{'path'};
+  return "tace://$self->{path}" if $self->{'path'};
   my $server = $self->db && $self->db->isa('Ace::SocketServer') ? 'sace' : 'rpcace';
-  return "$server://$self->{c}{host}:$self->{c}{port}" if $self->{c}{'host'};
+  return "$server://$self->{host}:$self->{port}" if $self->{'host'};
   return ref $self;
 }
 
@@ -551,9 +679,9 @@ sub count {
   $class   = '' unless defined $class;
 
   my $active_tag = "$class$pattern$query";
-  if (defined $self->{c}{'active_list'} &&
-      defined ($self->{c}{'active_list'}->{$active_tag})) {
-    return $self->{c}{'active_list'}->{$active_tag};
+  if (defined $self->{'active_list'} &&
+      defined ($self->{'active_list'}->{$active_tag})) {
+    return $self->{'active_list'}->{$active_tag};
   }
 
   if ($query) {
@@ -570,7 +698,7 @@ sub count {
     $Ace::Error = 'Unexpected close during find';
     return;
   }
-  return $self->{c}{'active_list'}->{$active_tag} = $1;
+  return $self->{'active_list'}->{$active_tag} = $1;
 }
 
 1;
@@ -658,7 +786,7 @@ classes.
     # remote database
     $db = Ace->connect(-host  =>  'beta.crbm.cnrs-mop.fr',
                        -port  =>  20000100);
-    
+
     # local (non-server) database
     $db = Ace->connect(-path  =>  '/usr/local/acedb);
 
@@ -675,7 +803,9 @@ full syntax is as follows:
 		       -program =>$local_connection_program
                        -class =>  $object_class,
 		       -timeout => $timeout,
-		       -query_timeout => $query_timeout);
+		       -query_timeout => $query_timeout
+		       -cache        => {cache parameters},
+		      );
 
 The connect() method uses a named argument calling style, and
 recognizes the following arguments:
@@ -703,6 +833,45 @@ provided, will attempt an anonymous login.
 =item B<-pass>
 
 Password to log in with (when using socket server).
+
+=item B<-url>
+
+An Acedb URL that combines the server type, host, port, user and
+password in a single string.  See the connect() method's "single
+argument form" description.
+
+=item B<-cache>
+
+AcePerl can use the Cache::SizeAwareFileCache module to cache objects
+to disk. This can result in dramatically increased performance in
+environments such as web servers in which the same Acedb objects are
+frequently reused.  To activate this mechanism, the
+Cache::SizeAwareFileCache module must be installed, and you must pass
+the -cache argument during the connect() call.
+
+The value of -cache is a hash reference containing the arguments to be
+passed to Cache::SizeAwareFileCache.  For example:
+
+   -cache => {
+              cache_root         => '/usr/tmp/acedb',
+              cache_depth        => 4,
+              default_expires_in => '1 hour'
+              }
+
+If not otherwise specified, the following cache parameters are assumed:
+
+       Parameter               Default Value
+       ---------               -------------
+       namespace               Server URL (e.g. sace://localhost:2005)
+       cache_root              /tmp/FileCache (dependent on system temp directory)
+       default_expires_in      1 day
+       auto_purge_interval     12 hours
+
+By default, the cache is not size limited (the "max_size" property is
+set to $NO_MAX_SIZE).  To adjust the size you may consider calling the
+Ace object's cache() method to retrieve the physical cache and then
+calling the cache object's limit_size($max_size) method from time to
+time.  See L<Cache::SizeAwareFileCache> for more details.
 
 =item B<-program>
 
@@ -959,7 +1128,38 @@ Example:
 
 If your request is likely to retrieve very many objects, fetch() many
 consume a lot of memory, even if B<-fill> is false.  Consider using
-B<fetch_many()> instead (see below).
+B<fetch_many()> instead (see below).  Also see the get() method, which
+is equivalent to the simple two-argument form of fetch().
+
+=item get() method
+
+   $object = $db->get($class,$name [,$fill]);
+
+The get() method will return one and only one AceDB object
+identified by its class and name.  The optional $fill argument can be
+used to control how much data is retrieved from the database. If $fill
+is absent or undefined, then the method will return a lightweight
+"stub" object that is filled with information as requested in a lazy
+fashion. If $fill is the number "1" then the retrieved object contains
+all the relevant information contained within the database.  Any other
+true value of $fill will be treated as a tag name: the returned object
+will be prefilled with the subtree to the right of that tag.
+
+Examples:
+
+   # return lightweight stub for Author object "Sulston JE."
+   $author = $db->get(Author=>'Sulston JE');
+
+   # return heavyweight object
+   $author = $db->get(Author=>'Sulston JE',1);
+
+   # return object containing the Address subtree
+   $author = $db->get(Author=>'Sulston JE','Address');
+
+The get() method is equivalent to this form of the fetch()
+method:
+
+   $object = $db->fetch($class=>$name);
 
 =head2 aql() method
 
@@ -1052,7 +1252,7 @@ Any parse error messages are accumulated in Ace->error().
 
 =head2 new() method
 
-  $object = $db->parse($class => $name);
+  $object = $db->new($class => $name);
 
 This method creates a new object in the database of type $class and
 name $name.  If successful, it returns the newly-created object.
@@ -1376,6 +1576,64 @@ ACEDB requires.  date() will truncate the time portion.
 
 If not provided, $time defaults to localtime().
 
+=head1 OTHER METHODS
+
+=head2 debug()
+
+  $debug_level = Ace->debug([$new_level])
+
+This class method gets or sets the debug level.  Higher integers
+increase verbosity.  0 or undef turns off debug messages.
+
+=head2 name2db()
+
+ $db = Ace->name2db($name [,$database])
+
+This class method associates a database URL with an Ace database
+object. This is used internally by the Ace::Object class in order to
+discover what database they "belong" to.
+
+=head2 cache()
+
+Get or set the Cache::SizeAwareFileCache object, if one has been
+created.
+
+=head2 memory_cache_fetch()
+
+  $obj = $db->memory_cache_fetch($class,$name)
+
+Given an object class and name return a copy of the object from the
+in-memory cache.  The object will only be cached if a copy of the
+object already exists in memory space.  This is ordinarily called
+internally.
+
+=head2 memory_cache_store($obj)
+
+Store an object into the memory cache.  This is ordinarily called
+internally.
+
+=head2 memory_cache_delete($obj)
+
+Delete an object from the memory cache. This is ordinarily called
+internally.
+
+=head2 file_cache_fetch()
+
+  $obj = $db->file_cache_fetch($class,$name)
+
+Given an object class and name return a copy of the object from the
+file cache.  This is ordinarily called internally.
+
+=head2 file_cache_store($obj)
+
+Store an object into the file cache.  This is ordinarily called
+internally.
+
+=head2 file_cache_delete($obj)
+
+Delete an object from the memory cache.  This is ordinarily called
+internally.
+
 =head1 THE LOW LEVEL C API
 
 Internally Ace.pm makes C-language calls to libace to send query
@@ -1440,7 +1698,7 @@ Returns a more detailed error code supplied by the Ace server.  Check
 this value when STATUS_ERROR has been returned.  These constants are
 also exported by default.  Possible values:
 
- ACE_INVALID           
+ ACE_INVALID
  ACE_OUTOFCONTEXT
  ACE_SYNTAXERROR
  ACE_UNRECOGNIZED
@@ -1498,6 +1756,13 @@ disclaimers of warranty.
 
 # -------------------- AUTOLOADED SUBS ------------------
 
+sub debug {
+  my $package = shift;
+  my $d = $DEBUG_LEVEL;
+  $DEBUG_LEVEL = shift if @_;
+  $d;
+}
+
 # Return true if the database is still connected.  This is oddly convoluted
 # because there are numerous things that can go wrong, including:
 #   1. server has gone away
@@ -1509,22 +1774,22 @@ sub ping {
   my $result = $self->raw_query('');
   return unless $result;  # server has gone away
   return if $result=~/broken connection|client time out/;  # server has timed us out  
-  return unless $self->{c}{database}->status() == STATUS_WAITING(); #communications oddness
+  return unless $self->{database}->status() == STATUS_WAITING(); #communications oddness
   return 1;
 }
 
 # Get or set the display style for dates
 sub date_style {
   my $self = shift;
-  $self->{c}{'date_style'} = $_[0] if defined $_[0];
-  return $self->{c}{'date_style'};
+  $self->{'date_style'} = $_[0] if defined $_[0];
+  return $self->{'date_style'};
 }
 
 # Get or set whether we retrieve timestamps
 sub timestamps {
   my $self = shift;
-  $self->{c}{'timestamps'} = $_[0] if defined $_[0];
-  return $self->{c}{'timestamps'};
+  $self->{'timestamps'} = $_[0] if defined $_[0];
+  return $self->{'timestamps'};
 }
 
 # Add one or more objects to the database
@@ -1610,7 +1875,7 @@ sub new {
   my $self = shift;
   my ($class,$name) = rearrange([qw/CLASS NAME/],@_);
   return if $self->fetch($class,$name);
-  my $obj = $self->{c}{'class'}->new($class,$name,$self);
+  my $obj = $self->{'class'}->new($class,$name,$self);
   return $obj;
 }
 
@@ -1694,8 +1959,8 @@ sub auto_save {
   if ($self->db && $self->db->can('auto_save')) {
     $self->db->auto_save;
   } else {
-    $self->{c}{'auto_save'} = $_[0] if defined $_[0];
-    return $self->{c}{'auto_save'};
+    $self->{'auto_save'} = $_[0] if defined $_[0];
+    return $self->{'auto_save'};
   }
 }
 
@@ -1743,7 +2008,7 @@ sub pick {
     # if we get here, then we've got some data to return.
     # yes, we're repeating code slightly...
     my @result;
-    my $ts = $self->{c}{'timestamps'} ? '-T' : '';
+    my $ts = $self->{'timestamps'} ? '-T' : '';
     my $result = $self->raw_query("show -j $ts");
     unless ($result =~ /(\d+) object dumped/m) {
 	$Ace::Error = 'Unexpected close during pick';
@@ -1815,23 +2080,23 @@ sub fetch_many {
 
 sub _register_iterator {
   my ($self,$iterator) = @_;
-  $self->{c}{iterators}{$iterator} = $iterator;
+  $self->{iterators}{$iterator} = $iterator;
 }
 
 sub _unregister_iterator {
   my ($self,$iterator) = @_;
   $self->_restore_iterator($iterator);
-  delete $self->{c}{iterators}{$iterator};
+  delete $self->{iterators}{$iterator};
 }
 
 sub _save_iterator {
   my $self = shift;
   my $iterator = shift;
-  return unless $self->{c}{iterators}{$iterator};
-  $self->{c}{iterator_stack} ||= [];
-  return 1 if grep { $_ eq $iterator } @{$self->{c}{iterator_stack}};
+  return unless $self->{iterators}{$iterator};
+  $self->{iterator_stack} ||= [];
+  return 1 if grep { $_ eq $iterator } @{$self->{iterator_stack}};
   $self->raw_query("spush",'no_alert');
-  unshift @{$self->{c}{iterator_stack}},$iterator;
+  unshift @{$self->{iterator_stack}},$iterator;
   1;  # result code -- CHANGE THIS LATER
 }
 
@@ -1842,15 +2107,15 @@ sub _restore_iterator {
   my $iterator = shift;
 
   # no such iterator known, return false
-  return unless $self->{c}{iterators}{$iterator};
+  return unless $self->{iterators}{$iterator};
 
   # make other iterators save themselves
   $self->_alert_iterators;
 
   # fetch the list of iterators stored on the stack
-  my $list = $self->{c}{iterator_stack};
+  my $list = $self->{iterator_stack};
   # spick not supported. Abandon ship
-  return if @$list > 1 and $self->{c}{no_spick};
+  return if @$list > 1 and $self->{no_spick};
 
   # Find the iterator in our list. This mirrors the
   # position in the server stack
@@ -1867,9 +2132,9 @@ sub _restore_iterator {
   
   if ($result =~ /Keyword spick does not match/) {
     # _restore_iterator will now only work for a single iterator (non-reentrantly)
-    $self->{c}{no_spick}++;
+    $self->{no_spick}++;
     $self->raw_query('spop','no_alert') foreach @$list;  # empty database stack
-    $self->{c}{iterator_stack} = [];             # and local copy
+    $self->{iterator_stack} = [];             # and local copy
     return;
   }
 

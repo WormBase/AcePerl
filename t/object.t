@@ -9,7 +9,7 @@ use constant PORT => $ENV{ACEDB_PORT} || 2007;
 BEGIN {$| = 1; print "1..36\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Ace;
-use constant TEST_CACHE=>1;
+use constant TEST_CACHE=>0;
 
 $loaded = 1;
 print "ok 1\n";

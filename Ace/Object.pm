@@ -1,8 +1,8 @@
 package Ace::Object;
 use strict;
-use Carp;
+use Carp qw(:DEFAULT cluck);
 
-# $Id: Object.pm,v 1.52 2004/12/01 18:06:34 lstein Exp $
+# $Id: Object.pm,v 1.53 2004/12/13 23:41:58 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -33,6 +33,8 @@ $VERSION = '1.66';
 sub AUTOLOAD {
     my($pack,$func_name) = $AUTOLOAD=~/(.+)::([^:]+)$/;
     my $self = $_[0];
+
+    warn "AUTOLOAD: $self->$func_name()" if Ace->debug;
 
     # This section works with Autoloader
     my $presumed_tag = $func_name =~ /^[A-Z]/ && $self->isObject;  # initial_cap 
@@ -88,11 +90,18 @@ sub DESTROY {
   my $self = shift;
   return if caller() =~ /^(Cache\:\:|DB)/;  # prevent recursion in FileCache code
   my $db = $self->db or return;
+  return if $self->{'.nocache'};
   return unless $self->isRoot;
-  return unless $self->_dirty;
-  return unless $self->{'.right'} || $self->{'.PATHS'};
-  $self->_dirty(0);
-  $db->cache_store($self);
+
+  if ($self->_dirty) {
+    cluck "Destroy for ",overload::StrVal($self)," ",$self->name if Ace->debug;
+    $self->_dirty(0);
+    $db->file_cache_store($self);
+  }
+
+  # remove our in-memory cache
+  # shouldn't be necessary with weakref
+  # $db->memory_cache_delete($self);
 }
 
 ###################### object constructor #################
@@ -125,6 +134,7 @@ sub newFromText {
     push(@array,[split("\t")]);
   }
   my $obj = $pack->_fromRaw(\@array,0,0,$#array,$db);
+  $obj->_dirty(1) if $obj->isRoot;
   $obj;
 }
 
@@ -302,6 +312,7 @@ sub search {
 					     $self->db
 					    );
 	  if ($subobject) {
+	    $subobject->{'.nocache'}++;
 	    $self->_attach_subtree($lctag => $subobject);
 	  } else {
 	    $self->{'.PATHS'}{$lctag} = undef;
@@ -434,10 +445,10 @@ sub down {
 #  fetch current node from the database     #
 sub fetch {
     my ($self,$tag) = @_;
-    $self = $self->search($tag) || return if defined $tag;
+    return $self->search($tag) if defined $tag;
     my $thing_to_pick = ($self->isTag and defined($self->right)) ? $self->right : $self;
-    my $obj = $self->db->cache_fetch($thing_to_pick->class,$thing_to_pick->name) if $self->db;
-    $obj ||= $thing_to_pick->_clone;
+    return $thing_to_pick unless $thing_to_pick->isObject;
+    my $obj = $self->db->get($thing_to_pick->class,$thing_to_pick->name) if $self->db;
     return $obj;
 }
 
@@ -525,9 +536,13 @@ sub _fill {
     my $data = $self->db->pick($self->class,$self->name);
     return unless $data;
 
+    # temporary object, don't cache it.
     my $new = $self->newFromText($data,$self->db);
-    $new->_dirty(1) if $new->isRoot;
     %{$self}=%{$new};
+
+    $new->{'.nocache'}++; # this line prevents the thing from being cached
+
+    $self->_dirty(1) if $self->isRoot;
 }
 
 sub _parse {
@@ -1668,7 +1683,8 @@ the current Ace::Object as its first argument.
 
 Change the debugging mode.  A zero turns off debugging messages.
 Integer values produce debug messages on standard error.  Higher
-integers produce progressively more verbose messages.
+integers produce progressively more verbose messages.  This actually
+is just a front end to Ace->debug(), so the debugging level is global.
 
 =head1 SEE ALSO
 
@@ -1952,6 +1968,7 @@ sub add_row {
 
   push(@{$self->{'.update'}},join(' ',map { Ace->freeprotect($_) } (@tags,@values)));
   delete $self->{'.PATHS'}; # uncache cached values
+  $self->_dirty(1);
   1;
 }
 
@@ -1987,6 +2004,7 @@ sub add_tree {
   }
   push(@{$self->{'.update'}},map { join(' ',@tags,$_) } split("\n",$value->asAce));
   delete $self->{'.PATHS'}; # uncache cached values
+  $self->_dirty(1);
   1;
 }
 
@@ -2022,6 +2040,8 @@ sub delete {
   push(@{$self->{'.update'}},join(' ','-D',
 				 map { Ace->freeprotect($_) } ($self->_split_tags($tag),@values)));
   delete $self->{'.PATHS'}; # uncache cached values
+  $self->_dirty(0);
+  $self->db->file_cache_delete($self);
   1;
 }
 
@@ -2056,7 +2076,7 @@ sub commit {
   my $result = '';
 
   # bad design alert: the following breaks encapsulation
-  if ($db->database->can('write')) { # new way for socket server
+  if ($db->db->can('write')) { # new way for socket server
     my $cmd = join "\n","$self->{'class'} : $name",@{$self->{'.update'}};
     warn $cmd if $self->debug;
     $result = $db->raw_query($cmd,0,'parse');  # sets Ace::Error for us
@@ -2094,7 +2114,7 @@ sub rollback {
 
 sub debug {
     my $self = shift;
-    return defined($_[0]) ? $self->{'.debug'}=$_[0] : $self->{'.debug'};
+    Ace->debug(@_);
 }
 
 ### Get or set the date style (actually calls through to the database object) ###
