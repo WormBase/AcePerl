@@ -8,14 +8,14 @@ while (!$choice) {
 		  "  1) Interface to Ace socket server and local databases (pure Perl)\n" .
 		  "  2) The above plus XS optimizations (requires C compiler)\n" .
 		  "  3) The above plus RPC server interface (requires C compiler)\n\n" .
-		  "Enter your choice: ", "3");
+		  "Enter your choice: ", "1");
   if ($reply =~ /(\d+)/) {
     $choice = $1;
-    if ($choice < 1  ||  $choice > 3) {
-      $choice = 0;
-    }
+    die "invalid choice: $choice!" if $choice < 1  ||  $choice > 3;
   }
 }
+$choice ||= 1; # safe default
+
 my @extlib = ();
 push @extlib,'Freesubs' if $choice >= 2;
 push @extlib,'RPC'      if $choice >= 3;
