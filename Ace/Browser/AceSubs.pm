@@ -39,6 +39,7 @@ The following subroutines are exported by default:
 
 The following subroutines are exported if explicitly requested:
 
+  AceAddCookie
   AceInit
   AceHeader
   AceMultipleChoices
@@ -105,7 +106,7 @@ use Ace 1.76;
 use CGI qw(:standard escape);
 use CGI::Cookie;
 
-use vars qw/@ISA @EXPORT @EXPORT_OK $VERSION %EXPORT_TAGS %DB %OPEN $HEADER $TOP/;
+use vars qw/@ISA @EXPORT @EXPORT_OK $VERSION %EXPORT_TAGS %DB %OPEN $HEADER $TOP @COOKIES/;
 
 require Exporter;
 @ISA = qw(Exporter);
@@ -116,8 +117,9 @@ $VERSION = 1.15;
 	     GetAceObject AceError AceNotFound AceMissing DoRedirect
 	     OpenDatabase Object2URL Url
 	     ObjectLink Configuration PrintTop PrintBottom);
-@EXPORT_OK = qw(AceRedirect Toggle ResolveUrl AceInit AceHeader TypeSelector Style
-	       Header Footer DB_Name AceMultipleChoices);
+@EXPORT_OK = qw(AceRedirect Toggle ResolveUrl AceInit AceAddCookie
+		AceHeader TypeSelector Style
+		Header Footer DB_Name AceMultipleChoices);
 %EXPORT_TAGS = ( );
 
 use constant DEFAULT_DATABASE  => 'default';
@@ -148,13 +150,25 @@ used for maintaining AceBrowser state.  It is not exported by default.
 
 =cut
 
+=item AceAddCookie(@cookies)
+
+This subroutine, which must be called b<after> OpenDatabase() and/or
+GetAceObject() and b<before> PrintTop(), will add one or more cookies
+to the outgoing HTTP headers that are emitted by AceHeader().  
+Cookies must be CGI::Cookie objects.
+
+=cut
+
+sub AceAddCookie {
+   push @COOKIES,@_;  # add caller's to our globals
+}
+
 ################## canned header ############
 sub AceHeader {
 
   my %searches = map {$_=>1} Configuration()->searches;
   my $quovadis = url(-relative=>1);
 
-  my @cookies;
   my $db = get_symbolic();
 
   my $referer  = referer();
@@ -166,7 +180,7 @@ sub AceHeader {
 			  -name=>"HOME_${db}",
 			  -value=>$referer,
 			  -path=>'/');
-    push(@cookies,$bookmark);
+    push(@COOKIES,$bookmark);
   }
 
   if ($searches{$quovadis}) {
@@ -179,35 +193,12 @@ sub AceHeader {
     my $last_search = cookie(-name=>"ACEDB_$db",
 			     -value=>$quovadis,
 			     -path=>'/');
-    push(@cookies,$search_data,$last_search);
+    push(@COOKIES,$search_data,$last_search);
   }
 
+  print @COOKIES ? header(-cookie=>\@COOKIES,@_) : header(@_);
 
-    my %ckVal       = ();
-    my $ckName      = 'hunter_feature';
-    my %cookies     = undef;
-    
-    if((%cookies = fetch CGI::Cookie) && (defined $cookies{$ckName})){
-    	%ckVal  = @{$cookies{$ckName}->{'value'}};
-    }else{
-    	%ckVal  = (map{$_ => 1} @{Configuration->Dasview_default});
-    };
-
-    if(param('feature')){
-    	%ckVal  = ();
-	%ckVal  = (map{$_ => 1} param('feature'));
-    }
-
-    my $hunter_feature = CGI::Cookie->new( -name   =>$ckName,
-    					-value  =>\%ckVal,
-					-expires=>'+1M',
-					-path   =>'/'   );
-    push(@cookies, $hunter_feature);
-
-
-  print header(-cookie=>\@cookies,@_) if @cookies;
-  print header(@_)               unless @cookies;
-
+  @COOKIES = ();
   $HEADER++;
 }
 
@@ -225,8 +216,9 @@ called by PrintTop() and Header() internally.
 # undefined database name.  Check the return code from this function and
 # return immediately if not true (actually, not needed because we exit).
 sub AceInit   {
-  $HEADER = 0;
-  $TOP    = 0;
+  $HEADER   = 0;
+  $TOP      = 0;
+  @COOKIES  = ();
 
   # keeps track of what sections should be open
   %OPEN = param('open') ? map {$_ => 1} split(' ',param('open')) : () ;
