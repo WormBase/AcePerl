@@ -300,6 +300,7 @@ sub Url {
 sub ObjectLink {
   my $object     = shift;
   my $link_text  = shift;
+  my $url = Object2URL($object,@_) or return $link_text || "$object";
   return a({-href=>Object2URL($object,@_),-name=>"$object"},$link_text || "$object");
 }
 
