@@ -59,10 +59,10 @@ sub map_url {
 
   return unless my $code = $self->Url_mapper;
   my (@result,$url);
-  if (@result = $code->($display,$name,$class)) {
+  if (@result = $code->($display,"$name",$class)) {
     return @result;
   }
-  return unless @result = $self->getConfig('default')->Url_mapper->($display,$name,$class);
+  return unless @result = $self->getConfig('default')->Url_mapper->($display,"$name",$class);
   return unless $url = $self->display($result[0],'url');
   return ($url,$result[1]);
 }

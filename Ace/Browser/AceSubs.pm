@@ -96,9 +96,8 @@ sub Style {
 sub AceInit   {
   $HEADER = 0;
 
-#  %OPEN = map {$_ => 1} split(' ',param('open')) if param('open');
   # keeps track of what sections should be open
-  %OPEN = map {$_ => 1} split(' ',param('open'));
+  %OPEN = param('open') ? map {$_ => 1} split(' ',param('open')) : () ;
 
   return 1 if Configuration();
 
@@ -277,7 +276,7 @@ sub Object2URL {
     my ($object,$extra) = @_;
     my ($name,$class);
     if (ref($object)) {
-	($name,$class) = ($object->name,$object->class);
+	($name,$class) = ($object,$object->class);
     } else {
 	($name,$class) = ($object,$extra);
     }
@@ -334,7 +333,7 @@ sub get_symbolic {
   if (exists $ENV{MOD_PERL}) {  # the easy way
     if (my $r = Apache->request) {
       if (my $conf = $r->dir_config('AceBrowserConf')) {
-	my ($name) = $conf =~ m!([^/]+)\.pm$!;
+	my ($name) = $conf =~ m!([^/]+)\.(?:pm|conf)$!;
 	return $name if $name;
       }
     }
@@ -430,7 +429,8 @@ sub TypeSelector {
 	}
 	  push (@rows,td({-align=>'CENTER',-class=>'small'},$cell));
 	}
-    return table(TR({-valign=>'bottom'},@rows));
+    return table({-width=>'100%',-border=>0,-class=>'searchtitle'},
+		 TR({-valign=>'bottom'},@rows));
 }
 
 
