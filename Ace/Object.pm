@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.49 2004/11/30 18:06:18 lstein Exp $
+# $Id: Object.pm,v 1.50 2004/11/30 23:26:01 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -412,7 +412,16 @@ sub fetch {
     my ($self,$tag) = @_;
     $self = $self->search($tag) || return if defined $tag;
     my $thing_to_pick = ($self->isTag and defined($self->right)) ? $self->right : $self;
-    return $thing_to_pick->_clone;
+    my $obj = $self->db->cache_fetch($thing_to_pick->class,$thing_to_pick->name) if $self->db;
+    return $obj if $obj;
+
+    $obj    = $thing_to_pick->_clone;
+    if ($obj && $self->db && $self->db->cache) {
+      $obj->_fill;
+      $self->db->cache_store($obj);
+    }
+
+    return $obj;
 }
 
 #############################################
@@ -1635,7 +1644,7 @@ the current Ace::Object as its first argument.
 
     $object->debug(1);
 
-Change the debugging mode.  A zero turns of debugging messages.
+Change the debugging mode.  A zero turns off debugging messages.
 Integer values produce debug messages on standard error.  Higher
 integers produce progressively more verbose messages.
 

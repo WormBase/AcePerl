@@ -10,6 +10,8 @@ use overload
   '""'  => 'asString',
   'cmp' => 'cmp';
 
+use constant DEBUG=>1;
+
 @ISA = qw(Exporter AutoLoader);
 
 # Items to export into callers namespace by default.
@@ -45,7 +47,7 @@ sub connect {
   my $class = shift;
   my ($host,$port,$user,$pass,$path,$program,
       $objclass,$timeout,$query_timeout,$database,
-      $server_type,$url,$u,$p,$other);
+      $server_type,$url,$u,$p,$cache,$other);
 
   # one-argument single "URL" form
   if (@_ == 1) {
@@ -54,10 +56,10 @@ sub connect {
 
   # multi-argument (traditional) form
   ($host,$port,$user,$pass,
-   $path,$objclass,$timeout,$query_timeout,$url,$other) = 
+   $path,$objclass,$timeout,$query_timeout,$url,$cache,$other) = 
      rearrange(['HOST','PORT','USER','PASS',
 		'PATH','CLASS','TIMEOUT',
-		'QUERY_TIMEOUT','URL'],@_);
+		'QUERY_TIMEOUT','URL','CACHE'],@_);
 
   ($host,$port,$u,$p,$server_type) = $class->process_url($url) 
     or croak "Usage:  Ace->connect(-host=>\$host,-port=>\$port [,-path=>\$path]\n"
@@ -88,6 +90,9 @@ sub connect {
     return;
   }
 
+  my $cache_obj = Cache::SizeAwareFileCache->new($cache)
+    if ($cache && eval "require Cache::SizeAwareFileCache; 1;");
+
   my $self = bless {
 		    'database'=> $database,
 		    'host'   => $host,
@@ -101,6 +106,8 @@ sub connect {
 		    'date_style' => 'java',
 		    'auto_save' => 0,
 		   },ref($class)||$class;
+  $self->{filecache} = $cache_obj if defined $cache_obj;
+
   eval "require $self->{class}" or warn $@;
   return $self;
 }
@@ -188,6 +195,9 @@ sub fetch {
   my ($class,$pattern,$count,$offset,$query,$filled,$total,$filltag) =  
     rearrange(['CLASS',['NAME','PATTERN'],'COUNT','OFFSET','QUERY',
 	       ['FILL','FILLED'],'TOTAL','FILLTAG'],@_);
+
+  my $name = $pattern;
+
   $offset += 0;
   $pattern ||= '*';
   $pattern = Ace->freeprotect($pattern);
@@ -198,6 +208,18 @@ sub fetch {
   } else {
     croak "must call fetch() with the -class or -query arguments";
   }
+
+  my $use_cache = ($self->cache
+		   && defined $class
+		   && defined $pattern
+		   && $pattern !~ /[\?\*]/
+		   && !wantarray);
+
+  if  ($use_cache) {
+    my $obj = $self->cache_fetch($class,$name);
+    return $obj if $obj;
+  }
+
   my $r = $self->raw_query($query);
 
   my ($cnt) = $r =~ /Found (\d+) objects/m;
@@ -208,12 +230,39 @@ sub fetch {
   return $cnt if !wantarray and $pattern =~ /(?:[^\\]|^)[*?]/;
 
   my(@h);
-  if ($filltag) {
+  if ($use_cache) {
+    @h = $self->_fetch($count,$offset);
+  } elsif ($filltag) {
     @h = $self->_fetch($count,$offset,$filltag);
   } else {
     @h = $filled ? $self->_fetch($count,$offset) : $self->_list($count,$offset);
   }
+
+  $self->cache_store($h[0]) if $h[0] && $use_cache;
   return wantarray ? @h : $h[0];
+}
+
+sub cache {  shift->{filecache}; }
+
+sub cache_fetch {
+  my $self = shift;
+  my ($class,$name) = @_;
+  my $cache = $self->cache or return;
+  my $obj   = $cache->get("$class:$name");
+  if (DEBUG) {
+    warn "cache ",$obj?'hit':'miss'," on '$class:$name'";
+  }
+  $obj->{db}{database} = $self->db if $obj;  # replace database
+  $obj;
+}
+
+sub cache_store {
+  my $self = shift;
+  my $obj = shift;
+  my $key = join ':',$obj->class,$obj->name;
+  my $cache = $self->cache or return;
+  local $obj->{db}{database};  # temporarily replace database with undef
+  $cache->set($key,$obj);
 }
 
 # make a new object using indicated class and name pattern
@@ -444,7 +493,7 @@ sub _fetch_chunk {
 sub _alert_iterators {
   my $self = shift;
   foreach (keys %{$self->{iterators}}) {
-    $self->{iterators}{$_}->invalidate;
+    $self->{iterators}{$_}->invalidate if $self->{iterators}{$_};
   }
   undef $self->{active_list};
 }
