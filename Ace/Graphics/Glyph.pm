@@ -16,6 +16,7 @@ sub new {
 		@_,
 		top   => 0,
 		left  => 0,
+		right => 0,
 		start => $start,
 		end   => $end
 	       },$class;
@@ -28,10 +29,30 @@ sub fgcolor   {  shift->{-factory}->fgcolor   }
 sub bgcolor   {  shift->{-factory}->bgcolor   }
 sub fillcolor {  shift->{-factory}->fillcolor }
 sub scale     {  shift->{-factory}->scale     }
+sub width     {  shift->{-factory}->width     }
 sub font      {  shift->{-factory}->font      }
-sub height    {  shift->{-factory}->height    }
-sub start     {  shift->{start}               }
-sub end       {  shift->{end}                 }
+sub option    {  shift->{-factory}->option(@_) }
+sub color     {  
+  my $self    = shift;
+  my $factory = $self->{-factory};
+  my $color   = $factory->option(@_) or return $self->fgcolor;
+  $factory->translate($color);
+}
+
+sub start     { shift->{start}                 }
+sub end       { shift->{end}                   }
+sub offset    { shift->{-factory}->offset      }
+sub length    { shift->{-factory}->length      }
+
+# this is a very important routine that dictates the
+# height of the bounding box.  We start with the height
+# dictated by the factory, and then adjust if needed
+sub height   {  
+  my $self = shift;
+  my $val = $self->{-factory}->height;
+  $val += $self->labelheight if $self->option('label');
+  $val;
+}
 
 # change our offset
 sub move {
@@ -46,13 +67,41 @@ sub top    { shift->{top}                 }
 sub bottom { my $s = shift; $s->top + $s->height   }
 sub left {
   my $self = shift;
-  my $val = $self->{left} + $self->scale * ($self->{start} - 1);
+  my $val = $self->{left} + $self->map_pt($self->{start} - 1);
   return $val > 0 ? $val : 0;
 }
 sub right {
   my $self = shift;
-  my $val = $self->{left} + $self->scale * ($self->{end} - 1);
-  return $val > 0 ? $val : 0;
+  my $val = $self->{left} + $self->map_pt($self->{end} - 1);
+  $val = 0 if $val < 0;
+  $val = $self->width if $val > $self->width;
+  if ($self->option('label') && (my $label = $self->label)) {
+    my $left = $self->left;
+    my $label_width = $self->font->width * CORE::length $label;
+    my $label_end   = $left + $label_width;
+    $val = $label_end if $label_end > $val;
+  }
+  $val;
+}
+
+sub map_pt {
+  my $self = shift;
+  my $point = shift;
+  $point -= $self->offset;
+  my $val = $self->{left} + $self->scale * $point;
+  my $right = $self->{left} + $self->width;
+  $val = 0 if $val < 0;
+  $val = $self->width-1 if $right && $val > $right;
+  return int($val+0.5);
+}
+
+sub labelheight {
+  my $self = shift;
+  return $self->{labelheight} ||= $self->font->height;
+}
+
+sub label {
+  shift->feature->info;
 }
 
 # return array containing the left,top,right,bottom
@@ -61,29 +110,62 @@ sub box {
   return ($self->left,$self->top,$self->right,$self->bottom);
 }
 
+# these are the sequence boundaries, exclusive of labels and doodads
+sub calculate_boundaries {
+  my $self = shift;
+  my ($left,$top) = @_;
+
+  my $x1 = $left + $self->{left} + $self->map_pt($self->{start} - 1);
+  $x1 = 0 if $x1 < 0;
+
+  my $x2 = $left + $self->{left} + $self->map_pt($self->{end} - 1);
+  $x2 = 0 if $x2 < 0;
+
+  my $y1 = $top + $self->{top};
+  $y1 += $self->labelheight if $self->option('label');
+  my $y2 = $y1 + $self->{-factory}->height;
+
+  $x2 = $x1 if $x2-$x1 < 1;
+  $y2 = $y1 if $y2-$y1 < 1;
+
+  return ($x1,$y1,$x2,$y2);
+}
+
+sub fill {
+  my $self = shift;
+  my $gd   = shift;
+  my ($x1,$y1,$x2,$y2) = @_;
+  if ( ($x2-$x1) >= 2 && ($y2-$y1) >= 2 ) {
+    $gd->fill($x1+1,$y1+1,$self->fillcolor);
+  }
+}
+
 # draw the thing onto a canvas
 # this definitely gets overridden
 sub draw {
   my $self = shift;
   my $gd   = shift;
   my ($left,$top) = @_;
-  my $x1  = $self->left   + $left;
-  my $y1  = $self->top    + $top;
-  my $x2  = $self->right  + $left;
-  my $y2  = $self->bottom + $top;
+  my ($x1,$y1,$x2,$y2) = $self->calculate_boundaries($left,$top);
 
+  # for nice thin lines
   $x2 = $x1 if $x2-$x1 < 1;
 
   # for now, just draw a box
   $gd->rectangle($x1,$y1,$x2,$y2,$self->fgcolor);
 
   # and fill it
-  if ( ($x2-$x1) > 2 and ($y2-$y1) > 2 ) {
-    my $h = ($x2+$x1)/2;
-    my $v = ($y2+$y1)/2;
-    $gd->fill($h,$v,$self->fillcolor);
-  }
+  $self->fill($gd,$x1,$y1,$x2,$y2);
 
+  # add a label if requested
+  $self->draw_label($gd,@_) if $self->option('label');
+}
+
+sub draw_label {
+  my $self = shift;
+  my ($gd,$left,$top) = @_;
+  my $label = $self->label or return;
+  $gd->string($self->font,$left + $self->left,$top + $self->top,$label,$self->fgcolor);
 }
 
 1;

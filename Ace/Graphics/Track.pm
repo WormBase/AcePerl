@@ -19,13 +19,13 @@ sub AUTOLOAD {
 # Pass a list of Ace::Sequence::Feature objects, and a glyph name
 sub new {
   my $class = shift;
-  my ($objects,$glyph_factory) = @_;
-  $glyph_factory ||= $class->default_factory;
+  my ($objects,$glyph,@options) = @_;
+  my $glyph_factory = $class->make_factory($glyph,@options);
   return bless {
-		features => $objects,        # list of Ace::Sequence::Feature objects
-		factory  => $glyph_factory,  # the glyph class associated with this track
-		bump     => 1,               # bump by default
-		glyphs   => undef,           # list of glyphs
+		features => $objects,                    # list of Ace::Sequence::Feature objects
+		factory  => $glyph_factory,              # the glyph class associated with this track
+		bump     => 1,                           # bump by default
+		glyphs   => undef,                       # list of glyphs
 	       },$class;
 }
 
@@ -35,9 +35,7 @@ sub new {
 #     0   => no bump
 sub bump {
   my $self = shift;
-  my $g = $self->{bump};
-  $self->{bump} = shift if @_;
-  $g;
+  $self->factory->option('bump',@_);
 }
 
 # add a feature to the list
@@ -60,12 +58,26 @@ sub scale {
   $g;
 }
 
+sub width {
+  my $self = shift;
+  my $g = $self->{width};
+  $self->{width} = shift if @_;
+  $g;
+}
+
 # set scale by a segment
 sub scale_to_segment {
   my $self = shift;
   my ($segment,$desired_width) = @_;
+  $self->set_scale($segment->length,$desired_width);
+}
+
+sub set_scale {
+  my $self = shift;
+  my ($bp,$desired_width) = @_;
   $desired_width ||= 512;
-  $self->scale($desired_width/$segment->length);
+  $self->scale($desired_width/$bp);
+  $self->width($desired_width);
 }
 
 # return the glyph class
@@ -80,11 +92,12 @@ sub factory {
 # will be an array of four-element [$feature,l,t,r,b] arrays
 sub boxes {
   my $self = shift;
-  my ($top,$left) = @_;
+  my ($left,$top) = @_;
   $top  += 0; $left += 0;
   my @result;
 
   my $glyphs = $self->layout;
+
   for my $g (@$glyphs) {
     my ($l,$t,$r,$b) = $g->box;
     push @result,[$g->feature,$left+$l,$top+$t,$left+$r,$top+$b];
@@ -99,7 +112,7 @@ sub draw {
   my ($gd,$left,$top) = @_;
   $top  += 0;  $left += 0;
 
-  my $glyphs = $self->layout;  
+  my $glyphs = $self->layout;
   $_->draw($gd,$left,$top) foreach @$glyphs;
 }
 
@@ -107,23 +120,24 @@ sub draw {
 sub layout {
   my $self = shift;
   my $force = shift || 0;
-  return $self->{glyphs} if $self->{glyphs} and !$force;
+  return $self->{glyphs} if $self->{glyphs} && !$force;
   
   my $f = $self->{features};
   my $factory = $self->factory;
   $factory->scale($self->scale);  # set the horizontal scale
+  $factory->width($self->width);
 
   # create glyphs and sort them horizontally
   my @glyphs = sort {$a->start <=> $b->start } map { $factory->glyph($_) } @$f;
+  return $self->{glyphs} = [] if !@glyphs;
 
   # run the bumper
   $self->_bump(\@glyphs) if $self->bump;
 
-  # reverse coordinates for -1 bumping
-  if ($self->bump < 0) {
-    my $height = $self->height;
-    $_->move(0,$height) foreach @glyphs;  #offset so that topmost is 0
-  }
+  # If -1 bumping was allowed, then normalize so that the top glyph is at zero
+  my ($topmost) = sort {$a->top <=> $b->top} @glyphs;
+  my $offset = 0 - $topmost->top;
+  $_->move(0,$offset) foreach @glyphs;
 
   return $self->{glyphs} = \@glyphs;
 }
@@ -137,13 +151,17 @@ sub _bump {
   my %occupied;
   for my $g (@$glyphs) {
     my $pos = 0;
-    for my $y (sort {$a<=>$b} keys %occupied) {
+    for my $y (sort {$bump_direction * ($a <=> $b)} keys %occupied) {
       my $previous = $occupied{$y};
       last if $previous->right + 2 < $g->left;          # no collision at this position
-      $pos += $bump_direction * $previous->height + 2;  # collision, so bump
+      if ($bump_direction > 0) {
+	$pos += $previous->height + 2;                    # collision, so bump
+      } else {
+	$pos -= $g->height + 2;
+      }
     }
     $occupied{$pos} = $g;                           # remember where we are
-    $g->move(0,$bump_direction > 0 ? $pos : $pos-$g->height);
+    $g->move(0,$pos);
   }
 }
 
@@ -155,12 +173,16 @@ sub height {
   my $self = shift;
   $self->layout;
   my $glyphs = $self->{glyphs} or croak "Can't lay out";
-  my @sorted = sort { $a->top <=> $b->top } @$glyphs;
-  return $sorted[-1]->bottom - $sorted[0]->top;
+  return 0 unless @$glyphs;
+
+  my ($topmost)    = sort { $a->top    <=> $b->top }    @$glyphs;
+  my ($bottommost) = sort { $b->bottom <=> $a->bottom } @$glyphs;
+  return $bottommost->bottom - $topmost->top;
 }
 
-sub default_factory { 
-  Ace::Graphics::GlyphFactory->new;
+sub make_factory { 
+  my ($class,$type,@options) = @_;
+  Ace::Graphics::GlyphFactory->new($type,@options);
 }
 
 

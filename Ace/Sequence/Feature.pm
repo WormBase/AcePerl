@@ -18,7 +18,7 @@ use overload
 sub new {
   my $pack = shift;
   my ($parent,$ref,$r_offset,$r_strand,$gff_line,$db) = @_;
-  my ($sourceseq,$method,$type,$start,$end,$score,$strand,$frame,$group) = split "\t";
+  my ($sourceseq,$method,$type,$start,$end,$score,$strand,$frame,$group) = split "\t",$gff_line;
 
   # for efficiency/performance, we don't use superclass new() method, but modify directly
   # handling coordinates.  See SCRAPS below for what should be in here
@@ -83,7 +83,7 @@ sub frame     { shift->_field('frame',@_)  }  # one of 1, 2, 3 or undef
 sub info      {                  # returns Ace::Object(s) with info about the feature
   my $self = shift;
   unless ($self->{group}) {
-    my $info = $self->{info}{group} or return;
+    my $info = $self->{info}{group} || 'Method "'.$self->method.'"';
     my @data = split(/\s*;\s*/,$info);
     $self->{group} = [map {$self->toAce($_)} @data];
   }

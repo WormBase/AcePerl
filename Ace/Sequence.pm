@@ -335,17 +335,19 @@ sub genes {
   my $if       = $curated ? "intron:curated" : "intron";
   my $sf       = $curated ? "Sequence:curated" : "Sequence";
   my @features = $self->features($ef,$if,$sf);
+
   return unless @features;
   my %transcripts;
 
-  my $start = $self->start;
-  for my $feature (sort {$a->start <=> $b->start} @features) {
+  # sorting turns out to take too long
+  #  my %starts = map { ($_=>$_->start) } @features;
+  #  my @sorted_f = sort {$starts{$a} <=> $starts{$b}}  @features;
+
+  for my $feature (@features) {
     my $transcript = $feature->info;
     if ($feature->type =~ /^(exon|intron)$/) {
       my $type = $1;
       push @{$transcripts{$transcript}{$1}},$feature;
-#      push (@{$transcripts{$transcript}{$1}},[sort { $a<=>$b } ($feature->start-$start,
-#								$feature->end-$start)]);
     } elsif ($feature->type eq 'Sequence') {
       $transcripts{$transcript}{base} = $feature;
     }
@@ -355,6 +357,32 @@ sub genes {
 
   # map the rest onto Ace::Sequence::Gene objects
   return map {Ace::Sequence::Gene->new($transcripts{$_})} keys %transcripts;
+}
+
+# Reassemble clones from clone left and right ends
+sub clones {
+  my $self = shift;
+  my @clones = $self->features('Clone_left_end','Clone_right_end');
+  my %clones;
+
+  for my $clone (@clones) {
+    $clones{$clone->info}{start} = $clone->start if $clone->type eq 'Clone_left_end';
+    $clones{$clone->info}{end}   = $clone->start if $clone->type eq 'Clone_right_end';
+  }
+  my $main_clone = $self->source->Clone;
+  $clones{$main_clone} = {} if $main_clone && !$clones{$main_clone};
+
+  my @features;
+  my ($r,$r_offset,$r_strand) = $self->refseq;
+  my $parent = $self->parent;
+
+  for my $clone (keys %clones) {
+    my $start = $clones{$clone}{start} || -99999999;
+    my $end   = $clones{$clone}{end}   || +99999999;
+    my $phony_gff = join "\t",($parent,'Clone','structural',$start,$end,'.','.','.',qq(Clone "$clone"));
+    push @features,Ace::Sequence::Feature->new($parent,$r,$r_offset,$r_strand,$phony_gff);
+  }
+  return @features;
 }
 
 # return list of features quickly
