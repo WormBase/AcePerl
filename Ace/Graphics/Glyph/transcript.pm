@@ -52,7 +52,7 @@ sub draw {
 
   my $gray = $self->color(GRAY);
 
-  my @exons   = $self->feature->exons;
+  my @exons   = sort {$a->start<=>$b->start} $self->feature->exons;
   my @introns = $self->feature->introns;
 
   # fill in missing introns
@@ -80,7 +80,7 @@ sub draw {
       $exon_boxes[-1][1] = $next_start_pos;
 
     } elsif ($next_exon && !$istart{$stop+1}) {
-      push @implied_introns,[$self->map_pt($stop+1),$self->map_pt($next_start-1)];
+      push @implied_introns,[$stop_pos,$next_start_pos];
     }
 }
 

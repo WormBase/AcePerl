@@ -93,15 +93,16 @@ sub draw {
 
   # three pixels of black, three pixels of transparent
   my $black = 1;
+
   my ($x1,$y1,$x2,$y2) = $parts[0]->calculate_boundaries($left,$top);
-  my $center = ($y2 + $y1)/2;
+  my $center1 = ($y2 + $y1)/2;
 
   $gd->setStyle($black,$black,gdTransparent,gdTransparent,);
   for (my $i=0;$i<@parts-1;$i++) {
-    my $start = ($parts[$i]->calculate_boundaries($left,$top))[2];
-    my $end   = ($parts[$i+1]->calculate_boundaries($left,$top))[0];
-    next unless ($end - $start) > 6;
-    $gd->line($start+1,$center,$end-1,$center,gdStyled);
+    my ($x1,$y1,$x2,$y2) = $parts[$i]->calculate_boundaries($left,$top);
+    my ($x3,$y3,$x4,$y4) = $parts[$i+1]->calculate_boundaries($left,$top);
+    next unless ($x3 - $x1) >= 3;
+    $gd->line($x2+1,($y1+$y2)/2,$x3-1,($y3+$y4)/2,gdStyled);
   }
 
 }
