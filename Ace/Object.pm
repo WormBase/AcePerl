@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.37 2001/07/07 19:24:43 lstein Exp $
+# $Id: Object.pm,v 1.38 2001/07/09 21:33:48 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -22,7 +22,7 @@ use constant XML_SUPPRESS_TIMESTAMPS=>0;
 require AutoLoader;
 
 $DEFAULT_WIDTH=25;  # column width for pretty-printing
-$VERSION = '1.63';
+$VERSION = '1.64';
 
 # Pseudonyms and deprecated methods.
 *isClass        =  \&isObject;
@@ -461,7 +461,13 @@ sub factory {
 ############### mostly private functions from here down #############
 #####################################################################
 #####################################################################
+# simple clone
+sub clone {
+  my $self = shift;
+  return bless {%$self},ref $self;
+}
 
+# selective clone
 sub _clone {
     my $self = shift;
     my $pack = ref($self);
