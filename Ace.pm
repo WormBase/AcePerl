@@ -71,8 +71,10 @@ sub connect {
     $user      ||= $u || '';
     $path      ||= $p || '';
     $port        ||= $server_type eq 'Ace::SocketServer' ? DEFAULT_SOCKET : DEFAULT_PORT;
-    $query_timeout ||= 120;
-    $timeout = 25 unless defined $timeout;
+#    $query_timeout ||= 120;
+#    $timeout = 25 unless defined $timeout;
+    $query_timeout += 0;
+    $timeout += 0;
     $server_type ||= 'Ace::SocketServer' if $port <  100000;
     $server_type ||= 'Ace::RPC'          if $port >= 100000;
   }

@@ -85,6 +85,7 @@ sub read {
     vec($rdr,fileno($self->{socket}),1) = 1;
     return _error("Query timed out") unless select($rdr,undef,undef,$self->{timeout});
   }
+  alarm(0); # get rid of timeout
   my ($msg,$body) = $self->_recv_msg;
   $msg =~ s/\0.+$//;  # socketserver bug workaround: get rid of junk in message
   if ($msg eq ACESERV_MSGOK or $msg eq ACESERV_MSGFAIL) {
