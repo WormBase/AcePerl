@@ -1,7 +1,42 @@
-1.00	First working version
-1.01	Fixed bug in _appendToTable() routine that caused asHTML to hang.
-1.33    Fixed bug in Ace.xs that caused client to crash on "quit" query.
-1.34    Fixed bug in Ace.xs caused by 1.33 change!  Only some objects
+1.36	6/6/98 Substantial API changes:
+	1. row() now returns everything to the right of the current object INCLUSIVE
+	of the object.  Calling row() in a scalar context returns the size of the
+	array, not the first member of the array.
+
+	2. col() now takes an optional numeric argument indicating how far to the
+	right in the tree to go.  Specifically col(2) implements tag[2] semantics.
+
+	3. search() now takes an optional numeric argument indicating how
+ 	far to the right in the tree to go before retrieving the column.
+	Specifically, search($tag,2) implements tag[2] semantics.
+
+	4. automatically-generated methods (such as Homol) now take an optional
+	numeric argument that is passed to search.  $obj->Homol(2) implements
+	tag[2] semantics.
+
+	5. fetch() now takes an optional tag argument which will be followed
+	prior to fetching from the database.  $obj->fetch('Laboratory') will
+	return the Laboratory object.
+
+	6. tace can be used to access local databases, by passing a -path
+ 	argument to the Ace::connect() method.
+
+	7. dates are displayed in Java style (3 March 1998 hh:mm:ss) by 
+	default.  This can be altered with a call to Ace::date_style().
+
+	8. Default port has changed to 23456
+
+1.34    5/20/98 Fixed bug in Ace.xs caused by 1.33 change!  Only some objects
 	were retrieved by fetch().
+
+1.33    5/19/98 Fixed bug in Ace.xs that caused client to crash on "quit" query.
+
+1.01	3/20/98 Fixed bug in _appendToTable() routine that caused asHTML to hang.
+
+1.00	2/25/98 First released version
+
+
+
+
 	
 	

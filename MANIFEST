@@ -6,6 +6,7 @@ MANIFEST
 Makefile.PL
 README
 acedb_4_5e.patch
+Ace/Local.pm
 examples/authors.pl
 examples/coauthors.pl
 examples/gif.pl

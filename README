@@ -1,6 +1,9 @@
-This is version 0.50 of AcePerl, a Perl interface for the ACEDB
+This is version 1.XX of AcePerl, a Perl interface for the ACEDB
 object-oriented database.  The code is currently in alpha stage, which
 means the interface may change without warning.  Beware!
+
+See the ChangeLog for important notices, including user interfaces
+changes.
 
 INSTALLATION:
 
@@ -18,7 +21,7 @@ with these names.
 
 A. Build and install the ace libraries and header file:
   1. cd $ACEDB
-  2. patch < $ACEPERL/acedb_4_5e.patch
+  2. patch -p0 < $ACEPERL/acedb_4_5e.patch
   3. setenv ACEDB_MACHINE <<your machine architecture>>
   4. make libacecl.a libace.a
 
@@ -137,4 +140,5 @@ the benefits of command-line editing and command completion!
 Lincoln Stein
 lstein@cshl.org
 
-February 26, 1998
+June 6, 1998
+

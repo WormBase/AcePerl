@@ -6,7 +6,7 @@ use lib '../blib/lib','../blib/arch';
 use constant HOST => $ENV{ACEDB_HOST} || 'beta.crbm.cnrs-mop.fr';
 use constant PORT => $ENV{ACEDB_PORT} || 20000100;
 
-BEGIN {$| = 1; print "1..16\n"; }
+BEGIN {$| = 1; print "1..21\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Ace;
 $loaded = 1;
@@ -47,3 +47,8 @@ test(13,$lab->at('CGC.Allele_designation')->at eq 'e',"compound path failure");
 test(14,$obj->Address->asString eq $DATA,"asString() method");
 test(15,$db->ping,"can't ping");
 test(16,$db->classes,"can't count classes");
+test(17,join(' ',sort $obj->fetch('Laboratory')->tags) eq "Address CGC Staff","fetch failure");
+test(18,join(' ',$obj->Address->row) eq "Address Mail The Sanger Centre","row() failure");
+test(19,join(' ',$obj->Address->row(1)) eq "Mail The Sanger Centre","row() failure");
+test(20,@h=$obj->Address(2),"tag[2] failure");
+test(21,@h==9,"tag[2] failure");

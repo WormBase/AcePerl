@@ -20,7 +20,10 @@ require DynaLoader;
         STATUS_PENDING
 	STATUS_ERROR
 );
-$VERSION = '1.34';
+@EXPORT_OK = qw(
+		rearrange
+		);
+$VERSION = '1.36';
 
 sub AUTOLOAD {
     # This AUTOLOAD is used to 'autoload' constants from the constant()
@@ -50,25 +53,32 @@ use vars qw/$ERR/;
 
 sub connect {
     my $class = shift;
-    my ($host,$port,$objclass) = rearrange(['HOST','PORT','CLASS'],@_);
+    my ($host,$port,$path,$program,$objclass) = 
+      rearrange(['HOST','PORT','PATH','PROGRAM','CLASS'],@_);
     $host ||= 'localhost';
-    $port ||= 200001;
+    $port ||= 23456;
 
-    # open up a connection to the database
-    my $database = Ace::AceDB->new($host,$port);
+    my $database;
+
+    # open up a connection to a local database
+    if ($path || $program) {
+      require Ace::Local;
+      $database = Ace::Local->connect(@_);
+    } else {
+      $database = Ace::AceDB->new($host,$port);
+    }
     unless ($database) {
 	$ACE::ERR = "Couldn't open database";
 	return undef;
     }
 
-
     my $self = bless {
-	'database'=> $database,
-	'host'   => $host,
-	'port'   => $port,
-        'class'  => $objclass || 'Ace::Object'
+		      'database'=> $database,
+		      'host'   => $host,
+		      'port'   => $port,
+		      'class'  => $objclass || 'Ace::Object',
+		      'date_style' => 'java'
     },$class;
-
     return $self;
 }
 
@@ -91,6 +101,22 @@ sub ping {
 sub db {
   return $_[0]->{'database'};
 }
+
+# Create a new Ace::Object in the indicated database
+# (doesn't actually write into database until you do a commit)
+sub new (\$$$) {
+  my $self = shift;
+  my ($class,$name) = rearrange([qw/class name/],@_);
+  return undef if $self->fetch($class,$name);
+  return $self->{'class'}->new($class,$name,$self);
+}
+
+# Set or retrieve the display style for dates
+sub date_style (\$;$) {
+  my $self = shift;
+  $self->{'date_style'} = $_[0] if defined($_[0]);
+  return $self->{'date_style'};
+} 
 
 # Fetch one or a group of objects from the database
 sub fetch {
@@ -215,9 +241,13 @@ sub raw_query {
 
 # Return a list of all the classes known to the server.
 sub classes {
-  my $self = shift;
+  my ($self,$invisible) = @_;
+  my $query = defined($invisible) && $invisible ?
+    "query find class !buried" 
+      :
+    "query find class visible !buried";
   $self->_alert_iterators;
-  $self->_query("query find class !buried");
+  $self->_query($query);
   return $self->_list;
 }
 
@@ -372,6 +402,7 @@ sub _fill_cache {
 ##########################################################################
 ##########################################################################
 package Ace::Object;
+use Carp;
 
 use overload 
     '""'       => 'name',
@@ -381,18 +412,19 @@ use vars qw($AUTOLOAD $DEFAULT_WIDTH $SPLIT_PATTERN %MO);
 $DEFAULT_WIDTH=25;  # column width for pretty-printing
 $SPLIT_PATTERN='\?([^?]*)\?([^?]*)\?';
 
-# I get confused by this
-*isClass = \&isObject;
-*rearrange = \&Ace::rearrange;
+# Pseudonyms and deprecated methods.
+*isClass        =   \&isObject;
+*pick = *follow = \&fetch;
+*rearrange      = \&Ace::rearrange;
 
 sub AUTOLOAD {
     my($pack,$func_name) = $AUTOLOAD=~/(.+)::([^:]+)$/;
     my $self = shift;
     if ($func_name =~/__/) {
       $func_name =~ s/__/./g;
-      return $self->at($func_name);
+      return $self->at($func_name,@_);
     }
-    return $self->search($func_name);
+    return $self->search($func_name,@_);
 }
 
 sub DESTROY { }
@@ -427,7 +459,7 @@ sub newFromText ($$;$) {
 sub name (\$) {
     my $self = shift;
     $self->{name} = shift if  defined($_[0]);
-    return _ace_format($self->{'class'},$self->{'name'});
+    return $self->_ace_format($self->{'class'},$self->{'name'});
 }
 
 ################### class of the object #################
@@ -464,8 +496,14 @@ sub tags (\$){
 #### Usually returns what is pointed to by the tag.  Will return
 #### the parent object if you pass a true value as the second argument
 sub at (\$;$$) {
-    my ($self,$tag,$return_parent) = @_;
-    return $self->{'right'} unless $tag;
+    my $self = shift;
+    my($tag,$return_parent,$pos) = rearrange(['TAG','PARENT','POS'],@_);
+    return $self->right unless $tag;
+
+    if (!defined($pos) and $tag=~/\[(\d+)\]$/) {
+      $pos = $1;
+      $tag=$`;
+    }
 
     my $o = $self;
     my ($parent,$above,$left);
@@ -478,40 +516,54 @@ sub at (\$;$$) {
       return () unless $o;
     }
     return $above || $left if $return_parent;
-    return $o->col if wantarray;
-    return $o;
+    return defined $pos ? $o->right($pos) : $o unless wantarray;
+    return $o->col($pos);
 }
 
 ### Flatten out part of the tree into an array ####
 ### along the row.  Will not follow object references.  ###
-sub row (\$) {
+sub row (\$;$) {
   my $self = shift;
+  my $pos = shift;
   my @r;
-  my $o = $self->right;
+  my $o = defined $pos ? $self->right($pos) : $self;
   while ($o) {
     push(@r,$o);
     $o = $o->right;
   }
-  return wantarray ? @r : $r[0];
+  return @r;
 }
 
 ### Flatten out part of the tree into an array ####
 ### along the column. Will not follow object references. ###
-sub col (\$) {
-    my $self = shift;
-    my @r;
-    my $o = $self->right;
-    while ($o) {
-	push(@r,$o);
-	$o = $o->down;
+sub col (\$;$) {
+  my $self = shift;
+  my $pos = shift;
+  $pos = 1 unless defined $pos;
+  croak "Position must be positive" unless $pos >= 0;
+
+  return ($self) unless $pos > 0;
+
+  my @r;
+  # This is for tag[1] semantics
+  if ($pos == 1) {
+    for (my $o=$self->right; $o; $o=$o->down) {
+      push (@r,$o);
     }
-    return wantarray ? @r : $r[0];
+  } else {
+    # This is for tag[2] semantics
+    for (my $o=$self->right; $o; $o=$o->down) {
+      next unless my $right = $o->right($pos-2);
+      push (@r,$right->col);
+    }
+  }
+  return @r;
 }
 
 #### Search for a tag, and return the column ####
 #### Uses a breadth-first search (cols then rows) ####
-sub search (\$$;$) {
-    my ($self,$tag) = @_;
+sub search (\$$;$$) {
+    my ($self,$tag,$pos) = @_;
 
     TRY: {
 	last TRY if exists $self->{'.PATHS'}->{$tag};
@@ -558,10 +610,15 @@ sub search (\$$;$) {
 	$self->{'.PATHS'}->{$tag} = undef;
       }
 
-    return wantarray ? $self->{'.PATHS'}->{$tag}->col
-                     : $self->{'.PATHS'}->{$tag} 
-           if $self->{'.PATHS'}->{$tag};
-    return wantarray ? () : undef;
+    my $t = $self->{'.PATHS'}->{$tag};
+    return wantarray ? () : undef  unless $t;
+    return defined $pos ? $t->right($pos) : $t  unless wantarray;
+
+    # We do something verrrry interesting in an array context.
+    # If no position is defined, we return the column to the right.
+    # If a position is defined, we return everything $POS tags
+    # to the right (so-called tag[2] system).
+    return $t->col($pos);
 }
 
 #### return true if tree is populated, without populating it #####
@@ -687,11 +744,19 @@ sub asGif {
 
 
 ############### object on the right of the tree #############
-sub right (\$) {
-  my $self = shift;
+sub right (\$;$) {
+  my ($self,$pos) = @_;
+
   $self->_fill;
   $self->_parse;
-  return $self->{'right'};
+  return $self->{'right'} unless defined $pos;
+  croak "Position must be positive" unless $pos >= 0;
+
+  my $node = $self;
+  while ($pos--) {
+    $node = $node->right or return undef;
+  }
+  $node;
 }
 
 ################# object below on the tree #################
@@ -724,8 +789,11 @@ sub delete (\$$;$) {
 
 #############################################
 #  follow into database #
-sub pick (\$) {
+sub fetch (\$;$) {
     my $self = shift;
+    my $tag = shift;
+    $self = $self->search($tag) or return undef
+      if defined $tag;
     my $thing_to_pick = ($self->class eq 'tag' && $self->right) ? $self->right : $self;
     return $thing_to_pick->_clone;
 }
@@ -838,6 +906,13 @@ sub debug {
     return defined($_[0]) ? $self->{debug}=$_[0] : $self->{debug};
 }
 
+### Get or set the date style (actually calls through to the database object) ###
+sub date_style (\$;$) {
+  my $self = shift;
+  return undef unless $self->db;
+  return $self->db->date_style(@_);
+}
+
 # return the most recent error message
 sub error {
     return $ACE::ERR;
@@ -912,7 +987,7 @@ sub _asTable (\%\$$$;) {
       my $new_row;
       foreach (@to_append) {
 
-	s/$SPLIT_PATTERN/_ace_format($1,$2)/eog;
+	s/$SPLIT_PATTERN/$self->_ace_format($1,$2)/eog;
 	if ($new_row++) {
 	  $$out .= "\n";
 	  $$out .= "\t" x ($level-1) 
@@ -972,10 +1047,15 @@ sub _default_makeHTML {
 # Return partial ace subtree at indicated tag
 sub _at (\$$) {
     my ($self,$tag) = @_;
+    my $pos=0;
+    if ($tag=~/\[(\d+)\]$/) {
+      $pos=$1;
+      $tag=$`;
+    }
     my $p;
     my $o = $self->right;
     while ($o) {
-	return ($o,$p,$self) if (lc($o) eq lc($tag));
+	return ($o->right($pos),$p,$self) if (lc($o) eq lc($tag));
 	$p = $o;
 	$o = $o->down;
     }
@@ -1018,7 +1098,7 @@ sub _asAce (\%\$$\@) {
       foreach (@to_modify) {
 	my ($class,$name) = _ace_split($_);
 	if ($name) {
-	  $name = _ace_format($class,$name);
+	  $name = $self->_ace_format($class,$name);
 	  if (_isObject($class) || $name=~/[^\w.-]/) {
 	    $name=~s/"/\\"/g; #escape quotes with slashes
 	    $name = qq/\"$name\"/;
@@ -1050,7 +1130,9 @@ sub _asAce (\%\$$\@) {
 }
 
 sub _to_ace_date {
+  my $self = shift;
   my $string = shift;
+  return $string unless lc($self->date_style) eq 'ace';
   %MO = (Jan=>1,Feb=>2,Mar=>3,
 	 Apr=>4,May=>5,Jun=>6,
 	 Jul=>7,Aug=>8,Sep=>9,
@@ -1067,8 +1149,9 @@ sub _ace_split {
 # Used to munge special data types.  Right now dates are the
 # only examples.
 sub _ace_format {
+  my $self = shift;
   my ($class,$name) = @_;
-  return $class eq 'date' ? _to_ace_date($name) : $name;
+  return $class eq 'date' ? $self->_to_ace_date($name) : $name;
 }
 
 # It's an object unless it is one of these things
@@ -1096,7 +1179,7 @@ Ace - open an ACE database server for reading and writing
     $sequence = $db->fetch('Sequence,'D12345');
     $number = $db->count('Sequence','D*');
     @sequences = $db->fetch('Sequence','D*');
-    $i = $db->fetch(Sequence,'*');  # iteerate
+    $i = $db->fetch_many(Sequence,'*');  # fetch a cursor
     while ($obj = $i->next) {
        print $obj->asTable;
     }
@@ -1113,8 +1196,8 @@ Ace - open an ACE database server for reading and writing
     @col       = $sequence->at("Visible.$more_tags[1]")->col;
 
     # Follow a pointer into database
-    $r     = $sequence->at('Visible.Overlap_Right')->pick;
-    $next  = $r->at('Visible.Overlap_left')->pick;
+    $r     = $sequence->at('Visible.Overlap_Right')->fetch;
+    $next  = $r->at('Visible.Overlap_left')->fetch;
 
     # Pretty-print object
     print $sequence->asString;
@@ -1152,28 +1235,80 @@ from scratch, and store them in the database.
 
 =head1 CREATING NEW DATABASE CONNECTIONS: connect()
 
-Use Ace::connect() to establish a connection to an AceDB database.
-The database must be up and running on the indicated host and port
-prior to the connection attempt.  The full syntax is as follows:
-
+    # remote database
     $db = Ace->connect(-host  =>  'sapiens.wustl.edu',
-                       -port  =>  123456,
-                       -class =>  Ace::Super::Object);
+                       -port  =>  123456);
+    
+    # local (non-server) database
+    $db = Ace->connect(-path  =>  '/usr/local/acedb);
+
+Use Ace::connect() to establish a connection to a networked or local
+AceDB database.  To establish a connection to an AceDB server, use the
+B<-host> and/or B<-port> arguments.  For a local server, use the
+B<-port> argument.  The database must be up and running on the
+indicated host and port prior to connecting to an AceDB server.  The
+full syntax is as follows:
+
+    $db = Ace->connect(-host  =>  $host,
+                       -port  =>  $port,
+		       -path  =>  $database_path,
+		       -program =>$local_connection_program
+                       -class =>  $object_class);
 
 The connect() method uses a named argument calling style, and
-recognizes the arguments B<-host>, B<-port>, and B<-class>.  The host
-and port correspond to the host and port of the ACE server.  The
-optional B<-class> argument points to the class you would like to
-return from database queries.  It is provided for your use if you
-subclass Ace::Object (see below).
+recognizes the arguments B<-host>, B<-port>, B<-path>, B<-program> and
+B<-class>.  
 
-Note that the named argument style is just passing an associative
-array to the subroutine.  
+=over 4
+
+=item B<-host>, B<-port>
+
+These arguments point to the host and port of an AceDB server.
+AcePerl will use its internal compiled code to establish a connection
+to the server unless explicitly overridden with the B<-program>
+argument.
+
+=item B<-path>
+
+This argument indicates the path of an AceDB directory on the local
+system.  It should point to the directory that contains the I<wspec>
+subdirectory.  User name interpolations (~acedb) are OK.
+
+=item B<-program>
+
+By default AcePerl will use its internal compiled code calls to
+establish a connection to Ace servers, and will launch a I<tace>
+subprocess to communicate with local Ace databases.  The B<-program>
+argument allows you to customize this behavior by forcing AcePerl to
+use a local program to communicate with the database.  This argument
+should point to an executable on your system.  You may use either a
+complete path or a bare command name, in which case the PATH
+environment variable will be consulted.  For example, you could force
+AcePerl to use the I<aceclient> program to connect to the remote host
+by connecting this way:
+
+  $db = Ace->connect(-host=>'sapiens.wustl.edu',-port=>123456,
+                     -program=>'aceclient');
+
+=item B<-class>
+
+The optional B<-class> argument points to the class you would like to
+return from database queries.  It is provided for your use if you
+subclass Ace::Object.  For example, if you have created a subclass of
+Ace::Object called Ace::Object::Graphics, you can have the database
+return this subclass by default by connecting this way:
+
+  $db = Ace->connect(-host=>'sapiens.wustl.edu',-port=>123456,
+	             -class=>'Ace::Object::Graphics');
+
+=back
 
 If arguments are omitted, they will default to the following values:
 
     -host         localhost
-    -port         2000525
+    -port         23456
+    -path         <no default>
+    -program      tace
     -class        Ace::Object
 
 If you prefer to use a more Smalltalk-like message-passing syntax, you
@@ -1320,6 +1455,17 @@ bandwidth and memory consumption.  It is simple to use:
 The iterator will return undef when it has finished iterating, and
 cannot be used again.
 
+=head2 new() method
+
+   $obj = $db->new($class,$name);
+   $obj = $db->new(-class=>$class,
+                   -name=>$name);
+
+Create a new object in the database with the indicated class and name
+and return a pointer to it.  Will return undef if the object already
+exists in the database.  The object isn't actually written into the database
+until you call Ace::Object::commit().
+
 =head2 raw_query() method
 
     $r = $db->raw_query('Model');
@@ -1332,10 +1478,34 @@ queries.
 =head2 classes() method
 
    @classes = $db->classes();
+   @all_classes = $db->classes(1);
 
 This method returns a list of all the object classes known to the
 server.  In a list context it returns an array of class names.  In a
 scalar context, it the number of classes defined in the database.
+
+Ordinarily I<classes()> will return only those classes that are
+exposed to the user interface for browsing, the so-called "visible"
+classes.  Pass a true argument to the call to retrieve non-visible
+classes as well.
+
+=head2 date_style() method
+ 
+  $style = $db->date_style();
+  $style = $db->date_style('ace');
+  $style = $db->date_style('java');
+
+For historical reasons, AceDB can display dates using either of two
+different formats.  The first format, which I call "ace" style, puts
+the year first, as in "1997-10-01".  The second format, which I call
+"java" style, puts the day first, as in "01 Oct 1997 00:00:00" (this
+is also the style recommended for Internet dates).  The default is to
+use the latter notation.
+
+B<date_style()> can be used to set or retrieve the current style.
+Called with no arguments, it returns the current style, which will be
+one of "ace" or "java."  Called with an argument, it will set the
+style to one or the other.
 
 =head2 error() method
 
@@ -1350,8 +1520,6 @@ For your convenience, you can call error() in any of several ways:
     print Ace->error();
     print $db->error();  # $db is an Ace database handle
     print $obj->error(); # $object is an Ace::Object
-
-
 
 =head1 MANIPULATING ACEDB OBJECTS
 
@@ -1463,6 +1631,19 @@ letter.
 
 Return the database that the object is associated with.
 
+=head2 isClass() method
+
+     $bool = $object->isClass();
+
+Returns true if the object is a class (can be fetched from the
+database).
+
+=head2 isTag() method
+
+     $bool = $object->isTag();
+
+Returns true if the object is a tag.
+
 =head2 tags() method
 
      @tags = $object->tags();
@@ -1476,46 +1657,48 @@ inwards using the methods listed below.
 
 =head2 right() and down() methods
 
-     $full_name = $object->right->right;
-     $city = $object->right->down->down->right->right->down->down;
+     $subtree = $object->right;
+     $subtree = $object->right($position);	
+     $subtree = $object->down;
+     $subtree = $object->down($position);	
 
-right() and down() provide a low-level way of traversing the tree
-structure.  If $object contains the "Thierry-Mieg J" Author object,
-then the first series of accesses shown above retrieves the string
-"Jean Thierry-Mieg" and the second retrieves "34033 Montpellier."  If
-the right or bottom pointers are NULL, these methods will return
-undef.
+B<right()> and B<down()> provide a low-level way of traversing the
+tree structure by following the tree's right and down pointers.
+Called without any arguments, these two methods will move one step.
+Called with a numeric argument >= 0 they will move the indicated
+number of steps (zero indicates no movement).
+
+     $full_name = $object->right->right;
+     $full_name = $object->right(2);
+
+     $city = $object->right->down->down->right->right->down->down;
+     $city = $object->right->down(2)->right(2)->down(2);
+
+If $object contains the "Thierry-Mieg J" Author object, then the first
+series of accesses shown above retrieves the string "Jean
+Thierry-Mieg" and the second retrieves "34033 Montpellier."  If the
+right or bottom pointers are NULL, these methods will return undef.
 
 In addition to being somewhat awkard, you will probably never need to
 use these methods.  A simpler way to retrieve the same information
-would be to use the at() method described in the next section.
+would be to use the at() method described in the next section.  
 
-If you do have need for this type of access, be aware that right() has
-the potential to perform additional database accesses.  For example,
-the node "FF" in the "Thierry-Mieg" object is actually a Laboratory
-object that has additional database information associated with it.
-Calling its right() method will bring this information into memory.
-Therefore do not blindly follow the right() pointers until you hit
-undef, as you may inadvertently traverse much of the database.  An
-alternative that does B<not> cause additional database accesses is to
-access the object as an associative array and use the "right" and
-"down" keys.  This also has the advantage of being slightly faster.
-
-    $object->{'right'};
-    $object->{'down'};
+The right() and down() methods always walk through the tree of the
+current object.  They do not follow object pointers into the database.
+Use B<fetch()> (or the deprecated B<pick()> or B<follow()> methods)
+instead.
 
 =head2 at() method
 
-    $subtree    = $object->at(tag_path);
-    @values     = $object->at(tag_path);
-
+    $subtree    = $object->at($tag_path);
+    @values     = $object->at($tag_path);
 
 at() is a simple way to fetch the portion of the tree that you are
-interested in.  It takes a single argument, a simple tag or a
-composite tag.  A simple tag, such as "Full_name", must correspond to
-a tag in the column immediately to the right of the root of the tree.
-A complex tag, such as "Address.Mail" is a dot-delimited path to the
-subtree.  Some examples are given below.
+interested in.  It takes a single argument, a simple tag or a path.  A
+simple tag, such as "Full_name", must correspond to a tag in the
+column immediately to the right of the root of the tree.  A path such
+as "Address.Mail" is a dot-delimited path to the subtree.  Some
+examples are given below.
 
     ($full_name)   = $object->at('Full_name');
     @address_lines = $object->at('Address.Mail');
@@ -1527,6 +1710,15 @@ The second line above is equivalent to:
 Called without a tag name, at() just dereferences the object,
 returning whatever is to the right of it, the same as
 $object->{'right'}.
+
+If a path component already has a dot in it, you may escape the dot
+with a backslash, as in:
+
+    $s=$db->fetch('Sequence','M4');
+    @homologies = $s->at('Homol.DNA_homol.yk192f7\.3';
+
+This also demonstrates that path components don't necessarily have to
+be tags, although in practice they usually are.
 
 at() returns slightly different results depending on the context in
 which it is called.  In a list context, it returns the column of
@@ -1546,10 +1738,52 @@ construct:
   
     $name1   = $object->at('Full_name')->at();
 
+For finer control over navigation, path components can include
+optional indexes to indicate navigation to the right of the current
+path component.  Here is the syntax:
+
+    $object->at('tag1[index1].tag2[index2].tag3[index3]...');
+
+Indexes are zero-based.  An index of [0] indicates no movement
+relative to the current component, and is the same as not using an
+index at all.  An index of [1] navigates one step to the right, [2]
+moves two steps to the right, and so on.  Using the Thierry-Mieg
+object as an example again, here are the results of various indexes:
+
+    $object = $db->fetch(Author,"Thierry-Mieg J");
+    $a = $object->at('Address[0]')   --> "Address"
+    $a = $object->at('Address[1]')   --> "Mail"
+    $a = $object->at('Address[2]')   --> "CRBM duCNRS"
+
+In an array context, the last index in the path does something very
+interesting.  It returns the entire column of data K steps to the
+right of the path, where K is the index.  This is used to implement
+so-called "tag[2]" syntax, and is very useful in some circumstances.
+For example, here is a fragment of code to return the Thierry-Mieg
+object's full address without having to refer to each of the
+intervening "Mail", "E_Mail" and "Phone" tags explicitly.
+
+   @address = $object->at('Address[2]');
+   --> ('CRBM duCNRS','BP 5051','34033 Montpellier','FRANCE',
+        'mieg@kaa.cnrs-mop.fr,'33-67-613324','33-67-521559')
+
+Similarly, "tag[3]" will return the column of data three hops to the
+right of the tag.  "tag[1]" is identical to "tag" (with no index), and
+will return the column of data to the immediate right.  There is no
+special behavior associated with using "tag[0]" in an array context;
+it will always return the subtree rooted at the indicated tag.
+
+Internal indices such as "Homol[2].BLASTN", do not have special
+behavior in an array context.  They are always treated as if they were
+called in a scalar context.
+
+Also see B<col()> and B<search()>.
+
 =head2 search() method
 
-    $subtree    = $object->search(tag);
-    @values     = $object->search(tag);
+    $subtree    = $object->search($tag);
+    @values     = $object->search($tag);
+    @values     = $object->search($tag,$position);
 
 The search() method will perform a breadth-first search through the
 object (columns first, followed by rows) for the tag indicated by the
@@ -1558,56 +1792,138 @@ to.  For example, this code fragment will return the value of the
 "Fax" tag.
 
     ($fax_no) = $object->search('Fax');
+         --> "33-67-521559"
 
 The list versus scalar context semantics are the same as in at(), so
 if you want to retrieve the scalar value pointed to by the indicated
 tag, either use a list context as shown in the example, above, or a
 dereference, as in:
 
+     $fax_no = $object->search('Fax');
+         --> "Fax"
      $fax_no = $object->search('Fax')->at;
+         --> "33-67-521559"
+
+An optional second argument to B<search()>, $position, allows you to
+navigate the tree relative to the retrieved subtree.  Like the B<at()>
+navigational indexes, $position must be a number greater than or equal
+to zero.  In a scalar context, $position moves rightward through the
+tree.  In an array context, $position implements "tag[2]" semantics.
+
+For example:
+
+     $fax_no = $object->search('Fax',0);
+          --> "Fax"
+
+     $fax_no = $object->search('Fax',1);
+          --> "33-67-521559"
+
+     $fax_no = $object->search('Fax',2);
+          --> undef  # nothing beyond the fax number
+
+     @address = $object->search('Address',2);
+          --> ('CRBM duCNRS','BP 5051','34033 Montpellier','FRANCE',
+               'mieg@kaa.cnrs-mop.fr,'33-67-613324','33-67-521559')
 
 =head2 Autogenerated Access Methods
 
-     ($fax_no) = $object->Fax;
+     $scalar = $object->Name_of_tag;
+     $scalar = $object->Name_of_tag($position);
+     @array  = $object->Name_of_tag;
+     @array  = $object->Name_of_tag($position);
 
 The module attempts to autogenerate data access methods as needed.
 For example, if you refer to a method named "Fax" (which doesn't
 correspond to any of the built-in methods), then the code will call
-the search() method to find a tag named "Fax" and return its
+the B<search()> method to find a tag named "Fax" and return its
 contents.  The list and scalar context semantics are the same as in
-search().  
+B<search()>.  
+
+You can provide an optional positional index to rapidly navigate
+through the tree or to obtain tag[2] behavior.  In the following
+examples, the first two return the object's Fax number, and the third
+returns all data two hops to the right of Address.
+
+     ($fax_no) = $object->Fax;
+     $fax_no   = $object->Fax(1);
+     @address  = $object->Address(2);
 
 If no matching tag is found, the autogenerated method will return
 undef or an empty array.
 
-=head2 pick() method
+=head2 fetch() method
 
-    $new_object = $object->pick;
+    $new_object = $object->fetch;
+    $new_object = $object->fetch($tag);
 
 Follow object into the database, returning a new object.  This is
 the best way to follow object references.  For example:
 
-    $laboratory = $object->at('Laboratory')->pick;
+    $laboratory = $object->at('Laboratory')->fetch;
     print $laboratory->asString;
+
+Because the previous example is a frequent idiom, the optional $tag
+argument allows you to combine the two operations into a single one:
+
+    $laboratory = $object->fetch('Laboratory');
+
+=head2 pick() method
+
+Deprecated method.  This has the same semantics as fetch(), which
+should be used instead.
+
+=head2 follow() method
+
+Deprecated method.  This has the same semantics as fetch(), which
+should be used instead.
 
 =head2 col() method
 
-     @address = $object->at('Address.Mail')->col(1);
+     @column = $object->col;
+     @column = $object->col($position);
 
-col() is a low-level routine that returns the column of data to the
-right of the object as a perl list.  Ordinarily col() will follow
-database references.  If you provide it with an optional true
-argument, this following will be suppressed.
+
+B<col()> flattens a portion of the tree by returning the column one
+hop to the right of the current subtree. You can provide an additional
+positional index to navigate through the tree using "tag[2]" behavior.
+This example returns the author's mailing address:
+
+  @mailing_address = $object->at('Address.Mail')->col();
+
+This example returns the author's entire address including mail,
+e-mail and phone:
+
+  @address = $object->at('Address')->col(2);
+
+It is equivalent to any of these calls:
+
+  $object->at('Address[2]');
+  $object->search('Address',2);
+  $object->Address(2);
+
+Use whatever syntax is most comfortable for you.
 
 =head2 row() method
 
      @row=$object->row();
+     @row=$object->row($position);
 
-row() is a low-level routine that routines the row of data to the
-right of the object.  In the case of the "Thierry-Mieg J" object, the
-example below will return the list ('Mail','CBM duCNRS').
+B<row()> will return the row of data to the right of the object.  The
+first member of the list will be the object itself.  In the case of
+the "Thierry-Mieg J" object, the example below will return the list
+('Address','Mail','CRBM duCNRS').
 
-     @row = $object->at('Address')->row();
+     @row = $object->Address->row();
+
+You can provide an optional position to move rightward one or more
+places before retrieving the row.  This code fragment will return
+('Mail','CRBM duCNRS'):
+
+     @row = $object->Address->row(1);
+
+It is exactly equivalent to:
+
+     @row = $object->Address->right->row();
 
 =head2 asString() method
 
@@ -1760,6 +2076,18 @@ the object anew from AceDB.  If someone has changed the object in the
 database while you were working with it, you will see this version,
 ot the one you originally fetched.
 
+=head2 date_style() method
+
+   $object->date_style('ace');
+
+This is a convenience method that can be used to set the date format
+for all objects returned by the database.  It is exactly equivalent to
+
+   $object->db->date_style('ace');
+
+Note that the text representation of the date will change for all
+objects returned from this database, not just the current one.
+
 =head2 error() method
     
     $object->error;
@@ -1864,13 +2192,12 @@ will not ordinarily have to call this method.
 3. Debugging has only one level of verbosity, despite the best
 of intentions.
 
-4. The module should connect directly to the Ace server via a
-Jade netclient type of connection, rather than via a separate
-aceclient process.
-
-5. Performance is poor when fetching big objects, because of 
+4. Performance is poor when fetching big objects, because of 
 many object references that must be created.  This could be
 improved.
+
+5. When called in an array context at("tag[0]") should return the
+current tag's entire column.  It returns the current subtree instead.
 
 6. Item number six is missing.
 
@@ -1889,4 +2216,3 @@ This library is free software;
 you can redistribute it and/or modify it under the same terms as Perl itself. 
 
 =cut
-
