@@ -673,7 +673,7 @@ sub OpenDatabase {
   return $db if $db && $db->ping;
 
   my ($host,$port,$user,$password) = getDatabasePorts($name);
-  my @auth = (-user=>$user,-pass=>$password) if $name && $password;
+  my @auth = (-user=>$user,-pass=>$password) if $user && $password;
   $DB{$name} = Ace->connect(-host=>$host,-port=>$port,-timeout=>50,@auth);
   return $DB{$name};
 }
