@@ -89,7 +89,9 @@ sub info      {                  # returns Ace::Object(s) with info about the fe
   my $self = shift;
   unless ($self->{group}) {
     my $info = $self->{info}{group} || 'Method "'.$self->method.'"';
+    $info =~ s/(\"[^\"]*);([^\"]*\")/$1$;$2/g;
     my @data = split(/\s*;\s*/,$info);
+    foreach (@data) { s/$;/;/g }
     $self->{group} = [map {$self->toAce($_)} @data];
   }
   return wantarray ? @{$self->{group}} : $self->{group}->[0];
