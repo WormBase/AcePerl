@@ -103,8 +103,8 @@ sub class {
 sub eq {
     my ($a,$b,$rev) = @_;
     unless (UNIVERSAL::isa($b,'Ace::Object')) {
-	return unless $b=~/^[0-9e.+-]+$/i;
-	return $a->name == $b;
+	$a = $a->name + 0; # convert to numeric
+	return $a == $b;  # do a numeric comparison
     }
     return 1 if ($a->name eq $b->name) 
       && ($a->class eq $b->class)
