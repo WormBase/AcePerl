@@ -82,23 +82,46 @@ sub connect {
   } else {
     $database = $server_type->connect($host,$port,$query_timeout,$user,$pass,%$other);
   }
-  
+
   unless ($database) {
     $Ace::Error ||= "Couldn't open database";
     return;
   }
-  
+
   my $self = bless {
 		    'database'=> $database,
 		    'host'   => $host,
 		    'port'   => $port,
 		    'path'   => $path,
 		    'class'  => $objclass || 'Ace::Object',
+		    'timeout' => $query_timeout,
+		    'user'    => $user,
+		    'pass'    => $pass,
+		    'other'  => $other,
 		    'date_style' => 'java',
 		    'auto_save' => 0,
-		   },$class;
+		   },ref($class)||$class;
   eval "require $self->{class}" or warn $@;
   return $self;
+}
+
+sub reopen {
+  my $self = shift;
+  return 1 if $self->ping;
+  my $class = ref($self->{database});
+  my $database;
+  if ($self->{path}) {
+    $database = $class->connect(-path=>$self->{path},%{$self->other});
+  } else {
+    $database = $class->connect($self->{host},$self->{port}, $self->{timeout},
+				      $self->{user},$self->{pass},%{$self->{other}});
+  }
+  unless ($database) {
+    $Ace::Error = "Couldn't open database";
+    return;
+  }
+  $self->{database} = $database;
+  1;
 }
 
 sub class {
@@ -706,6 +729,13 @@ You can explicitly close a database by calling its close() method:
 This is not ordinarily necessary because the database will be
 automatically close when it -- and all objects retrieved from it -- go
 out of scope.
+
+=head2 reopen() Method
+
+The ACeDB socket server can time out.  The reopen() method will ping
+the server and if it is not answering will reopen the connection.  If
+the database is live (or could be resurrected), this method returns
+true.
 
 =head1 RETRIEVING ACEDB OBJECTS
 

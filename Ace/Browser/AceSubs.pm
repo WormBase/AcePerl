@@ -864,7 +864,7 @@ sub Toggle {
 	$open{$section}++;
 	$img =  img({-src=>'/icons/triangle_right.gif',-alt=>'&gt;',
 			-height=>11,-width=>6,-border=>0}),
-	my $plural = (!$addplural or $label =~ /s$/) ? $label : "${label}s";
+	my $plural = ($addplural and $label !~ /s$/) ? "${label}s" : "$label";
 	$label = font({-class=>'toggle'},!$addcount ? $plural : "$count $plural");
     }
     param(-name=>'open',-value=>join(' ',keys %open));

@@ -154,6 +154,7 @@ sub _handshake {
 sub _send_msg {
   my ($self,$msg,$parse) = @_;
   return unless my $sock = $self->{socket};
+  local $SIG{'PIPE'} = 'IGNORE';
   $msg .= "\0";  # add terminating null
   my $request;
   if ($parse) {
@@ -172,7 +173,6 @@ sub _recv_msg {
   my ($header,$body);
   my $bytes = CORE::read($sock,$header,HEADER_LEN);
   unless ($bytes > 0) {
-    cluck "Connection closed by remote server: $!";
     $self->{status} = STATUS_ERROR;
     return _error("Connection closed by remote server: $!");
   }
