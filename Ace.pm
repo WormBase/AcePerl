@@ -24,7 +24,7 @@ require DynaLoader;
 @EXPORT_OK = qw(
 		rearrange
 		);
-$VERSION = '1.44';
+$VERSION = '1.471';
 
 sub AUTOLOAD {
     my $constname;
@@ -77,7 +77,7 @@ sub connect {
     }
     unless ($database) {
 	$Ace::ERR = "Couldn't open database";
-	return undef;
+	return;
     }
 
     my $self = bless {
@@ -100,9 +100,9 @@ sub ping {
   my $self = shift;
   local($SIG{PIPE})='IGNORE';  # so we don't get a fatal exception during the check
   my $result = $self->raw_query('');
-  return undef unless $result;  # server has gone away
-  return undef if $result=~/broken connection|client time out/;  # server has timed us out  
-  return undef unless $self->{database}->status() == STATUS_WAITING(); #communications oddness
+  return unless $result;  # server has gone away
+  return if $result=~/broken connection|client time out/;  # server has timed us out  
+  return unless $self->{database}->status() == STATUS_WAITING(); #communications oddness
   return 1;
 }
 
@@ -113,28 +113,40 @@ sub db {
 
 # Create a new Ace::Object in the indicated database
 # (doesn't actually write into database until you do a commit)
-sub new (\$@) {
+sub new {
   my $self = shift;
   my ($class,$name) = rearrange([qw/CLASS NAME/],@_);
-  return undef if $self->fetch($class,$name);
+  return if $self->fetch($class,$name);
   my $obj = $self->{'class'}->new($class,$name,$self);
   return $obj;
 }
 
+
 # Get or set the display style for dates
-sub date_style (\$;$) {
+sub date_style {
   my $self = shift;
-  $self->{'date_style'} = $_[0] if defined($_[0]);
+  $self->{'date_style'} = $_[0] if defined $_[0];
   return $self->{'date_style'};
 }
 
 # Get or set whether we retrieve timestamps
-sub timestamps (\$;$) {
+sub timestamps {
   my $self = shift;
   $self->{'timestamps'} = $_[0] if defined $_[0];
   return $self->{'timestamps'};
 }
 
+# Fetch a model from the database.
+# Since there are limited numbers of models, we cache
+# the results internally.
+sub model {
+  my $self = shift;
+  require Ace::Model;
+  my $model = shift;
+  return $self->{'models'}{$model} ||= 
+    Ace::Model->new($self->raw_query("model \"$model\""));
+}
+	   
 # Fetch one or a group of objects from the database
 sub fetch {
   my $self = shift;
@@ -160,6 +172,63 @@ sub fetch {
 
   my (@h) = $filled ? $self->_fetch($count,$offset) : $self->_list($count,$offset);
   return wantarray ? @h : $h[0];
+}
+
+# Add one or more objects to the database
+sub put {
+  my $self = shift;
+  my @objects = @_;
+  my $count = 0;
+  $Ace::ERR = '';
+  foreach my $object (@objects) {
+    croak "Can't put a non-Ace object into an Ace database"
+      unless $object->isa('Ace::Object');
+    croak "Can't put a non-object into a database"
+      unless $object->isObject;
+    $object = $object->fetch unless $object->isRoot;  # make sure we're putting root object
+    my $data = $object->asAce;
+    $data =~ s/\n/; /mg;
+    my $result = $self->raw_query("parse = $data");
+    $Ace::ERR = $result if $result =~ /sorry|parse error/mi;
+    return $count if $Ace::ERR;
+    $count++;  # bump if succesful
+  }
+  return $count;
+}
+
+# Parse a single object and return the result as an object
+sub parse {
+  my $self = shift;
+  my $ace_data = shift;
+  my @lines = split("\n",$ace_data);
+  foreach (@lines) { s/;/\\;/;  } # protect semicolons  
+  my $query = join("; ",@lines);
+  my $result = $self->raw_query("parse = $query");
+  $Ace::ERR = $result=~/sorry|parse error/mi ? $result : '';
+  my @results = $self->_list(1,0);
+  return $results[0];
+}
+
+# Parse a file and return all the results
+sub parse_file {
+  my $self = shift;
+  my ($file,$keepgoing) = @_;
+  local(*ACE);
+  local($/) = '';  # paragraph mode
+  my(@objects,$errors);
+  open(ACE,$file) || croak "$file: $!";
+  while (<ACE>) {
+    chomp;
+    my $obj = $self->parse($_);
+    unless ($obj) {
+      $errors .= $Ace::ERR;  # keep track of errors
+      last unless $keepgoing;
+    }
+    push(@objects,$obj);
+  }
+  close ACE;
+  $Ace::ERR = $errors;
+  return @objects;
 }
 
 # Perform an ace query and return the result
@@ -216,7 +285,7 @@ sub count {
   my $result = $self->raw_query($query);
   unless ($result =~ /Found (\d+) objects/m) {
     $Ace::ERR = 'Unexpected close during find';
-    return undef;
+    return;
   }
   return $1;
 }
@@ -230,8 +299,6 @@ sub grep {
 							   ['FILL','FILLED'],'TOTAL'],@_);
   $offset += 0;
   $count = wantarray ? -1 : 1 unless defined $count;
-  # apparently grep doesn't like this!
-  # $pattern = Ace::AceDB->freeprotect($pattern);
   my $r = $self->raw_query("grep $pattern");
   my ($cnt) = $r =~ /Found (\d+) objects/m;
   $$total = $cnt if defined $total;
@@ -246,7 +313,7 @@ sub pick {
     $Ace::ERR = '';
 # assumption of uniqueness of name is violated by some classes!
 #    return () unless $self->count($class,$item) == 1;
-    return () unless $self->count($class,$item) >= 1;
+    return unless $self->count($class,$item) >= 1;
 
     # if we get here, then we've got some data to return.
     # yes, we're repeating code slightly...
@@ -255,7 +322,7 @@ sub pick {
     my $result = $self->raw_query("show -j $ts");
     unless ($result =~ /(\d+) object dumped/m) {
 	$Ace::ERR = 'Unexpected close during pick';
-	return undef;
+	return;
     }
 
     @result = grep (!m!^//!,split("\n\n",$result));
@@ -266,7 +333,7 @@ sub pick {
 sub show {
     my ($self,$class,$pattern,$tag) = @_;
     $Ace::ERR = '';
-    return () unless $self->count($class,$pattern);
+    return unless $self->count($class,$pattern);
     
     # if we get here, then we've got some data to return.
     my @result;
@@ -274,14 +341,14 @@ sub show {
     my $result = $self->raw_query("show -j $ts $tag");
     unless ($result =~ /(\d+) object dumped/m) {
 	$Ace::ERR = 'Unexpected close during show';
-	return undef;
+	return;
     }
     return grep (!m!^//!,split("\n\n",$result));
 }
 
 sub read_object {
     my $self = shift;
-    return undef unless $self->{database};
+    return unless $self->{database};
     my $result;
     while ($self->{database}->status == STATUS_PENDING()) {
       $result .= $self->{database}->read() ;
@@ -290,7 +357,7 @@ sub read_object {
 }
 
 # do a query, and return the result immediately
-sub raw_query (\$$;$) {
+sub raw_query {
     my ($self,$query,$parse) = @_;
     $self->{database}->query($query, $parse ? ACE_PARSE() : () );
     $self->_alert_iterators;
@@ -307,6 +374,14 @@ sub classes {
   $self->_alert_iterators;
   $self->_query($query);
   return $self->_list;
+}
+
+# Return the layout, which contains classes that should be displayed
+sub layout {
+  my $self = shift;
+  my $result = $self->raw_query('layout');
+  $result=~s{\n(\s*\n|//.*\n|\0)+\Z}{}m;  # get rid of extraneous information
+  $result;
 }
 
 # Return a hash of all the classes and the number of objects in each
@@ -366,7 +441,7 @@ sub DESTROY {
 ###################### private routines #############################
 sub rearrange {
     my($order,@param) = @_;
-    return () unless @param;
+    return unless @param;
     
     return @param unless (defined($param[0]) && substr($param[0],0,1) eq '-');
 
@@ -415,7 +490,7 @@ sub _list {
   my $result = $self->raw_query("list -j -b $offset -c $count");
   foreach (split("\n",$result)) {
     next unless my ($class,$name) = Ace::AceDB->split($_);
-    push(@result,$self->{'class'}->new($class,$name,$self));
+    push(@result,$self->{'class'}->new($class,$name,$self,1));
   }
   return @result;
 }
@@ -436,7 +511,7 @@ sub _fetch {
 
 sub _fetch_chunk {
   my $self = shift;
-  return () unless $self->{database}->status == STATUS_PENDING();
+  return unless $self->{database}->status == STATUS_PENDING();
   my $result = $self->{database}->read();
   my @chunks = split("\n\n",$result);
   my @result;
@@ -523,39 +598,68 @@ use overload
     'fallback' =>' TRUE';
 use vars qw($AUTOLOAD $DEFAULT_WIDTH %MO);
 
+# experimental!
+# use AutoLoader;
+
 $DEFAULT_WIDTH=25;  # column width for pretty-printing
 
 # Pseudonyms and deprecated methods.
 *isClass        =  \&isObject;
 *pick = *follow =  \&fetch;
 *rearrange      =  \&Ace::rearrange;
+*get            =  \&search;
+*add            =  \&add_row;
 
 sub AUTOLOAD {
     my($pack,$func_name) = $AUTOLOAD=~/(.+)::([^:]+)$/;
     my $self = shift;
-    if ($func_name =~/__/) {
-      $func_name =~ s/__/./g;
-      return $self->at($func_name,@_);
+    my $error = "Can't locate object method \"$func_name\" via package \"$pack\"";
+
+# the following commented area is known to work!
+     croak $error unless $self->db && $self->isObject;
+     $self = $self->fetch unless $self->isRoot;  # dereference, if need be
+     croak $error unless $self;
+     croak $error unless $self->model->valid_tag($func_name);
+
+# totally experimental, probably doesn't work
+#     $AutoLoader::AUTOLOAD = $AUTOLOAD;
+#     goto &AutoLoader::AUTOLOAD unless $self->db && $self->isObject;
+#     $self = $self->fetch unless $self->isRoot;  # dereference, if need be
+#     goto &AutoLoader::AUTOLOAD unless $self;
+#     goto &AutoLoader::AUTOLOAD unless $self->model->valid_tag($func_name);
+# end totally experimental area
+
+    my $no_dereference;
+    if (defined($_[0]) && $_[0] eq '@') {
+      $no_dereference++;
+      shift();
     }
-    return $self->search($func_name,@_);
+    return $self->search($func_name,@_) if wantarray;
+    my $obj = $self->search($func_name,@_);
+
+    return unless $obj;
+    return $obj if $no_dereference;
+    return $obj->fetch if $obj->isObject || ($obj->right && $obj->right->isObject);
+    return $obj;
 }
 
 sub DESTROY { }
 
 ###################### object constructor #################
-sub new ($$$;\$) {
+sub new {
   my $pack = shift;
-  my($class,$name,$db) = rearrange([qw/CLASS NAME/,[qw/DATABASE DB/]],@_);
+  my($class,$name,$db,$isRoot) = rearrange([qw/CLASS NAME/,[qw/DATABASE DB/],'ROOT'],@_);
   $pack = ref($pack) if ref($pack);
   my $self = bless { 'name'  =>  $name,
 		     'class' =>  $class
 		   },$pack;
   $self->{'db'} = $db if $self->isObject;
+  $self->{'root'}++ if defined $isRoot && $isRoot;
   return $self
 }
 
 ######### construct object from serialized input, not usually called directly ########
-sub newFromText ($$;$) {
+sub newFromText {
   my ($pack,$text,$db) = @_;
   $pack = ref($pack) if ref($pack);
   my @array;
@@ -569,18 +673,23 @@ sub newFromText ($$;$) {
 
 
 ################### name of the object #################
-sub name (\$) {
+sub name {
     my $self = shift;
     $self->{name} = shift if  defined($_[0]);
     return $self->_ace_format($self->{'class'},$self->{'name'});
 }
 
 ################### class of the object #################
-sub class (\$) {
+sub class {
     my $self = shift;
     defined($_[0])
 	? $self->{class} = shift
 	: $self->{class};
+}
+
+############ returns true if this is a top-level object #######
+sub isRoot {
+  return exists shift()->{'root'};
 }
 
 ############## timestamp and comment information ############
@@ -605,7 +714,7 @@ sub comment {
 }
 
 ################### handle to ace database #################
-sub db (\$) {
+sub db {
     my $self = shift;
     defined($_[0])
 	? $self->{db} = shift
@@ -613,7 +722,7 @@ sub db (\$) {
 }
 
 ### Return list of all the tags in the object ###
-sub tags (\$){
+sub tags {
     my $self = shift;
     my $current = $self->right;
     my @tags;
@@ -624,15 +733,23 @@ sub tags (\$){
     return @tags;
 }
 
+### Returns the object's model (as an Ace::Model object)
+sub model {
+  my $self = shift;
+  return unless $self->db && $self->isObject;
+  return $self->db->model($self->class);
+}
+
 ### Return a portion of the tree at the indicated tag path     ###
 #### In a list context returns the column.  In an array context ###
 #### returns a pointer to the subtree ####
 #### Usually returns what is pointed to by the tag.  Will return
 #### the parent object if you pass a true value as the second argument
-sub at (\$;$$) {
+sub at {
     my $self = shift;
     my($tag,$return_parent,$pos) = rearrange(['TAG','PARENT','POS'],@_);
     return $self->right unless $tag;
+    $tag = lc $tag;
 
     if (!defined($pos) and $tag=~/\[(\d+)\]$/) {
       $pos = $1;
@@ -641,13 +758,12 @@ sub at (\$;$$) {
 
     my $o = $self;
     my ($parent,$above,$left);
-    $tag =~ s/\\\./$;/g; # protect backslashed dots
-    my (@tags) = split(/\./,$tag);
+    my (@tags) = $self->_split_tags($tag);
     foreach $tag (@tags) {
       $tag=~s/$;/./g; # unprotect backslashed dots
       my $p = $o;
       ($o,$above,$left) = $o->_at($tag);
-      return () unless defined($o);
+      return unless defined($o);
     }
     return $above || $left if $return_parent;
     return defined $pos ? $o->right($pos) : $o unless wantarray;
@@ -656,7 +772,7 @@ sub at (\$;$$) {
 
 ### Flatten out part of the tree into an array ####
 ### along the row.  Will not follow object references.  ###
-sub row (\$;$) {
+sub row {
   my $self = shift;
   my $pos = shift;
   my @r;
@@ -670,7 +786,7 @@ sub row (\$;$) {
 
 ### Flatten out part of the tree into an array ####
 ### along the column. Will not follow object references. ###
-sub col (\$;$) {
+sub col {
   my $self = shift;
   my $pos = shift;
   $pos = 1 unless defined $pos;
@@ -696,11 +812,13 @@ sub col (\$;$) {
 
 #### Search for a tag, and return the column ####
 #### Uses a breadth-first search (cols then rows) ####
-sub search (\$$;$$) {
-    my ($self,$tag,$pos) = @_;
+sub search {
+    my ($self,$tag,$subtag,$pos) = @_;
+    my $lctag = lc $tag;
 
     TRY: {
-	last TRY if exists $self->{'.PATHS'}->{$tag};
+	last TRY if exists $self->{'.PATHS'} && 
+	  exists $self->{'.PATHS'}->{$lctag};
 
 	# If the object hasn't been filled already, then we can use
 	# acedb's query mechanism to fetch the subobject.  This is a
@@ -714,9 +832,9 @@ sub search (\$$;$$) {
 	  if ($subobject) {
 	    my $obj = $self->new('tag',$tag,$self->{'db'});
 	    $obj->{'right'} = $subobject->right;
-	    $self->{'.PATHS'}->{$tag} = $obj;
+	    $self->{'.PATHS'}->{$lctag} = $obj;
 	  } else {
-	    $self->{'.PATHS'}->{$tag} = undef;
+	    $self->{'.PATHS'}->{$lctag} = undef;
 	  }
 	  last TRY;
 	}
@@ -724,8 +842,8 @@ sub search (\$$;$$) {
 	my @col = $self->col;
 	foreach (@col) {
 	  next unless $_->isTag;
-	  if ($_ eq $tag) {
-	    $self->{'.PATHS'}->{$tag} = $_;
+	  if (lc $_ eq $lctag) {
+	    $self->{'.PATHS'}->{$lctag} = $_;
 	    last TRY;
 	  }
 	}
@@ -735,18 +853,29 @@ sub search (\$$;$$) {
 	foreach (@col) {
 	  next unless $_->isTag;
 	  if (my $r = $_->search($tag)) {
-	    $self->{'.PATHS'}->{$tag} = $r;	
+	    $self->{'.PATHS'}->{$lctag} = $r;	
 	    last TRY;
 	  }
 	}
 
 	# If we got here, we didn't find it.  So tag the cache
 	# as empty.
-	$self->{'.PATHS'}->{$tag} = undef;
+	$self->{'.PATHS'}->{$lctag} = undef;
       }
 
-    my $t = $self->{'.PATHS'}->{$tag};
-    return wantarray ? () : undef  unless $t;
+    my $t = $self->{'.PATHS'}->{$lctag};
+    return unless $t;
+
+    if (defined $subtag) {
+      if ($subtag =~ /^\d+$/) {
+	$pos = $subtag;
+      } else {  # position on subtag and search again
+	return $t->fetch->search($subtag,$pos) 
+	  if $t->isObject  || ($t->right && $t->right->isObject);
+	return $t->search($subtag,$pos);
+      }
+    }
+
     return defined $pos ? $t->right($pos) : $t  unless wantarray;
 
     # We do something verrrry interesting in an array context.
@@ -757,18 +886,18 @@ sub search (\$$;$$) {
 }
 
 #### return true if tree is populated, without populating it #####
-sub filled (\$) {
+sub filled {
   my $self = shift;
   return exists($self->{'right'}) || exists($self->{'raw'});
 }
 
 #### return true if you can follow the object in the database (i.e. a class ###
-sub isPickable (\$) {
+sub isPickable {
     return shift->isObject;
 }
 
 #### Return a string representation of the object subject to Ace escaping rules ###
-sub escape (\$){
+sub escape {
   my $self = shift;
   my $name = $self->name;
   my $needs_escaping = $name=~/[^\w.-]/ || $self->isClass;
@@ -780,10 +909,10 @@ sub escape (\$){
 
 ### Return the pretty-printed HTML table representation ###
 ### may pass a code reference to add additional formatting to cells ###
-sub asHTML (\$;$$) {
+sub asHTML {
     my $self = shift;
     my ($modify_code) = rearrange(['MODIFY'],@_);
-    return undef unless defined($self->right);
+    return unless defined($self->right);
     my $string = "<TABLE BORDER>\n<TR ALIGN=LEFT VALIGN=TOP><TH>$self</TH>";
     $modify_code = \&_default_makeHTML unless $modify_code;
     $self->right->_asHTML(\$string,1,2,$modify_code);
@@ -793,25 +922,25 @@ sub asHTML (\$;$$) {
 
 ### Get the FASTA-format DNA/Peptide representation for this object ###
 ### (if appropriate) ###
-sub asDNA (\$) {
+sub asDNA {
   return shift()->_special_dump('dna');
 }
 
-sub asPeptide (\$) {
+sub asPeptide {
   return shift()->_special_dump('peptide');
 }
 
-sub _special_dump (\$$) {
+sub _special_dump {
   my $self = shift;
   my $dump_format = shift;
-  return undef unless $self->db->raw_query(join(' ','find',$self->class,$self->name));
+  return unless $self->db->raw_query(join(' ','find',$self->class,$self->name));
   my $result = $self->db->raw_query($dump_format);
   $result =~ s!^//.*!!ms;
   $result;
 }
 
 #### As tab-delimited table ####
-sub asTable (\$) {
+sub asTable {
     my $self = shift;
     my $string = "$self\t";
     my $right = $self->right;
@@ -820,11 +949,11 @@ sub asTable (\$) {
 }
 
 #### In "ace" format ####
-sub asAce (\$) {
+sub asAce {
   my $self = shift;
-  my $string = '';
+  my $string = $self->isRoot ? join(' ',$self->class,':',$self->escape) . "\n" : '';
   $self->right->_asAce(\$string,0,[]);
-  "$string\n";
+  return "$string\n\n";
 }
 
 ### Pretty-printed version ###
@@ -871,7 +1000,7 @@ sub asGif {
   my $data = $self->{'db'}->raw_query(join(' ; ',@commands));
 
   # did this query succeed?
-  return () unless $data=~m!^// (\d+) bytes\n!m;
+  return unless $data=~m!^// (\d+) bytes\n!m;
   my $bytes = $1;
   my $trim = $';  # everything after the match
   my $gif = substr($trim,0,$bytes);
@@ -897,7 +1026,7 @@ sub asGif {
 
 
 ############### object on the right of the tree #############
-sub right (\$;$) {
+sub right {
   my ($self,$pos) = @_;
 
   $self->_fill;
@@ -907,19 +1036,19 @@ sub right (\$;$) {
 
   my $node = $self;
   while ($pos--) {
-    defined($node = $node->right) || return undef;
+    defined($node = $node->right) || return;
   }
   $node;
 }
 
 ################# object below on the tree #################
-sub down (\$) {
+sub down {
   my ($self,$pos) = @_;
   $self->_parse;
   return $self->{'down'} unless defined $pos;
   my $node = $self;
   while ($pos--) {
-    defined($node = $node->down) || return undef;
+    defined($node = $node->down) || return;
   }
   $node;
 }
@@ -927,37 +1056,44 @@ sub down (\$) {
 ################# delete a portion of the tree #############
 # Only changes local copy until you perform commit() #
 #  returns true if this is a valid thing to do.
-sub delete (\$$;$) {
+sub delete {
   my $self = shift;
-  my($tag,$oldvalue) = rearrange([['TAG','PATH'],['VALUE','OLDVALUE','OLD']],@_);
-  my $subtree = $self->at(($oldvalue ? "$tag.$oldvalue" : $tag),1);  # returns the parent
-  if (defined($oldvalue) 
+  my($tag,$oldvalue,@rest) = rearrange([['TAG','PATH'],['VALUE','OLDVALUE','OLD']],@_);
+  
+  # flatten array refs into array
+  my @values;
+  @values = map { ref($_) && ref($_) eq 'ARRAY' ? @$_ : $_ } ($oldvalue,@rest) 
+    if defined($oldvalue);
+  my $row = join(".",($tag,map { (my $x = $_) =~s/\./\\./g; $x } @values));
+  my $subtree = $self->at($row,1);  # returns the parent
+
+  if (@values
       && defined($subtree->{'right'})
       && "$subtree->{'right'}" eq $oldvalue) {
     $subtree->{'right'} = $subtree->{'right'}->down;
   } else {
     $subtree->{'down'} = $subtree->{'down'}->{'down'}
   }
-  $oldvalue = '' unless defined($oldvalue);
-  $oldvalue =~ s/([^a-zA-Z0-9_-])/\\$1/g;
-  push(@{$self->{'delete'}},join(' ',split('\.',$tag),$oldvalue));
+
+  push(@{$self->{'update'}},join(' ','-D',
+				 map { Ace::AceDB->freeprotect($_) } ($self->_split_tags($tag),@values)));
   delete $self->{'.PATHS'}; # uncache cached values
   1;
 }
 
 ################# kill an object ################
 # Removes the object from the database immediately.
-sub kill (\$) {
+sub kill {
   my $self = shift;
   my $name = $self->name();
   $name =~ s/([^a-zA-Z0-9_-])/\\$1/g;
   my $cmd = "kill $self->{'class'} $name";
   warn "$cmd\n" if $self->debug;
-  return undef unless my $db = $self->db;
+  return unless my $db = $self->db;
   my $result = $db->raw_query($cmd);
   if ($result =~ /you do not have Write Access/im) {
     $Ace::ERR = "Write access to database denied.";
-    return undef;
+    return;
   }
   # uncache cached values and clear the object out
   # as best we can
@@ -970,12 +1106,11 @@ sub kill (\$) {
 
 #############################################
 #  follow into database #
-sub fetch (\$;$) {
+sub fetch {
     my $self = shift;
     my $tag = shift;
-    $self = $self->search($tag) or return undef
-      if defined $tag;
-    my $thing_to_pick = ($self->class eq 'tag' && $self->right) ? $self->right : $self;
+    $self = $self->search($tag) || return if defined $tag;
+    my $thing_to_pick = ($self->isTag && $self->right) ? $self->right : $self;
     return $thing_to_pick->_clone;
 }
 
@@ -991,36 +1126,50 @@ sub isObject {
 sub isTag {
     my $self = shift;
     return 1 if $self->class eq 'tag';
-    undef;
+    return;
 }
 
 sub isTimestamp {
   my $self = shift;
   return 1 if $self->class eq 'UserSession';
-  undef;
+  return;
 }
 
 sub isComment {
   my $self = shift;
   return 1 if $self->class eq 'Comment';
-  undef;
+  return;
 }
 
 ################# add a new row #############
 #  Only changes local copy until you perform commit() #
 #  returns true if this is a valid thing to do #
-sub add (\$$$) {
+sub add_row {
   my $self = shift;
+  my($tag,$newvalue,@rest) = rearrange([['TAG','PATH'],'VALUE'],@_);
+
+  # flatten array refs into array
+  my @values = map { ref($_) && ref($_) eq 'ARRAY' ? @$_ : $_ } ($newvalue,@rest);
+
+  # make sure that this entry doesn't already exist
+  my $row = join(".",($tag,map { (my $x = $_) =~s/\./\\./g; $x } @values));
+  return if $self->at($row);  # an identical row already exists in the object
   
-  my($tag,$newvalue) = rearrange([['TAG','PATH'],'VALUE'],@_);
-  return undef if $self->at("$tag.$newvalue");  #already exists
-  my $value;
-  if (ref($newvalue)) {
-    $value = $newvalue->_clone;
-  } else {
-    $value = $self->new('scalar',$newvalue);
+  # If we get here then we need to turn @values into an array of Ace::Objects
+  # for insertion.  Also need to link them together into a row.
+  my $previous;
+  foreach (@values) {
+    if (ref($_) && $_->isa('Ace::Object')) {
+      $_ = $_->_clone;
+    } else {
+      $_ = $self->new('scalar',$_);
+    }
+    $previous->{'right'} = $_ if $previous;
+    $previous = $_;
   }
-  my (@tags) = split('\.',$tag);
+
+  # position at the indicated tag (creating it if necessary)
+  my (@tags) = $self->_split_tags($tag);
   my $p = $self;
   foreach (@tags) {
     $p = $p->_insert($_);
@@ -1031,12 +1180,41 @@ sub add (\$$$) {
       last unless $p->{'down'};
       $p = $p->{'down'};
     }
-    $p->{'down'} = $value;
+    $p->{'down'} = $values[0];
   } else {
-    $p->{'right'} = $value;
+    $p->{'right'} = $values[0];
   }
-  $newvalue =~ s/([^a-zA-Z0-9_-])/\\$1/g;
-  push(@{$self->{'add'}},join(' ',@tags,$newvalue));
+
+  push(@{$self->{'update'}},join(' ',map { Ace::AceDB->freeprotect($_) } (@tags,@values)));
+  delete $self->{'.PATHS'}; # uncache cached values
+  1;
+}
+
+# Use this method to add an entire subobject to the right of the tag.
+# The tree may come from another database.
+sub add_tree {
+  my $self = shift;
+  my($tag,$value,@rest) = rearrange([['TAG','PATH'],['VALUE','TREE']],@_);
+  croak "Value must be an Ace::Object" unless ref($value) && $value->isa('Ace::Object');
+
+  # position at the indicated tag, creating it if necessary
+  my (@tags) = $self->_split_tags($tag);
+  my $p = $self;
+  foreach (@tags) {
+    $p = $p->_insert($_);
+  }
+  # Copy the subtree to 
+  if ($p->{'right'}) {
+    $p = $p->{'right'};
+    while (1) { 
+      last unless $p->{'down'};
+      $p = $p->{'down'};
+    }
+    $p->{'down'} = $value->{'right'};
+  } else {
+    $p->{'right'} = $value->{'right'};
+  }
+  push(@{$self->{'update'}},map { join(' ',@tags,$_) } split("\n",$value->asAce));
   delete $self->{'.PATHS'}; # uncache cached values
   1;
 }
@@ -1044,47 +1222,41 @@ sub add (\$$$) {
 ################# delete a portion of the tree #############
 # Only changes local copy until you perform commit() #
 #  returns true if this is a valid thing to do #
-sub replace (\$$$$) {
+sub replace {
   my $self = shift;
-  my($tag,$oldvalue,$newvalue) = rearrange([['TAG','PATH'],
-					    ['OLDVALUE','OLD'],
-					    ['NEWVALUE','NEW']],@_);
+  my($tag,$oldvalue,$newvalue,@rest) = rearrange([['TAG','PATH'],
+						  ['OLDVALUE','OLD'],
+						  ['NEWVALUE','NEW']],@_);
     $self->delete($tag,$oldvalue);
-    $self->add($tag,$newvalue);
+    $self->add($tag,$newvalue,@rest);
     delete $self->{'.PATHS'}; # uncache cached values
     1;
 }
 
-sub commit (\$) {
+# commit changes from local copy to database copy
+sub commit {
     my $self = shift;
-    return undef unless my $db = $self->db;
+    return unless my $db = $self->db;
 
     my ($retval,@cmd);
     my $name = $self->{'name'};
     $name =~ s/([^a-zA-Z0-9_-])/\\$1/g;
-    push(@cmd,"$self->{'class'} : $name");
-    push(@cmd,@{$self->{'add'}}) if $self->{'add'};
-    push(@cmd,map { "-D $_" } @{$self->{'delete'}}) if $self->{'delete'};
-    my $cmd = join('; ',@cmd);
-    if (@cmd > 1) {
-      warn $cmd if $self->debug;
-      my $result = $db->raw_query("parse = $cmd");
+    return 1 unless $self->{'update'};
 
-      $Ace::ERR = '';
-      $Ace::ERR = $result if $result =~ /sorry|parse error/mi;
-      $retval = !$Ace::ERR;
-    } else {
-      $retval = 1;
-    }
-    undef $self->{'add'};
-    undef $self->{'delete'};
-    return $retval;
+    my $cmd = join('; ',"$self->{'class'} : $name",
+		   @{$self->{'update'}});
+    warn $cmd if $self->debug;
+    my $result = $db->raw_query("parse = $cmd");
+
+    $Ace::ERR = '';
+    $Ace::ERR = $result if $result =~ /sorry|parse error/mi;
+    undef $self->{'update'};
+    return !$Ace::ERR;
 }
 
-sub rollback (\$) {
+sub rollback {
     my $self = shift;
-    undef $self->{'add'};
-    undef $self->{'delete'};
+    undef $self->{'update'};
     # this will force object to be reloaded from database
     # next time it is needed.
     delete $self->{'right'};
@@ -1097,9 +1269,9 @@ sub debug {
 }
 
 ### Get or set the date style (actually calls through to the database object) ###
-sub date_style (\$;$) {
+sub date_style {
   my $self = shift;
-  return undef unless $self->db;
+  return unless $self->db;
   return $self->db->date_style(@_);
 }
 
@@ -1116,7 +1288,7 @@ sub error {
 sub _clone {
     my $self = shift;
     my $pack = ref($self);
-    return $pack->new($self->class,$self->name,$self->db);
+    return $pack->new($self->class,$self->name,$self->db,1);
 }
 
 sub _fill {
@@ -1197,13 +1369,13 @@ sub _parse {
   }
 }
 
-sub _fromRaw ($$$$$;$) {
+sub _fromRaw {
   my $pack = shift;
   $pack = ref($pack) if ref($pack);
   my ($raw,$start_row,$col,$end_row,$db) = @_;
-  return undef unless $raw->[$start_row][$col];
+  return unless $raw->[$start_row][$col];
   my ($class,$name) = Ace::AceDB->split($raw->[$start_row][$col]);
-  my $self = $pack->new($class,$name,$db);
+  my $self = $pack->new($class,$name,$db,!($start_row || $col));
   @{$self}{qw/raw start_row end_row col db/} = ($raw,$start_row,$end_row,$col,$db);
   return $self;
 }
@@ -1211,7 +1383,7 @@ sub _fromRaw ($$$$$;$) {
 
 # This function is overly long because it is optimized to prevent parsing
 # parts of the tree that haven't previously been parsed.
-sub _asTable (\%\$$$;) {
+sub _asTable {
     my($self,$out,$position,$level) = @_;
 
     if ($self->{raw} and !$self->db->timestamps) {  # we still have raw data, so we can optimize
@@ -1247,7 +1419,7 @@ sub _asTable (\%\$$$;) {
     return $level;
 }
 
-sub _asHTML (\%\$$$;$$) {
+sub _asHTML {
   my($self,$out,$position,$level,$morph_code) = @_;
   $$out .= "<TR ALIGN=LEFT VALIGN=TOP>" unless $position;
   
@@ -1289,7 +1461,7 @@ sub _default_makeHTML {
 }
 
 # Return partial ace subtree at indicated tag
-sub _at (\$$) {
+sub _at {
     my ($self,$tag) = @_;
     my $pos=0;
     if ($tag=~/\[(\d+)\]$/) {
@@ -1303,7 +1475,7 @@ sub _at (\$$) {
 	$p = $o;
 	$o = $o->down;
     }
-    return ();
+    return;
 }
 
 
@@ -1311,7 +1483,7 @@ sub _at (\$$) {
 # Local only. Will not affect the database.
 # Returns the inserted tag, or the preexisting
 # tag, if already there.
-sub _insert (\$$) {
+sub _insert {
     my ($self,$tag) = @_;
     my $p = $self->{'right'};
     return $self->{'right'} = $self->new('tag',$tag)
@@ -1328,7 +1500,7 @@ sub _insert (\$$) {
 
 # This is unsatisfactory because it duplicates much of the code
 # of asTable.
-sub _asAce (\%\$$\@) {
+sub _asAce {
   my($self,$out,$level,$tags) = @_;
 
   # ugly optimization for speed
@@ -1398,6 +1570,15 @@ sub _isObject {
   $_[0] !~ /^(float|int|date|tag|txt|peptide|dna|scalar|[Tt]ext|comment)$/;
 }
 
+# utility routine used to split a tag path into individual components
+# allows components to contain dots.
+sub _split_tags {
+  my $self = shift;
+  my $tag = shift;
+  $tag =~ s/\\\./$;/g; # protect backslashed dots
+  return map { (my $x=$_)=~s/$;/./g; $x } split(/\./,$tag);
+}
+
 # Autoload methods go after =cut, and are processed by the autosplit program.
 
 1;
@@ -1414,14 +1595,13 @@ Ace - Object-Oriented Access to ACEDB Databases
     use Ace;
     $db = Ace->connect(-host => 'sapiens.wustl.edu',
                        -port => 2000525);
-    $sequence = $db->fetch('Sequence','D12345');
-    $count = $db->count('Sequence','D*');
-    @sequences = $db->fetch('Sequence','D*');
-    $i = $db->fetch_many('Sequence','*');  # fetch a cursor
+    $sequence  = $db->fetch(Sequence => 'D12345');
+    $count     = $db->count(Sequence => 'D*');
+    @sequences = $db->fetch(Sequence => 'D*');
+    $i         = $db->fetch_many(Sequence=>'*');  # fetch a cursor
     while ($obj = $i->next) {
        print $obj->asTable;
     }
-
     
     # Inspect the object
     $r    = $sequence->at('Visible.Overlap_Right');
@@ -1436,6 +1616,10 @@ Ace - Object-Oriented Access to ACEDB Databases
     # Follow a pointer into database
     $r     = $sequence->at('Visible.Overlap_Right')->fetch;
     $next  = $r->at('Visible.Overlap_left')->fetch;
+
+    # Classy way to do the same thing
+    $r     = $sequence->Overlap_right;
+    $next  = $sequence->Overlap_left;
 
     # Pretty-print object
     print $sequence->asString;
@@ -1637,9 +1821,9 @@ object whose database ID is I<D12345>.  The second line will retrieve
 all objects matching the pattern I<D1234*>.  The third line will
 return the count of objects that match the same pattern.
 
-   $object = $db->fetch(Sequence,'D12345');
-   @objects = $db->fetch(Sequence,'D1234*');
-   $cnt = $db->fetch(Sequence,'D1234*');
+   $object =  $db->fetch(Sequence => 'D12345');
+   @objects = $db->fetch(Sequence => 'D1234*');
+   $cnt =     $db->fetch(Sequence =>'D1234*');
 
 A variety of communications and database errors may occur while
 processing the request.  When this happens, undef or an empty list
@@ -1693,6 +1877,59 @@ Example:
 If your request is likely to retrieve very many objects, fetch() many
 consume a lot of memory, even if B<-fill> is false.  Consider using
 B<fetch_many()> instead (see below).
+
+=head2 put() method
+
+   $cnt = $db->put($obj1,$obj2,$obj3);
+
+This method will put the list of objects into the database,
+overwriting like-named objects if they are already there.  This can
+be used to copy an object from one database to another, provided that
+the models are compatible.
+
+The method returns the count of objects successfully written into the
+database.  In case of an error, processing will stop at the last
+object successfully written and an error message will be placed in
+Ace->error();
+
+=head2 parse() method
+
+  $object = $db->parse('data to parse');
+
+This will parse the Ace tags contained within the "data to parse"
+string, convert it into an object in the databse, and return the
+resulting Ace::Object.  In case of a parse error, the undefined value
+will be returned and a (hopefully informative) description of the
+error will be returned by Ace->error().
+
+For example:
+
+  $author = $db->parse(<<END);
+  Author : "Glimitz JR"
+  Full_name "Jonathan R. Glimitz"
+  Mail	"128 Boylston Street"
+  Mail	"Boston, MA"
+  Mail	"USA"
+  Laboratory GM
+  END
+
+This method can also be used to parse several objects, but only the
+last object successfully parsed will be returned.
+
+=head2 parse_file() method
+
+  @objects = $db->parse_file('/path/to/file');
+  @objects = $db->parse_file('/path/to/file',1);
+
+This will call parse() to parse each of the objects found in the
+indicated .ace file, returning the list of objects successfully loaded
+into the database.
+
+By default, parsing will stop at the first object that causes a parse
+error.  If you wish to forge on after an error, pass a true value as
+the second argument to this method.
+
+Any parse error messages are accumulated in Ace->error().
 
 =head2 list() method
 
@@ -1807,6 +2044,13 @@ objects that match, while only retrieving a portion of the list.
 
 Due to "not listable" objects that may match during grep, the list of
 objects one can retrieve may not always match the count.
+
+=head2 model() method
+
+  $model = $db->model('Author');
+
+This will return an L<Ace::Model> object corresponding to the
+indicated class.
 
 =head2 new() method
 
@@ -1945,33 +2189,33 @@ in the future to support more interesting object-specific behaviors.
 The structure of an Ace::Object is very similar to that of an Acedb
 object.  It is a tree structure like this one (an Author object):
 
-Thierry-Mieg J->Full_name ->Jean Thierry-Mieg
-                 |
-                Laboratory->FF
-                 |
-                Address->Mail->CRBM duCNRS
-                 |        |     |
-                 |        |    BP 5051
-                 |        |     |
-                 |        |    34033 Montpellier
-                 |        |     |
-                 |        |    FRANCE
-                 |        |
-                 |       E_mail->mieg@kaa.cnrs-mop.fr
-                 |        |
-                 |       Phone ->33-67-613324
-                 |        |
-                 |       Fax   ->33-67-521559
-                 |
-                Paper->The C. elegans sequencing project
-                        |
-                       Genome Project Database
-                        |
-                       Genome Sequencing
-                        |
-                       How to get ACEDB for your Sun
-                        |
-                       ACEDB is Hungry
+ Thierry-Mieg J->Full_name ->Jean Thierry-Mieg
+                  |
+                 Laboratory->FF
+                  |
+                 Address->Mail->CRBM duCNRS
+                  |        |     |
+                  |        |    BP 5051
+                  |        |     |
+                  |        |    34033 Montpellier
+                  |        |     |
+                  |        |    FRANCE
+                  |        |
+                  |       E_mail->mieg@kaa.cnrs-mop.fr
+                  |        |
+                  |       Phone ->33-67-613324
+                  |        |
+                  |       Fax   ->33-67-521559
+                  |
+                 Paper->The C. elegans sequencing project
+                         |
+                        Genome Project Database
+                         |
+                        Genome Sequencing
+                         |
+                         How to get ACEDB for your Sun
+                         |
+                        ACEDB is Hungry
 
 Each object in the tree has two pointers, a "right" pointer to the
 node on its right, and a "down" pointer to the node beneath it.  Right
@@ -2014,8 +2258,8 @@ created in memory only.
 Arguments can be passed positionally, or as named parameters, as shown
 above.
 
-This routine is usually used internally.  See also add(), delete() and
-replace() for ways to manipulate this object.
+This routine is usually used internally.  See also add_row(),
+add_tree(), delete() and replace() for ways to manipulate this object.
 
 =head2 name() method
 
@@ -2192,21 +2436,22 @@ Internal indices such as "Homol[2].BLASTN", do not have special
 behavior in an array context.  They are always treated as if they were
 called in a scalar context.
 
-Also see B<col()> and B<search()>.
+Also see B<col()> and B<get()>.
 
-=head2 search() method
+=head2 get() method
 
-    $subtree    = $object->search($tag);
-    @values     = $object->search($tag);
-    @values     = $object->search($tag,$position);
+    $subtree    = $object->get($tag);
+    @values     = $object->get($tag);
+    @values     = $object->get($tag, $position);
+    @values     = $object->get($tag => $subtag, $position);
 
-The search() method will perform a breadth-first search through the
+The get() method will perform a breadth-first search through the
 object (columns first, followed by rows) for the tag indicated by the
 argument, returning the column of the portion of the subtree it points
 to.  For example, this code fragment will return the value of the
 "Fax" tag.
 
-    ($fax_no) = $object->search('Fax');
+    ($fax_no) = $object->get('Fax');
          --> "33-67-521559"
 
 The list versus scalar context semantics are the same as in at(), so
@@ -2214,12 +2459,12 @@ if you want to retrieve the scalar value pointed to by the indicated
 tag, either use a list context as shown in the example, above, or a
 dereference, as in:
 
-     $fax_no = $object->search('Fax');
+     $fax_no = $object->get('Fax');
          --> "Fax"
-     $fax_no = $object->search('Fax')->at;
+     $fax_no = $object->get('Fax')->at;
          --> "33-67-521559"
 
-An optional second argument to B<search()>, $position, allows you to
+An optional second argument to B<get()>, $position, allows you to
 navigate the tree relative to the retrieved subtree.  Like the B<at()>
 navigational indexes, $position must be a number greater than or equal
 to zero.  In a scalar context, $position moves rightward through the
@@ -2227,20 +2472,20 @@ tree.  In an array context, $position implements "tag[2]" semantics.
 
 For example:
 
-     $fax_no = $object->search('Fax',0);
+     $fax_no = $object->get('Fax',0);
           --> "Fax"
 
-     $fax_no = $object->search('Fax',1);
+     $fax_no = $object->get('Fax',1);
           --> "33-67-521559"
 
-     $fax_no = $object->search('Fax',2);
+     $fax_no = $object->get('Fax',2);
           --> undef  # nothing beyond the fax number
 
-     @address = $object->search('Address',2);
+     @address = $object->get('Address',2);
           --> ('CRBM duCNRS','BP 5051','34033 Montpellier','FRANCE',
                'mieg@kaa.cnrs-mop.fr,'33-67-613324','33-67-521559')
 
-It is important to note that B<search()> only traverses tags.  It will
+It is important to note that B<get()> only traverses tags.  It will
 not traverse nodes that aren't tags, such as strings, integers or
 objects.  This is in keeping with the behavior of the Ace query
 language "show" command.
@@ -2260,23 +2505,36 @@ the following object:
                            Bands          1354          18
 
 
-The following naive attempt to fetch the left and right positions of
-the clone will fail, because the search for the "Left" and "Right" tags
+The following attempt to fetch the left and right positions of the
+clone will fail, because the search for the "Left" and "Right" tags
 cannot traverse "Sequence-III", which is an object, not a tag:
 
-  my $left = $clone->search('Left');    # will NOT work
-  my $right = $clone->search('Right');  # neither will this one
+  my $left = $clone->get('Left');    # will NOT work
+  my $right = $clone->get('Right');  # neither will this one
 
 You must explicitly step over the non-tag node in order to make this
 query work.  This syntax will work:
 
-  my $left = $clone->search('Map',1)->search('Left');  # works
-  my $left = $clone->search('Map',1)->search('Right');  # works
+  my $left = $clone->get('Map',1)->get('Left');   # works
+  my $left = $clone->get('Map',1)->get('Right');  # works
 
-Or, for readability, use a combination of autogenerated access methods
-and the tag[2] syntax:
+Or you might prefer to use the tag[2] syntax here:
 
-  my($left,$right) = $clone->Map(1)->Ends(2);
+  my($left,$right) = $clone->get('Map',1)->at('Ends[2]');
+
+Although not frequently used, there is a form of get() which allows
+you to stack subtags:
+
+    $locus = $object->get('Positive'=>'Positive_locus');
+
+Only on subtag is allowed.  You can follow this by a position if wish
+to offset from the subtag.
+
+    $locus = $object->get('Positive'=>'Positive_locus',1);
+
+=head2 search() method
+
+This is a deprecated synonym for get().
 
 =head2 Autogenerated Access Methods
 
@@ -2284,25 +2542,45 @@ and the tag[2] syntax:
      $scalar = $object->Name_of_tag($position);
      @array  = $object->Name_of_tag;
      @array  = $object->Name_of_tag($position);
+     @array  = $object->Name_of_tag($subtag=>$position);
 
 The module attempts to autogenerate data access methods as needed.
 For example, if you refer to a method named "Fax" (which doesn't
 correspond to any of the built-in methods), then the code will call
-the B<search()> method to find a tag named "Fax" and return its
-contents.  The list and scalar context semantics are the same as in
-B<search()>.  
+the B<get()> method to find a tag named "Fax" and return its
+contents.
+
+Unlike get(), this method will B<always step into objects>.  This
+means that:
+
+   $map = $clone->Map;
+
+will return the Sequence_Map object pointed to by the Clone's Map tag
+and not simply a pointer to a portion of the Clone tree.  Therefore
+autogenerated methods are functionally equivalent to the following:
+
+   $map = $clone->get('Map')->fetch;
+
+The list and scalar context semantics are the same as in
+B<get()>.  
 
 You can provide an optional positional index to rapidly navigate
 through the tree or to obtain tag[2] behavior.  In the following
 examples, the first two return the object's Fax number, and the third
 returns all data two hops to the right of Address.
 
+     $object   = $db->fetch(Author => 'Thierry-Mieg J');
      ($fax_no) = $object->Fax;
      $fax_no   = $object->Fax(1);
      @address  = $object->Address(2);
 
-If no matching tag is found, the autogenerated method will return
-undef or an empty array.
+You may also position at a subtag, using this syntax:
+
+     $representative = $object->Laboratory('Representative');
+
+Both named tags and positions can be combined as follows:
+
+     $lab_address = $object->Laboratory(Address=>2);
 
 =head2 fetch() method
 
@@ -2351,7 +2629,7 @@ e-mail and phone:
 It is equivalent to any of these calls:
 
   $object->at('Address[2]');
-  $object->search('Address',2);
+  $object->get('Address',2);
   $object->Address(2);
 
 Use whatever syntax is most comfortable for you.
@@ -2496,18 +2774,29 @@ If you are dealing with a sequence object of some sort, these methods
 will return strings corresponding to the DNA or peptide sequence in
 FASTA format.
 
-=head2 add() method
+=head2 add_row() method
 
-    $result_code = $object->add($tag,$value);    
+    $result_code = $object->add_row($tag=>$value);    
+    $result_code = $object->add_row($tag=>[list,of,values]);    
     $result_code = $object->add(-path=>$tag,
-				-value=>$value);    
+				-value=>$value);
 
-add() updates the tree by adding data to the indicated tag path.  The
+add_row() updates the tree by adding data to the indicated tag path.  The
 example given below adds the value "555-1212" to a new Address entry
-named "Pager".  You may call add() a second time to add a new value
+named "Pager".  You may call add_row() a second time to add a new value
 under this tag, creating multi-valued entries.
 
-    $object->add('Address.Pager','555-1212');
+ $object->add_row('Address.Pager'=>'555-1212');
+
+You may provide a list of values to add an entire row of data.  For
+example:
+
+ $sequence->add_row('Assembly_tags'=>['Finished Left',38949,38952,'AC3']);
+
+Actually, the array reference is not entirely necessary, and if you
+prefer you can use this more concise notation:
+
+ $sequence->add_row('Assembly_tags','Finished Left',38949,38952,'AC3');
 
 No check is done against the database model for the correct data type
 or tag path.  The update isn't actually performed until you call
@@ -2517,23 +2806,85 @@ update was successful.
 You may create objects that reference other objects this way:
 
     $lab = new Ace::Object('Laboratory','LM',$db);
-    $lab->add('Full_name','The Laboratory of Medicine');
-    $lab->add('City','Cincinatti');
-    $lab->add('Country','USA');
+    $lab->add_row('Full_name','The Laboratory of Medicine');
+    $lab->add_row('City','Cincinatti');
+    $lab->add_row('Country','USA');
 
     $author = new Ace::Object('Author','Smith J',$db);
-    $author->add('Full_name','Joseph M. Smith');
-    $author->add('Laboratory',$lab);
+    $author->add_row('Full_name','Joseph M. Smith');
+    $author->add_row('Laboratory',$lab);
 
     $lab->commit();
     $author->commit();
 
 The result code indicates whether the addition was syntactically
-correct.  An add() will fail if you attempt to add a duplicate entry
+correct.  add_row() will fail if you attempt to add a duplicate entry
 (that is, one with exactly the same tag and value).  In this case, use
 replace() instead.  Currently there is no checking for an attempt to
 add multiple values to a single-valued (UNIQUE) tag.  The error will
 be detected and reported at commit() time however.
+
+The add() method is an alias for add_row().
+
+=head2 add_tree()
+
+  $result_code = $object->add_tree($tag=>$ace_object);
+  $result_code = $object->add_tree(-tag=>$tag,-tree=>$ace_object);
+
+The add_tree() method will insert an entire Ace subtree into the object
+to the right of the indicated tag.  This can be used to build up
+complex Ace objects, or to copy portions of objects from one database
+to another.  The first argument is a tag path, and the second is the
+tree that you wish to insert.  As with add_row() the database will
+only be updated when you call commit().
+
+When inserting a subtree, you must be careful to remember that
+everything to the *right* of the node that you are pointing at will be
+inserted; not the node itself.  For example, given this Sequence
+object:
+
+  Sequence AC3
+    DB_info     Database    EMBL
+    Assembly_tags   Finished Left   1   4   AC3
+                    Clone left end      1   4   AC3
+                    Clone right end     5512    5515    K07C5
+                                        38949   38952   AC3
+                    Finished Right      38949   38952   AC3
+
+If we use at('Assembly_tags') to fetch the subtree rooted on the
+"Assembly_tags" tag, it is the tree to the right of this tag,
+beginning with "Finished Left", that will be inserted.
+
+Here is an example of copying the "Assembly_tags" subtree
+from one database object to another:
+
+ $remote = Ace->connect(-port=>200005)  || die "can't connect";
+ $ac3 = $remote->fetch(Sequence=>'AC3') || die "can't get AC7";
+ my $assembly = $ac3->at('Assembly_tags');
+
+ $local = Ace->connect(-path=>'~acedb') || die "can't connect";
+ $AC3copy = Ace::Object->new(Sequence=>'AC3copy',$local);
+ $AC3copy->add_tree('Assembly_tags'=>$tags);
+ $AC3copy->commit || warn $AC3copy->error;
+
+Notice that this syntax will not work the way you think it should:
+
+ $AC3copy->add_tree('Assembly_tags'=>$ac3->at('Assembly_tags'));
+
+This is because call at() in an array context returns the column to
+the right of the tag, not the tag itself.
+
+Here's an example of building up a complex structure from scratch
+using a combination of add() and add_tree():
+
+ $newObj = Ace::Object->new(Sequence=>'A555',$local);
+ my $assembly = Ace::Object->new(tag=>'Assembly_tags');
+ $assembly->add('Finished Left'=>[10,20,'ABC']);
+ $assembly->add('Clone right end'=>[1000,2000,'DEF']);
+ $assembly->add('Clone right end'=>[8000,9876,'FRED']);
+ $assembly->add('Finished Right'=>[1000,3000,'ETHEL']);
+ $newObj->add_tree('Assembly_tags'=>$assembly);
+ $newObj->commit || warn $newObj->error;
 
 =head2 delete() method
 
@@ -2616,6 +2967,21 @@ for all objects returned by the database.  It is exactly equivalent to
 
 Note that the text representation of the date will change for all
 objects returned from this database, not just the current one.
+
+=head2 isRoot() method
+
+    print "Top level object" if $object->isRoot;
+
+This method will return true if the object is a "top level" object,
+that is the root of an object tree rather than a subtree.
+
+=head2 model() method
+
+    $model = $object->model;
+
+This method will return the object's model as an Ace::Model object, or
+undef if the object does not have a model. See L<Ace::Model> for
+details.
 
 =head2 timestamp() method
 
@@ -2763,7 +3129,7 @@ current tag's entire column.  It returns the current subtree instead.
 
 =head1 SEE ALSO
 
-Jade documentation
+Jade documentation, L<Ace::Local>, L<Ace::Model>.
 
 =head1 AUTHOR
 

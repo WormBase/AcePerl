@@ -2,7 +2,7 @@
 
 # Simple interface to acedb.
 # Uses readline for command-line editing if available.
-use lib './blib/arch','./blib/lib';
+use lib '..','../blib/arch';
 use Ace 1.43;
 use Getopt::Long;
 use Text::ParseWords;
@@ -10,11 +10,12 @@ use strict vars;
 use vars qw/@CLASSES @HELP_TOPICS/;
 use constant DEBUG => 0;
 
-my ($HOST,$PORT,$PATH,$TCSH,@EXEC);
+my ($HOST,$PORT,$PATH,$TCSH,$AUTOSAVE,@EXEC);
 GetOptions('host=s' => \$HOST,
 	   'port=i' => \$PORT,
 	   'path=s' => \$PATH,
 	   'tcsh'   => \$TCSH,
+	   'save'   => \$AUTOSAVE,
 	   'exec=s' => \@EXEC,
 	  ) || die <<USAGE;
 Usage: $0 [options]
@@ -24,7 +25,8 @@ Options (can be abbreviated):
        -host <hostname>  Server host (localhost)
        -port <port>      Server port (200005)
        -path <db path>   Local database path (no default)
-       -tcsh             Use T-shell completion mode (no)
+       -tcsh             Use T-shell completion mode
+       -save             Save database updates automatically
        -exec <command>   Run a command and quit
 
 Respects the environment variables \$ACEDB_HOST and \$ACEDB_PORT, if present.
@@ -48,6 +50,7 @@ my $PROMPT = "aceperl> ";
 
 my $DB = $PATH ? Ace->connect(-path=>$PATH) : Ace->connect(-host=>$HOST,-port=>$PORT);
 $DB ||  die "Connection failure.\n";
+$DB->auto_save($AUTOSAVE);
 
 if (@EXEC) {
   foreach (@EXEC) { 
@@ -83,7 +86,6 @@ quit();
 
 sub quit {
   print "\n// A bientot!\n";
-  $DB->db->query('quit');
   exit 0;
 }
 

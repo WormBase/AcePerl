@@ -145,7 +145,6 @@ A. Read the copious documentation
    
    perldoc Ace
 
-
 B. Review the examples
 
 A few useful examples can be found in the "examples" subdirectory.
@@ -165,5 +164,5 @@ package at this URL:
 Lincoln Stein
 lstein@cshl.org
 
-October 1, 1998
+October 20, 1998
 

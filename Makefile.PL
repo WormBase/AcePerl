@@ -5,24 +5,20 @@ readline_setup();
 my ($lib,$include) = find_ace();
 my @OTHER_FLAGS;
 
-if ($ENV{ACEDB_MACHINE} && $ENV{ACEDB_SRC}) {
-  ($location,$headers) = ($lib,$include);
-} else {
-  exit -1 unless
-    $location = _prompt('Location of libace.a and libacecl.a',$lib);
-  exit -1 unless
-    $headers = _prompt('Location of aceclient.h',$include);
-}
+exit -1 unless
+  $location = _prompt('Location of libace.a and libacecl.a',$lib);
+exit -1 unless
+  $headers = _prompt('Location of aceclient.h',$include);
 
 WriteMakefile(
     'DISTNAME'     => 'AcePerl',
     'NAME'	   => 'Ace',
     'VERSION_FROM' => 'Ace.pm', # finds $VERSION
-    'LIBS'	   => ["-L$location -lacecl -lace -lc"],   # e.g., '-lm' 
-    'DEFINE'	   => '',     # e.g., '-DHAVE_SOMETHING' 
+    'LIBS'	   => ["-L$location -lacecl -lfree -lc"],
+    'DEFINE'	   => '',
     'OBJECT'    => '$(O_FILES)',
     'XSPROTOARG'   => '-noprototypes',
-    'INC'	   => "-I$headers",     # e.g., '-I/usr/include/other' 
+    'INC'	   => "-I$headers",
     'dist'      => {'COMPRESS'=>'gzip -9f', 'SUFFIX' => 'gz',
 	            'ZIP'=>'/usr/bin/zip','ZIPFLAGS'=>'-rl'},
 );
@@ -64,7 +60,7 @@ sub find_ace {
   foreach (@bins) {
     return ($_,$include) if -e "$_/libacecl.a";
   }
-  
+
   # if we get here, we go with the defaults again
   return ('/usr/local/lib',$include);
 }
@@ -77,7 +73,7 @@ sub readline_setup {
     eval {
       sub main::_prompt {
 	my ($prompt, $default) = @_ ;
-	
+
 	$_ = $::term -> readline ("$prompt [$default] ") ;
 	if (!/^\s*$/) {
 	  s/\s+$//;

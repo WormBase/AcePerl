@@ -6,12 +6,13 @@ use IPC::Open2;
 use Symbol;
 use Fcntl qw/F_SETFL O_NONBLOCK/;
 
-$VERSION = 1.00;
+$VERSION = 1.02;
 
 use Ace qw/rearrange STATUS_WAITING STATUS_PENDING STATUS_ERROR/;
 use constant DEFAULT_HOST=>'localhost';
 use constant DEFAULT_PORT=>200005;
 use constant DEFAULT_DB=>'/usr/local/acedb';
+$SIG{'CHLD'} = sub { wait(); } ;
 
 sub connect {
   my $class = shift;
@@ -73,14 +74,17 @@ sub connect {
 
 sub DESTROY {
   my $self = shift;
+  return unless kill 0,$self->{'pid'};
   if ($self->auto_save) {
     # save work for the user...
-    $self->query('save'); $self->synch;
+    $self->query('save'); 
+    $self->synch;
   }
   $self->query('quit');
+
   # just for paranoid reasons. shouldn't be necessary
   close $self->{'write'} if $self->{'write'};  
-  close $self->{'read'} if $self->{'read'};
+  close $self->{'read'}  if $self->{'read'};
   waitpid($self->{pid},0) if $self->{'pid'};
 }
 
@@ -116,7 +120,7 @@ sub query {
 
 sub read {
   my $self = shift;
-  return undef unless $self->{'status'} = STATUS_PENDING;
+  return undef unless $self->{'status'} == STATUS_PENDING;
   my $rdr = $self->{'read'};
   while (1) {
     my $data;
@@ -283,7 +287,7 @@ Examples:
 
 =head1 SEE ALSO
 
-Ace(1)
+L<Ace>, L<Ace::Model>
 
 =head1 AUTHOR
 

@@ -361,7 +361,16 @@ PPCODE:
 		while (*cp && *cp == '\\') {
 			cp++;             /* skip character */
 			if (!*cp) break;
-			*dest++ = *cp++; /* copy next character */
+			if (*cp == 'n') {
+			  *dest++ = '\n';
+			  cp++;
+			}
+			else if (*cp == 't') {
+			  *dest++ = '\t';
+			  cp++;
+			}
+			else
+			  *dest++ = *cp++; /* copy next character */
 		}
 		if (*cp == '?') break;
 	}
@@ -379,9 +388,18 @@ PPCODE:
 
 	for (++cp, dest=name; *cp ; *cp && (*dest++ = *cp++) ) {
 		while (*cp && *cp == '\\') {
-			cp++;             /* skip character */
-			if (!*cp) break;
-			*dest++ = *cp++; /* copy next character */
+		  cp++;             /* skip character */
+		  if (!*cp) break;
+		  if (*cp == 'n') {
+		    *dest++ = '\n';
+		    cp++;
+		  }
+		  else if (*cp == 't') {
+		    *dest++ = '\t';
+		    cp++;
+		  }
+		  else
+		    *dest++ = *cp++; /* copy next character */
 		}
 		if (*cp == '?') break;
 	}
