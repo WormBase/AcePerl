@@ -42,7 +42,7 @@ sub draw {
   my $fill   = $self->fillcolor;
   my %segcolors;
   my ($red,$green,$blue) = $self->factory->rgb($fill);
-  foreach (@segments) {
+  foreach (sort {$a->start <=> $b->start} @segments) {
     my $s = eval { $_->score };
     unless (defined $s) {
       $segcolors{$_} = $fill;
@@ -83,17 +83,17 @@ sub draw {
   my $fg     = $self->fgcolor;
   my $center = ($y1 + $y2)/2;
 
+  # each skip becomes a simple line
+  for my $i (@skips) {
+    next unless $i->[1] - $i->[0] >= 1;
+    $gd->line($i->[0],$center,$i->[1],$center,$fg);
+  }
+
   # each segment becomes a box
   for my $e (@boxes) {
     my @rect = ($e->[0],$y1,$e->[1],$y2);
     my $color = $e->[2];
     $gd->filledRectangle(@rect,$color);
-  }
-
-  # each skip becomes a simple line
-  for my $i (@skips) {
-    next unless $i->[1] - $i->[0] >= 1;
-    $gd->line($i->[0],$center,$i->[1],$center,$fg);
   }
 
   # draw label
