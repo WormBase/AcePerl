@@ -90,11 +90,12 @@ surrounded by <angle brackets> represent user input:
 	
 	// A bientot
 
-To set up an ACeDB server, please see ACEDB.HOWTO,
-SERVER_INSTALLATION.HOWTO and ACE_SERVER_TRAPS.HOWTO.
+To set up an ACeDB server, please see ACEDB.HOWTO and
+ACE_SERVER_TRAPS.HOWTO.
 
 Lincoln Stein
 lstein@cshl.org
-July 9, 1999
+May 12, 2003
+
 
 
