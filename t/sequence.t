@@ -112,7 +112,7 @@ test(43,$features[0]->length == 57,'absolute coordinate error');
 
 # Test the Ace::Sequence::Gene thing
 $zk154 = Ace::Sequence->new(-seq=>'ZK154',-db=>$db);
-@genes = $zk154->genes;
+@genes = $zk154->transcripts;
 test(44,@genes,'gene fetch error');
 $forward = (grep {$_->strand eq '+'} @genes)[0];
 $reverse = (grep {$_->strand eq '-'} @genes)[0];

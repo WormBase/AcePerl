@@ -51,7 +51,8 @@ sub connect {
 sub DESTROY {
   my $self = shift;
   return if $self->{last_msg} eq ACESERV_MSGKILL;
-  $self->_send_msg('quit');
+  # this makes the server CRASH!!!!
+  #  $self->_send_msg('quit');
   my ($msg,$body) = $self->_recv_msg('strip');
   warn "Did not get expected ACESERV_MSGKILL message, got $msg instead" 
     if defined($msg) and $msg ne ACESERV_MSGKILL;
@@ -85,7 +86,6 @@ sub read {
     vec($rdr,fileno($self->{socket}),1) = 1;
     return _error("Query timed out") unless select($rdr,undef,undef,$self->{timeout});
   }
-  alarm(0); # get rid of timeout
   my ($msg,$body) = $self->_recv_msg;
   $msg =~ s/\0.+$//;  # socketserver bug workaround: get rid of junk in message
   if ($msg eq ACESERV_MSGOK or $msg eq ACESERV_MSGFAIL) {

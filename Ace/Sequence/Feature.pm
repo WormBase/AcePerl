@@ -2,6 +2,7 @@ package Ace::Sequence::Feature;
 use strict;
 
 use Ace qw(:DEFAULT rearrange);
+use Ace::Object;
 use Ace::Sequence::Homol;
 use Carp;
 use AutoLoader 'AUTOLOAD';

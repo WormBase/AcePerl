@@ -6,7 +6,7 @@ use strict;
 use Ace 1.50 qw(:DEFAULT rearrange);
 use Ace::Sequence::FeatureList;
 use Ace::Sequence::Feature;
-use Ace::Sequence::Gene;
+use Ace::Sequence::Transcript;
 use AutoLoader 'AUTOLOAD';
 use vars '$VERSION';
 my %CACHE;
@@ -323,28 +323,39 @@ sub features {
 
   # turn it into a list of features
   my @features = $self->_make_features($gff,$filter);
+
+  # fetch out constructed transcripts and clones
+  my %types = map {$_=>1} @_;
+  if ($types{'transcript'}) {
+    push @features,$self->_make_transcripts(\@features);
+  } elsif ($types{'clone'}) {
+    push @features,$self->_make_clones(\@features);
+  }
+
   return wantarray ? @features : \@features;
 }
 
 # A little bit more complex - assemble a list of "genes"
 # consisting of Ace::Sequence::Gene objects.  These objects
 # contain a list of exons and introns.
-sub genes {
+sub transcripts {
   my $self    = shift;
   my $curated = shift;
   my $ef       = $curated ? "exon:curated"   : "exon";
   my $if       = $curated ? "intron:curated" : "intron";
   my $sf       = $curated ? "Sequence:curated" : "Sequence";
   my @features = $self->features($ef,$if,$sf);
-
   return unless @features;
+  return $self->_make_transcripts(\@features);
+}
+
+sub _make_transcripts {
+  my $self = shift;
+  my $features = shift;
+
   my %transcripts;
 
-  # sorting turns out to take too long
-  #  my %starts = map { ($_=>$_->start) } @features;
-  #  my @sorted_f = sort {$starts{$a} <=> $starts{$b}}  @features;
-
-  for my $feature (@features) {
+  for my $feature (@$features) {
     my $transcript = $feature->info;
     if ($feature->type =~ /^(exon|intron)$/) {
       my $type = $1;
@@ -356,8 +367,8 @@ sub genes {
   # get rid of transcripts without exons
   foreach (keys %transcripts) { delete $transcripts{$_} unless exists $transcripts{$_}{exon} }
 
-  # map the rest onto Ace::Sequence::Gene objects
-  return map {Ace::Sequence::Gene->new($transcripts{$_})} keys %transcripts;
+  # map the rest onto Ace::Sequence::Transcript objects
+  return map {Ace::Sequence::Transcript->new($transcripts{$_})} keys %transcripts;
 }
 
 # Reassemble clones from clone left and right ends
@@ -365,8 +376,16 @@ sub clones {
   my $self = shift;
   my @clones = $self->features('Clone_left_end','Clone_right_end');
   my %clones;
+  return unless @clones;
+  return $self->_make_clones(\@clones);
+}
 
-  for my $clone (@clones) {
+sub _make_clones {
+  my $self = shift;
+  my $clones = shift;
+
+  my %clones;
+  for my $clone (@$clones) {
     $clones{$clone->info}{start} = $clone->start if $clone->type eq 'Clone_left_end';
     $clones{$clone->info}{end}   = $clone->start if $clone->type eq 'Clone_right_end';
   }
@@ -381,9 +400,12 @@ sub clones {
   my ($r,$r_offset,$r_strand) = $self->refseq;
   my $parent = $self->parent;
 
+  # BAD HACK ALERT.  WE DON'T KNOW WHERE THE LEFT END OF THE CLONE IS SO WE USE
+  # THE MAGIC NUMBER -99_999_999 to mean "off left end" and
+  # +99_999_999 to mean "off right end"
   for my $clone (keys %clones) {
-    my $start = $clones{$clone}{start} || -99999999;
-    my $end   = $clones{$clone}{end}   || +99999999;
+    my $start = $clones{$clone}{start} || -99_999_999;
+    my $end   = $clones{$clone}{end}   || +99_999_999;
     my $phony_gff = join "\t",($parent,'Clone','structural',$start,$end,'.','.','.',qq(Clone "$clone"));
     push @features,Ace::Sequence::Feature->new($parent,$r,$r_offset,$r_strand,$phony_gff);
   }
@@ -543,7 +565,13 @@ sub _make_filter {
   my %filter;
   foreach (@_) {
     my ($type,$filter) = split(':');
-    $filter{$type} = $filter;
+    if (lc($type) eq 'transcript') {
+      @filter{'exon','intron','Sequence'} = (undef,undef,undef);
+    } elsif (lc($type) eq 'clone') {
+      @filter{'Clone_left_end','Clone_right_end'} = (undef,undef);
+    } else {
+      $filter{$type} = $filter;
+    }
   }
   
   # create pattern-match sub
@@ -983,10 +1011,10 @@ less overhead than features().
 
 See L<Ace::Feature::List> for more details.
 
-=head2 genes()
+=head2 transcripts()
 
-This returns a list of Ace::Sequence::Gene objects, which are
-specializations of Ace::Sequence::Feature.  See L<Ace::Sequence::Gene>
+This returns a list of Ace::Sequence::Transcript objects, which are
+specializations of Ace::Sequence::Feature.  See L<Ace::Sequence::Transcript>
 for details.
 
 =head2 gff()

@@ -27,7 +27,6 @@ use constant ACE_PARSE      => 3;
 use constant DEFAULT_PORT   => 200005;  # rpc server
 use constant DEFAULT_SOCKET => 2005;    # socket server
 
-require Ace::Object;
 require Ace::Iterator;
 eval qq{use Ace::Freesubs};  # XS file, may not be available
 
@@ -71,10 +70,7 @@ sub connect {
     $user      ||= $u || '';
     $path      ||= $p || '';
     $port        ||= $server_type eq 'Ace::SocketServer' ? DEFAULT_SOCKET : DEFAULT_PORT;
-#    $query_timeout ||= 120;
-#    $timeout = 25 unless defined $timeout;
-    $query_timeout += 0;
-    $timeout += 0;
+    $query_timeout = 120 unless defined $query_timeout;
     $server_type ||= 'Ace::SocketServer' if $port <  100000;
     $server_type ||= 'Ace::RPC'          if $port >= 100000;
   }
@@ -101,6 +97,7 @@ sub connect {
 		    'date_style' => 'java',
 		    'auto_save' => 0,
 		   },$class;
+  eval "require $self->{class}";
   return $self;
 }
 
@@ -154,9 +151,9 @@ sub model {
 # Fetch one or a group of objects from the database
 sub fetch {
   my $self = shift;
-  my ($class,$pattern,$count,$offset,$query,$filled,$total) =  
+  my ($class,$pattern,$count,$offset,$query,$filled,$total,$filltag) =  
     rearrange(['CLASS',['NAME','PATTERN'],'COUNT','OFFSET','QUERY',
-	       ['FILL','FILLED'],'TOTAL'],@_);
+	       ['FILL','FILLED'],'TOTAL','FILLTAG'],@_);
   $offset += 0;
   $pattern ||= '*';
   $pattern = Ace->freeprotect($pattern);
@@ -173,7 +170,12 @@ sub fetch {
   # object count without bothering to fetch the objects
   return $cnt if !wantarray and $pattern =~ /(?:[^\\]|^)[*?]/;
 
-  my (@h) = $filled ? $self->_fetch($count,$offset) : $self->_list($count,$offset);
+  my(@h);
+  if ($filltag) {
+    @h = $self->_fetch($count,$offset,$filltag);
+  } else {
+    @h = $filled ? $self->_fetch($count,$offset) : $self->_list($count,$offset);
+  }
   return wantarray ? @h : $h[0];
 }
 
@@ -343,15 +345,23 @@ sub _list {
 # return a portion of the active list
 sub _fetch {
   my $self = shift;
-  my ($count,$start) = @_;
+  my ($count,$start,$tag) = @_;
   my (@result);
-  my $query = "show -j";
+  my $query = "show -j $tag";
   $query .= ' -T' if $self->{timestamps};
   $query .= " -b $start"  if defined $start;
   $query .= " -c $count"  if defined $count;
   $self->{database}->query($query);
   while (my @objects = $self->_fetch_chunk) {
     push (@result,@objects);
+  }
+  # copy tag into a portion of the tree
+  if ($tag) {
+    for my $tree (@result) {
+      my $obj = $self->{class}->new($tree->class,$tree->name,$self,1);
+      $obj->_attach_subtree($tag=>$tree);
+      $tree = $obj;
+    }
   }
   return wantarray ? @result : $result[0];
 }
@@ -682,6 +692,7 @@ Please see L<Ace::Object>.
 			  -count=>$count,
 			  -offset=>$offset,
                           -fill=>$fill,
+			  -filltag=>$tag,
 	                  -total=>\$total);
     @objects = $db->fetch(-query=>$query);
 
@@ -731,6 +742,17 @@ the full contents of the retrieved object (for example, to display
 them in a tree browser) it can be more efficient to fetch them in
 filled mode. You do this by calling fetch() with the argument of
 B<-fill> set to a true value.
+
+The B<-filltag> argument, if provided, asks the database to fill in
+the subtree anchored at the indicated tag.  This will improve
+performance for frequently-accessed subtrees.  For example:
+
+   @objects = $db->fetch(-name    => 'D123*',
+                         -class   => 'Sequence',
+                         -filltag => 'Visible');
+
+This will fetch all Sequences named D123* and fill in their Visible
+trees in a single operation.
 
 Other arguments in the named parameter calling form are B<-count>, to
 retrieve a certain maximum number of objects, and B<-offset>, to

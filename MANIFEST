@@ -3,6 +3,7 @@ Ace/Iterator.pm
 Ace/Local.pm
 Ace/Model.pm
 Ace/Object.pm
+Ace/Object/Wormbase.pm
 Ace/Graphics/Glyph.pm
 Ace/Graphics/GlyphFactory.pm
 Ace/Graphics/Panel.pm
@@ -13,7 +14,7 @@ Ace/Graphics/Glyph/primers.pm
 Ace/Graphics/Glyph/transcript.pm
 Ace/Sequence.pm
 Ace/Sequence/Feature.pm
-Ace/Sequence/Gene.pm
+Ace/Sequence/Transcript.pm
 Ace/Sequence/FeatureList.pm
 Ace/Sequence/Homol.pm
 Ace/Sequence/Multi.pm

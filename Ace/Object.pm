@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.28 2001/01/03 16:52:53 lstein Exp $
+# $Id: Object.pm,v 1.29 2001/01/04 23:20:00 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -38,14 +38,8 @@ sub AUTOLOAD {
     my $presumed_tag = $func_name =~ /^[A-Z]/ && $self->isObject;  # initial_cap 
 
     if ($presumed_tag) {
-      if ($self->db && !$self->model->valid_tag($func_name)) {
-
-	# bad hack for wormbase transition from Locus to Locus_genomic_seq tag
-	croak "Invalid object tag \"$func_name\"" unless lc($func_name) eq 'locus';
-	$func_name = 'Locus_genomic_seq';
-	croak "Invalid object tag \"$func_name\"" unless $self->model->valid_tag($func_name);
-      }
-
+      croak "Invalid object tag \"$func_name\"" 
+	if $self->db && !$self->model->valid_tag($func_name);
 
       $self = $self->fetch if !$self->isRoot && $self->db;  # dereference, if need be
       croak "Null object tag \"$func_name\"" unless $self;
@@ -256,14 +250,7 @@ sub search {
 					     $self->{'db'}
 					    );
 	  if ($subobject) {
-	    my $obj;
-	    if (lc($subobject->right) eq $lctag) { # new version of aceserver as of 11/30/98
-	      $obj = $subobject->right;
-	    } else { # old version of aceserver
-	      $obj = $self->new('tag',$tag,$self->{'db'});
-	      $obj->{'.right'} = $subobject->right;
-	    }
-	    $self->{'.PATHS'}->{$lctag} = $obj;
+	    $self->_attach_subtree($lctag => $subobject);
 	  } else {
 	    $self->{'.PATHS'}->{$lctag} = undef;
 	  }
@@ -314,6 +301,21 @@ sub search {
     # If a position is defined, we return everything $POS tags
     # to the right (so-called tag[2] system).
     return $t->col($pos);
+}
+
+# utility routine used in partial tree caching
+sub _attach_subtree {
+  my $self             = shift;
+  my ($tag,$subobject) = @_;
+  my $lctag = lc($tag);
+  my $obj;
+  if (lc($subobject->right) eq $lctag) { # new version of aceserver as of 11/30/98
+    $obj = $subobject->right;
+  } else { # old version of aceserver
+    $obj = $self->new('tag',$tag,$self->{'db'});
+    $obj->{'.right'} = $subobject->right;
+  }
+  $self->{'.PATHS'}->{$lctag} = $obj;
 }
 
 #### return true if tree is populated, without populating it #####
