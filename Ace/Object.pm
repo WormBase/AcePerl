@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.44 2001/09/17 16:56:01 lstein Exp $
+# $Id: Object.pm,v 1.45 2003/05/24 19:31:56 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -41,15 +41,21 @@ sub AUTOLOAD {
       croak "Invalid object tag \"$func_name\"" 
 	if $self->db && $self->model && !$self->model->valid_tag($func_name);
 
-      $self = $self->fetch if !$self->isRoot && $self->db;  # dereference, if need be
-      croak "Null object tag \"$func_name\"" unless $self;
-
       shift();  # get rid of the object
       my $no_dereference;
-      if (defined($_[0]) && $_[0] eq '@') {
-	$no_dereference++;
-	shift();
+      if (defined($_[0])) {
+	if ($_[0] eq '@') {
+	  $no_dereference++;
+	  shift();
+	} elsif ($_[0] =~ /^\d+$/) {
+	  $no_dereference++;
+	}
       }
+
+      $self = $self->fetch if !$no_dereference && 
+	!$self->isRoot && $self->db;  # dereference, if need be
+      croak "Null object tag \"$func_name\"" unless $self;
+
       return $self->search($func_name,@_) if wantarray;
       my ($obj) = @_ ? $self->search($func_name,@_) : $self->search($func_name,1);
 

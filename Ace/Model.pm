@@ -18,14 +18,26 @@ my $METAWORD = q[^(XREF|UNIQUE|ANY|FREE|REPEAT|Int|Text|Float|DateType)$];
 # construct a new Ace::Model
 sub new {
   my $class = shift;
-  my $data = shift;
+  my ($data,$db,$break_cycle)  = @_;
+  $break_cycle ||= {};
+
   $data=~s!\s+//.*$!!gm;  # remove all comments
   $data=~s!\0!!g;
-  my ($name) = $data=~/\A\?(\w+)/;
-  return bless { 
-		name => $name,
-		raw => $data,
+  my ($name) = $data =~ /\A[\?\#](\w+)/;
+  my $self = bless { 
+		    name      => $name,
+		    raw       => $data,
+		    submodels => [],
 	       },$class;
+
+  if (!$break_cycle->{$name} && $db && (my @hashes = grep {$_ ne $name} $data =~ /\#(\S+)/g)) {
+    $break_cycle->{$name}++;
+    my %seen;
+    my @submodels = map {$db->model($_,$break_cycle)} grep {!$seen{$_}++} @hashes;
+    $self->{submodels} = \@submodels;
+  }
+
+  return $self;
 }
 
 sub name {
@@ -37,7 +49,10 @@ sub name {
 sub tags {
   my $self = shift;
   $self->{tags} ||= { map {lc($_)=>1}
-		      grep {!/$KEYWORD/o} $self->{raw}=~m/(\S+)/g
+		      grep {!/^[\#\?]/o} 
+		      grep {!/$KEYWORD/o} 
+		      $self->{raw}=~m/(\S+)/g,
+		      map {$_->tags} @{$self->{submodels}}
 		    };
   return wantarray ? keys %{$self->{tags}} : $self->{tags};
 }
