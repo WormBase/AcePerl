@@ -5,6 +5,7 @@ Ace/Model.pm
 Ace/Object.pm
 Ace/Sequence.pm
 Ace/Sequence/Feature.pm
+Ace/Sequence/Gene.pm
 Ace/Sequence/FeatureList.pm
 Ace/Sequence/Homol.pm
 Ace/Sequence/Multi.pm

@@ -112,7 +112,8 @@ sub _make_features {
     next unless $filter->($_);
     next unless my ($dbname) = /\t(\S+)$/;
     next unless my $db = $dbs{$dbname};
-    push @features,Ace::Sequence::Feature->new($r,$r_offset,$r_strand,$_,$db);
+    next unless my $parent = $self->parent;
+    push @features,Ace::Sequence::Feature->new($parent,$r,$r_offset,$r_strand,$_,$db);
   }
 
   return @features;

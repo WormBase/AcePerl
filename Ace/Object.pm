@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.26 2000/09/24 23:34:23 lstein Exp $
+# $Id: Object.pm,v 1.27 2000/12/21 18:00:38 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -1536,7 +1536,7 @@ L<Ace::Sequence>,L<Ace::Sequence::Multi>
 
 =head1 AUTHOR
 
-Lincoln Stein <lstein@w3.org> with extensive help from Jean
+Lincoln Stein <lstein@cshl.org> with extensive help from Jean
 Thierry-Mieg <mieg@kaa.crbm.cnrs-mop.fr>
 
 Copyright (c) 1997-1998, Lincoln D. Stein

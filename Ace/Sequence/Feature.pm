@@ -17,7 +17,7 @@ use overload
 # parse a line from a sequence list
 sub new {
   my $pack = shift;
-  my ($ref,$r_offset,$r_strand,$gff_line,$db) = @_;
+  my ($parent,$ref,$r_offset,$r_strand,$gff_line,$db) = @_;
   my ($sourceseq,$method,$type,$start,$end,$score,$strand,$frame,$group) = split "\t";
 
   # for efficiency/performance, we don't use superclass new() method, but modify directly
@@ -34,7 +34,7 @@ sub new {
 		   obj      => $ref,
 		   offset   => $offset,
 		   length   => $length,
-		   parent   => $ref,
+		   parent   => $parent,
 		   p_offset => $r_offset,
 		   refseq   => [$ref,$r_offset,$r_strand],
 		   strand   => $r_strand,
@@ -356,7 +356,7 @@ L<Ace::Sequence::FeatureList>, L<GFF>
 
 =head1 AUTHOR
 
-Lincoln Stein <lstein@w3.org> with extensive help from Jean
+Lincoln Stein <lstein@cshl.org> with extensive help from Jean
 Thierry-Mieg <mieg@kaa.crbm.cnrs-mop.fr>
 
 Copyright (c) 1999, Lincoln D. Stein

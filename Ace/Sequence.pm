@@ -6,6 +6,7 @@ use strict;
 use Ace 1.50 qw(:DEFAULT rearrange);
 use Ace::Sequence::FeatureList;
 use Ace::Sequence::Feature;
+use Ace::Sequence::Gene;
 use AutoLoader 'AUTOLOAD';
 use vars '$VERSION';
 my %CACHE;
@@ -21,6 +22,7 @@ use overload
 
 # synonym: stop = end
 *stop = \&end;
+*abs = \&absolute;
 
 # internal keys
 #    parent    => reference Sequence in "+" strand
@@ -89,6 +91,9 @@ sub new {
   $offset ||= 0;
   $offset *= -1 if $strand eq '-';
 
+  # handle feature objects
+  $offset += $obj->offset if $obj->isa('Ace::Sequence');
+
   # get source
   my $source = $obj->isa('Ace::Sequence') ? $obj->source : $obj;
   
@@ -143,10 +148,13 @@ sub refseq {
 	last BLOCK;
       }
 
-      if (ref($refseq) && $refseq->isa('Ace::Sequence')) {
+      if (ref($refseq) && ($refseq->isa('Ace::Sequence') || $refseq->isa('Ace::Sequence::Gene'))) {
 	croak "Reference sequence has no common ancestor with sequence"
 	  unless $self->parent eq $refseq->parent;
-	$arrayref = $refseq->{refseq};
+	my ($a,$b,$c) = @{$refseq->{refseq}};
+	#	$b += $refseq->offset;
+	$b += $refseq->offset;
+	$arrayref = [$refseq,$b,$refseq->strand];
 	last BLOCK;
       }
 
@@ -217,7 +225,7 @@ sub end {
   if ($abs) {
     my $r_strand = $self->r_strand;
     return $start - $self->{length} + $f 
-      if $r_strand eq '-' or $self->{strand} eq '-';
+      if $r_strand eq '-' or $self->{strand} eq '-' or $self->{length} < 0;
     return  $start + $self->{length} - $f 
   }
   return  $start + $self->{length} - $f if $self->r_strand eq $self->{strand};
@@ -239,7 +247,8 @@ sub asString {
     return join '',$self->parent,'/',$self->start,',',$self->end;
 
   } elsif (my $ref = $self->refseq){
-    return join '',$ref,'/',$self->start,',',$self->end;
+    my $label = $ref->isa('Ace::Sequence::Feature') ? $ref->info : "$ref";
+    return join '',$label,'/',$self->start,',',$self->end;
 
   } else {
     join '',$self->source,'/',$self->start,',',$self->end;
@@ -314,6 +323,38 @@ sub features {
   # turn it into a list of features
   my @features = $self->_make_features($gff,$filter);
   return wantarray ? @features : \@features;
+}
+
+# A little bit more complex - assemble a list of "genes"
+# consisting of Ace::Sequence::Gene objects.  These objects
+# contain a list of exons and introns.
+sub genes {
+  my $self    = shift;
+  my $curated = shift;
+  my $ef       = $curated ? "exon:curated"   : "exon";
+  my $if       = $curated ? "intron:curated" : "intron";
+  my $sf       = $curated ? "Sequence:curated" : "Sequence";
+  my @features = $self->features($ef,$if,$sf);
+  return unless @features;
+  my %transcripts;
+
+  my $start = $self->start;
+  for my $feature (sort {$a->start <=> $b->start} @features) {
+    my $transcript = $feature->info;
+    if ($feature->type =~ /^(exon|intron)$/) {
+      my $type = $1;
+      push @{$transcripts{$transcript}{$1}},$feature;
+#      push (@{$transcripts{$transcript}{$1}},[sort { $a<=>$b } ($feature->start-$start,
+#								$feature->end-$start)]);
+    } elsif ($feature->type eq 'Sequence') {
+      $transcripts{$transcript}{base} = $feature;
+    }
+  }
+  # get rid of transcripts without exons
+  foreach (keys %transcripts) { delete $transcripts{$_} unless exists $transcripts{$_}{exon} }
+
+  # map the rest onto Ace::Sequence::Gene objects
+  return map {Ace::Sequence::Gene->new($transcripts{$_})} keys %transcripts;
 }
 
 # return list of features quickly
@@ -497,7 +538,8 @@ sub _make_features {
   my ($gff,$filter) = @_;
 
   my ($r,$r_offset,$r_strand) = $self->refseq;
-  my @features = map {Ace::Sequence::Feature->new($r,$r_offset,$r_strand,$_)} 
+  my $parent = $self->parent;
+  my @features = map {Ace::Sequence::Feature->new($parent,$r,$r_offset,$r_strand,$_)} 
                  grep !m@^(?:\#|//)@ && $filter->($_),split("\n",$gff);
 }
 
@@ -775,11 +817,16 @@ that it will return an I<Ace::Sequence> in some cases, and an
 I<Ace::Object> in others.  Use get_parent() to traverse upwards
 through a uniform series of I<Ace::Sequence> objects upwards.
 
-=head2 ref_seq()
+=head2 refseq([$seq])
 
-  $refseq = $seq->ref_seq;
+  $refseq = $seq->refseq;
 
 Returns the reference sequence, if one is defined.
+
+  $seq->refseq($new_ref);
+
+Set the reference sequence. The reference sequence must share the same
+ancestor with $seq.
 
 =head2 start()
 
@@ -898,6 +945,12 @@ less overhead than features().
 
 See L<Ace::Feature::List> for more details.
 
+=head2 genes()
+
+This returns a list of Ace::Sequence::Gene objects, which are
+specializations of Ace::Sequence::Feature.  See L<Ace::Sequence::Gene>
+for details.
+
 =head2 gff()
 
   $gff = $seq->gff();
@@ -975,7 +1028,7 @@ L<Ace::Sequence::FeatureList>, L<GFF>
 
 =head1 AUTHOR
 
-Lincoln Stein <lstein@w3.org> with extensive help from Jean
+Lincoln Stein <lstein@cshl.org> with extensive help from Jean
 Thierry-Mieg <mieg@kaa.crbm.cnrs-mop.fr>
 
 Many thanks to David Block <dblock@gene.pbi.nrc.ca> for finding and
