@@ -181,6 +181,28 @@ sub AceHeader {
   }
 
 
+    my %ckVal       = ();
+    my $ckName      = 'hunter_feature';
+    my %cookies     = undef;
+    
+    if((%cookies = fetch CGI::Cookie) && (defined $cookies{$ckName})){
+    	%ckVal  = @{$cookies{$ckName}->{'value'}};
+    }else{
+    	%ckVal  = (map{$_ => 1} @{Configuration->Dasview_default});
+    };
+
+    if(param('feature')){
+    	%ckVal  = ();
+	%ckVal  = (map{$_ => 1} param('feature'));
+    }
+
+    my $hunter_feature = CGI::Cookie->new( -name   =>$ckName,
+    					-value  =>\%ckVal,
+					-expires=>'+1M',
+					-path   =>'/'   );
+    push(@cookies, $hunter_feature);
+
+
   print header(-cookie=>\@cookies,@_) if @cookies;
   print header(@_)               unless @cookies;
 
