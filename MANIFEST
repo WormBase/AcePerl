@@ -67,10 +67,6 @@ ace/wmake/ALPHA_4_OPT_DEF
 ace/wmake/ALPHA_4_OSFV3_DEF
 ace/wmake/ALPHA_CHRONO_4_DEF
 ace/wmake/ALPHA_G3_DEF
-ace/wmake/CVS/Entries
-ace/wmake/CVS/Repository
-ace/wmake/CVS/Root
-ace/wmake/CVS/SOLARIS_GCC_DEF,t
 ace/wmake/DEC_OSF_DEF
 ace/wmake/HPUX_DEF
 ace/wmake/HP_4_GCC_DEF
@@ -93,6 +89,7 @@ ace/wmake/SOLARIS_4_DEF
 ace/wmake/SOLARIS_4_NEW_DEF
 ace/wmake/SOLARIS_4_OPT_DEF
 ace/wmake/SOLARIS_4_RELEASE_DEF
+ace/wmake/SOLARIS_7_gcc_DEF
 ace/wmake/SOLARIS_DEF
 ace/wmake/SOLARIS_GCC_DEF
 ace/wmake/SUNOS_DEF
@@ -116,6 +113,7 @@ make_docs.pl
 t/basic.t
 t/object.t
 t/update.t
+t/sequence.t
 test/acedump.pl
 test/author.pl
 test/authors2.pl

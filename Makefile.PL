@@ -11,6 +11,7 @@ WriteMakefile(
 	      'VERSION_FROM' => 'Ace.pm', # finds $VERSION
 	      'MYEXTLIB'     => 'ace/libaceperl.a',
 	      'LIBS'         => ['-lc'],
+	      'PMLIBDIRS'    => ['GFF','Ace'],
 	      'DEFINE'	     => '',
 	      'OBJECT'       => '$(O_FILES)',
 	      'XSPROTOARG'   => '-noprototypes',

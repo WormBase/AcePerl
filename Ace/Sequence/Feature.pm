@@ -34,13 +34,13 @@ sub _field {
 
 1;
 
-__END__
+# __END__
 
 sub parent { $_[0]->{'parent'}; }
 sub source_seq { $_[0]->parent; }
 sub db     { return $_[0]->{'db'} ||= $_[0]->parent->source_seq->db; }
 sub abs2rel { 
-  $_[0]->parent->reversed ? 2 + $_[0]->parent->offset - $_[1] : $_[1] - $_[0]->parent->offset; 
+  $_[0]->parent->gff_reversed ? 2 + $_[0]->parent->offset - $_[1] : $_[1] - $_[0]->parent->offset; 
 }
 
 sub seqname   { $_[0]->db->fetch(Sequence=>_field(0,@_)); }
@@ -52,10 +52,11 @@ sub type      { _field(2,@_); }  # ... I prefer "type"
 sub abs_start { _field(3,@_); }  # start, absolute coordinates
 sub abs_end   { _field(4,@_); }  # end, absolute coordinates
 sub score     { _field(5,@_); }  # float indicating some sort of score
-sub strand    { !$_[0]->abs && $_[0]->parent->reversed ? 
+sub strand    { !$_[0]->abs && $_[0]->parent->gff_reversed ? 
 		    $REV{_field(6,@_)} : 
 		    _field(6,@_); }  # one of +, - or undef
 sub reversed  { $_[0]->strand eq '-'; }
+sub abs_reversed { $_[0]->strand ne $_[0]->parent->strand; }
 sub frame     { _field(7,@_); }  # one of 1, 2, 3 or undef
 sub info      {                  # returns Ace::Object(s) with info about the feature
   my ($self) = @_;
@@ -68,19 +69,27 @@ sub info      {                  # returns Ace::Object(s) with info about the fe
   return wantarray ? @{$self->{'info'}} : $self->{'info'}->[0];
 }
  
-sub group  { $[0]->info; }
-sub target { $[0]->info; }
+sub group  { $_[0]->info; }
+sub target { $_[0]->info; }
 
 # abs/relative adjustments
-sub start    {  my $val = $_[0]->parent->reversed ? $_[0]->abs_end : $_[0]->abs_start; 
-		return $val if $_[0]->abs;
-		return $_[0]->abs2rel($val);
-	      }
+sub start    {  
+  my $self = shift;
+  my $val = $self->parent->gff_reversed ? $self->abs_end : $self->abs_start; 
+  return $val if $self->abs;
+  return $self->abs2rel($val);
+}
 	
-sub end    {  my $val = $_[0]->parent->reversed ? $_[0]->abs_start : $_[0]->abs_end; 
-		return $val if $_[0]->abs;
-		return $_[0]->abs2rel($val);
-	      }
+sub end    {  
+  my $self = shift;
+  my $val = $self->parent->gff_reversed ? $self->abs_start : $self->abs_end; 
+  return $val if $self->abs;
+  return $self->abs2rel($val);
+}
+
+sub dna {
+  return Ace::Sequence->new($_[0])->dna;
+}
 
 sub asString {
   my $self = shift;
@@ -346,3 +355,4 @@ disclaimers of warranty.
 =cut
 
 
+__END__
