@@ -1,6 +1,6 @@
 #!/usr/local/bin/perl -w
 
-# Tests of object-level fetches and following
+# Tests of Ace::Sequence and Ace::Sequence::Feature
 ######################### We start with some black magic to print on failure.
 use lib '../blib/lib','../blib/arch';
 use constant HOST => $ENV{ACEDB_HOST} || 'stein.cshl.org';

@@ -17,7 +17,8 @@ use constant DEFAULT_PORT=>200005;
 use constant DEFAULT_DB=>'/usr/local/acedb';
 use constant READSIZE   => 1024 * 5;  # read 5k units
 
-$SIG{'CHLD'} = sub { wait(); } ;
+# this seems gratuitous, but don't delete it just yet
+# $SIG{'CHLD'} = sub { wait(); } ;
 
 sub connect {
   my $class = shift;

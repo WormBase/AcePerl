@@ -115,3 +115,4 @@ t/basic.t
 t/object.t
 t/update.t
 t/sequence.t
+t/multi.t

@@ -1,4 +1,4 @@
-This is version 1.54 of AcePerl, a Perl interface for the ACEDB
+This is version 1.56 of AcePerl, a Perl interface for the ACEDB
 object-oriented database.  Designed specifically for use in genome
 sequencing projects, ACEDB provides powerful modeling and management
 services for biological and laboratory data.  For others, it is a good
@@ -13,14 +13,27 @@ INSTALLATION:
 AcePerl comes with all the code needed to communicate with a remote
 ACEDB server.  No additional software is required.  However, if you
 wish to communicate with your own ACEDB database, you must use ACEDB
-version 4.7c or higher, available from one of these two locations:
+version 4.7c or higher, available from this location:
 
 	ftp://ncbi.nlm.nih.gov/repository/acedb/
 	
-There are numerous performance enhancements and bug fixes in version
-4.7 of ACEDB.  Use of older versions of ACEDB is not recommended.
-However this advice only applies to the aceserver, gifaceserver and
-tace applications.  You may use older versions of the graphical xace
+However, to take full advantage of the sequence annotation features in
+the Ace::Sequence and Ace::Sequence::Feature classes, you will need
+version 4.7l (that's an "ell") or higher.  (The features in 4.7l have
+not yet been folded into version 4.8, although this will be changing
+soon.)  Version 4.7l can be obtained here:
+
+  http://stein.cshl.org/AcePerl/archive/ace_4_7l.tar.gz
+
+better yet, download
+
+  http://stein.cshl.org/AcePerl/archive/acedb-latest.tar.gz
+
+to obtain the version of the aceserver that I am currently using to
+develop and test AcePerl.
+
+This advice only applies to the aceserver, gifaceserver and tace
+applications.  You may use older versions of the graphical xace
 application freely, as this does not interact with AcePerl.
 
 If you wish to use AcePerl in a client-server fashion, you must get
@@ -168,5 +181,5 @@ package at this URL:
 Lincoln Stein
 lstein@cshl.org
 
-January 21, 1999
+July 9, 1999
 
