@@ -67,6 +67,23 @@ sub segments {
   return $self->strand eq '-' ? reverse @e : @e;
 }
 
+sub merged_segments {
+  my $self = shift;
+  my @segs = sort {$a->start <=> $b->start} $self->segments;
+  # attempt to merge overlapping segments
+  my @merged;
+  for my $s (@segs) {
+    my $previous = $merged[-1];
+    if ($previous && $previous->end+1 >= $s->start) {
+      $previous->{length} = $s->end - $previous->start + 1;  # extend
+    } else {
+      my $clone = bless {%$s},ref($s);
+      push @merged,$clone;
+    }
+  }
+  return @merged;
+}
+
 1;
 
 __END__

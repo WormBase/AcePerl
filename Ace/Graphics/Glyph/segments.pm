@@ -44,7 +44,7 @@ sub draw {
   my $gray = $self->color(GRAY);
 
   my (@segments,@boxes,@skips);
-  @segments   = sort {$a->start <=> $b->start} $self->feature->segments;
+  @segments   = $self->feature->merged_segments;
 
   for (my $i=0; $i < @segments; $i++) {
     my ($start,$stop) = ($segments[$i]->start,$segments[$i]->stop);
@@ -60,12 +60,7 @@ sub draw {
       # probably unnecessary, but we do it out of paranaoia
       ($next_start,$next_stop) = ($next_stop,$next_start) if $next_start > $next_stop;
 
-      if ($next_start > $stop) {
-	push @skips,[$self->map_pt($stop+1),$self->map_pt($next_start-1)];
-      } else {  # merge overlapping segments
-	$boxes[-1][1] = $self->map_pt($next_stop);
-	$i++;
-      }
+      push @skips,[$self->map_pt($stop+1),$self->map_pt($next_start-1)];
     }
   }
 
@@ -77,8 +72,6 @@ sub draw {
   for my $e (@boxes) {
     my @rect = ($e->[0],$y1,$e->[1],$y2);
     $self->filled_box($gd,@rect);
-#    $gd->rectangle(@rect,$fg);
-#    $self->fill($gd,@rect);
   }
 
   # each skip becomes a simple line

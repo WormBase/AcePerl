@@ -110,9 +110,9 @@ sub map_pt {
   $point -= $self->offset;
   my $val = $self->{left} + $self->scale * $point;
   my $right = $self->{left} + $self->width;
-  $val = 0 if $val < 0;
+  $val = -1 if $val < 0;
   $val = $self->width if $right && $val > $right;
-  return int($val+0.5);
+  return int $val;
 }
 
 sub labelheight {
@@ -166,10 +166,10 @@ sub filled_box {
   # the leftmost line
   my ($width) = $gd->getBounds;
   $gd->line($x1,$y1,$x1,$y2,$self->fillcolor)
-    if $x1 <= 0;
+    if $x1 < 0;
 
   $gd->line($x2,$y1,$x2,$y2,$self->fillcolor)
-    if $x2 >= $width;
+    if $x2 > $width;
 }
 
 sub fill {
@@ -192,13 +192,7 @@ sub draw {
   # for nice thin lines
   $x2 = $x1 if $x2-$x1 < 1;
 
-  # for now, just draw a box
-#  $gd->rectangle($x1,$y1,$x2,$y2,$self->fgcolor);
-
-  # and fill it
-#  $self->fill($gd,$x1,$y1,$x2,$y2);
-
-  $gd->filled_box($gd,$x1,$y1,$x2,$y2);
+  $self->filled_box($gd,$x1,$y1,$x2,$y2);
 
   # add a label if requested
   $self->draw_label($gd,@_) if $self->option('label');

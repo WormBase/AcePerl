@@ -197,6 +197,7 @@ sub offset { $_[0]->{offset} }
 sub p_offset { $_[0]->{p_offset} }
 
 sub smapped { 1; }
+sub type    { 'Sequence' }
 
 # return the database this sequence is associated with
 sub db {
