@@ -5,6 +5,7 @@ require 5.004;
 use strict;
 use IPC::Open2;
 use Symbol;
+use IO::Select;
 use Fcntl qw/F_SETFL O_NONBLOCK/;
 
 use vars '$VERSION';
@@ -64,6 +65,7 @@ sub connect {
 
   # set nonblocking reads
   fcntl($rdr,F_SETFL,O_NONBLOCK);
+  my $select = IO::Select->new($rdr);
 
   return bless {
 		'read'   => $rdr,
@@ -71,6 +73,7 @@ sub connect {
 		'prompt' => $prompt,
 		'pid'    => $pid,
 		'auto_save' => 1,
+		'select'    => $select,
 		'status' => STATUS_WAITING,
 	       },$class;
 }
@@ -125,23 +128,29 @@ sub read {
   my $self = shift;
   return undef unless $self->{'status'} == STATUS_PENDING;
   my $rdr = $self->{'read'};
+  my $select = $self->{'select'};
+
   while (1) {
+    my ($ready) = $select->can_read(); # block until tace has something for us to read
+    next unless $ready == $rdr;
+
     my $data;
     my $bytes = read($rdr,$data,2048);
     $self->{'buffer'} .= $data;
 
-    # return partial results for paragraph breaks
-    if ($self->{'buffer'} =~ /\A.*\n\n/s) {
-      next unless $&;
-      $self->{'buffer'} = $';
-      return $&;
-    }
-
+    # check for prompt
     if ($self->{'buffer'}=~/$self->{'prompt'}/so) {
       $self->{'status'} = STATUS_WAITING;
       $self->{'buffer'} = '';
       return $`;
     }
+
+    # return partial results for paragraph breaks
+    if ($self->{'buffer'} =~ /\A(.*\n\n)/s) {
+      $self->{'buffer'} = $';
+      return $1;
+    }
+
   }
 
   # never get here
