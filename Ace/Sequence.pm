@@ -27,6 +27,7 @@ use overload '""' => 'asString';
 # $refseq, if provided, will be used to establish the coordinate
 # system.  Otherwise the first base pair will be set to 1.
 sub new {
+  local $^W = 0;
   my $pack = shift;
   my ($obj,$offset,$len,$refseq,$db,$name) = 
     rearrange([
@@ -317,6 +318,7 @@ sub abslength {
 # reversed).  If $refseq is provided as the second argument, then it
 # forces the subroutine to use that coordinate system.
 sub _get_refseq {
+  local $^W = 0;
   my ($obj,$refseq) = @_;
   my $o = $obj;
   my ($parent,$offset,$length,$source_reversed) = (undef,0,0,0); # to avoid uninitialized variable warnings

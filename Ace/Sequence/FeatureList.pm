@@ -3,6 +3,7 @@ package Ace::Sequence::FeatureList;
 use overload '""' => 'asString';
 
 sub new {
+  local $^W = 0;  # to prevent untrackable uninitialized variable warning
   my $package =shift;
   my @lines = split("\n",$_[0]);
   my (%parsed);

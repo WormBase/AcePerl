@@ -31,7 +31,7 @@ sub name {
 sub tags {
   my $self = shift;
   $self->{tags} ||= { map {lc($_)=>1}
-		      grep(!/^\?|^\#|^\@|XREF|UNIQUE|ANY|FREE|REPEAT|Int|Text|Float|DateType$/,
+		      grep(!/^(\?.*|^\#.*|^\@.*|XREF|UNIQUE|ANY|FREE|REPEAT|Int|Text|Float|DateType)$/,
 			   $self->{raw}=~m/(\S+)/g)
 		    };
   return wantarray ? keys %{$self->{tags}} : $self->{tags};

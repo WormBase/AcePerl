@@ -247,17 +247,20 @@ OUTPUT:
 	RETVAL
 
 int
-query(self,request, encore=0)
+query(self,request, type=0)
 	AceDB* self
 	char*  request
-	int    encore
+	int    type
 PREINIT:
 	unsigned char* answer = NULL;
-	int retval,length,isWrite;
+	int retval,length,isWrite=0,isEncore=0;
 CODE:
-	isWrite = encore == 3;
+        if (type == ACE_PARSE)
+           isWrite = 1;
+        else if (type > 0)
+           isEncore = 1;
 	retval = askServerBinary(self->database,request,
-	                         &answer,&length,&encore,CHUNKSIZE);
+	                         &answer,&length,&isEncore,CHUNKSIZE);
 	if (self->answer) {
 	   free((void*) self->answer);
 	   self->answer = NULL;
@@ -271,7 +274,7 @@ CODE:
 	   self->answer = answer;
 	   self->length = length;
            self->status = STATUS_PENDING;
-	   self->encoring = encore && !isWrite;
+	   self->encoring = isEncore && !isWrite;
 	   RETVAL = 1;
         }
 OUTPUT:

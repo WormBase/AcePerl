@@ -25,7 +25,7 @@ use overload '""' => 'asString';
 
 # Optional exports
 @EXPORT_OK = qw(rearrange);
-$VERSION = '1.62';
+$VERSION = '1.64';
 
 require Ace::Object;
 require Ace::Iterator;
@@ -59,19 +59,23 @@ $Ace::ERR = '';
 
 sub connect {
     my $class = shift;
-    my ($host,$port,$path,$program,$objclass,$timeout,$query_timeout,$database);
+    my ($host,$port,$user,$pass,$path,$program,$objclass,$timeout,$query_timeout,$database);
     if (@_ == 1) {  # look for host:port
       if (($host,$port) = $_[0] =~ /^(?:aceserver:\/\/)?([^:]+):(\d+)$/) {
 	$database = Ace::AceDB->new($host,$port);
+      } elsif (($host,$port) = $_[0] =~ /^(?:saceserver:\/\/)?([^:]+):(\d+)$/) {
+	require Ace::SocketServer;
+	$database = Ace::SocketServer->new($host,$port);
       } else {
 	require Ace::Local;
 	($path = $_[0]) =~ s!^\w+://!!;
 	$database = Ace::Local->connect(-path=>$path);
       }
     } else {
-      ($host,$port,$path,$program,$objclass,$timeout,$query_timeout) = 
-	rearrange(['HOST','PORT','PATH',
-		   'PROGRAM','CLASS','TIMEOUT',
+      ($host,$port,$user,$pass,
+       $path,$program,$objclass,$timeout,$query_timeout) = 
+	rearrange(['HOST','PORT','USER','PASS',
+		   'PATH','PROGRAM','CLASS','TIMEOUT',
 		   'QUERY_TIMEOUT'],@_);
       $host ||= 'localhost';
       $port ||= defined(&ACE_PORT) ? &ACE_PORT : 200001;
@@ -81,6 +85,9 @@ sub connect {
       if ($path || $program) {
 	require Ace::Local;
 	$database = Ace::Local->connect(@_);
+      } elsif ($port < 100000) { # socket server
+	require Ace::SocketServer;
+	$database = Ace::SocketServer->connect($host,$port,$user,$pass);
       } else {
 	my @p = ($host,$port);
 	push(@p,$query_timeout) if defined $query_timeout;
@@ -91,7 +98,7 @@ sub connect {
     }
 
     unless ($database) {
-	$Ace::ERR = "Couldn't open database";
+	$Ace::ERR ||= "Couldn't open database";
 	return;
     }
 
@@ -354,7 +361,8 @@ sub _alert_iterators {
 sub asString {
   my $self = shift;
   return "acedb://$self->{path}" if $self->{'path'};
-  return "aceserver://$self->{host}:$self->{port}" if $self->{'host'};
+  my $server = $self->db->isa('Ace::SocketServer') ? 'saceserver' : 'aceserver';
+  return "$server://$self->{host}:$self->{port}" if $self->{'host'};
   return ref $self;
 }
 

@@ -59,7 +59,7 @@ sub connect {
   my($rdr,$wtr) = (gensym,gensym);
   my($pid) = open2($rdr,$wtr,"$program $args");
   unless ($pid) {
-    $ACE::ERR = <$rdr>;
+    $Ace::ERR = <$rdr>;
     return undef;
   }
 

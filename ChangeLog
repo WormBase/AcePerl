@@ -1,3 +1,12 @@
+1.62	5/18/2000
+	1. **NOTE** Redid the automatic accessors.  There is now always an implicit 
+	move to the *right* of a tag when you fetch it as a method.  Use
+	$object->Tag(0) to get the old default behavior.  Be warned, you used to
+	have to do this to get to the object to the right of the Sequence tag
+		$sequence = $clone->Sequence->right
+	You now only have to do this:
+		$sequence = $clone->Sequence
+	2. Removed some uninitialized variable warnings from Ace::Sequence
 1.60	11/01/99
 	1. Fixed suspended giface processes when using iterators.
 	2. Added explicit close() method.
