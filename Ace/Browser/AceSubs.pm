@@ -5,10 +5,11 @@ use Ace::Browser::SiteDefs;
 use Ace 1.51;
 use CGI qw(:standard escape);
 
-use vars qw/@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS %DB %OPEN $HEADER/;
+use vars qw/@ISA @EXPORT @EXPORT_OK $VERSION %EXPORT_TAGS %DB %OPEN $HEADER/;
 
 require Exporter;
 @ISA = qw(Exporter);
+$VERSION = 1.10;
 
 ######################### This is the list of exported subroutines #######################
 @EXPORT = qw(
@@ -193,7 +194,7 @@ sub AceRedirect {
 
 sub AceMultipleChoices {
   my ($symbol,$report,$objects) = @_;
-  if (@$objects == 1) {
+  if ($objects && @$objects == 1) {
     my $url = Configuration->display($report,'url');
     my $destination = ResolveUrl($url => "name=$objects->[0]");
     AceHeader(-Refresh => "1; URL=$destination");

@@ -19,17 +19,8 @@ version 4.7c or higher, available from this location:
 	
 However, to take full advantage of the sequence annotation features in
 the Ace::Sequence and Ace::Sequence::Feature classes, you will need
-version 4.7l (that's an "ell") or higher.  Version 4.7l can be
-obtained here:
-
-  http://stein.cshl.org/AcePerl/archive/ace_4_7l.tar.gz
-
-better yet, download
-
-  http://stein.cshl.org/AcePerl/archive/acedb-latest.tar.gz
-
-to obtain the version of the aceserver that I am currently using to
-develop and test AcePerl.
+version 4.8c or higher.  It can be obtained from the Sanger FTP site
+at ftp.sanger.ac.uk.
 
 Version 4.8 of Aceserver adds support for Berkeley sockets.  It is
 highly recommended that you use it if you are not already reliant on

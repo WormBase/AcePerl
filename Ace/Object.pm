@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.38 2001/07/09 21:33:48 lstein Exp $
+# $Id: Object.pm,v 1.39 2001/07/16 20:51:57 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -113,7 +113,8 @@ sub newFromText {
 sub name {
     my $self = shift;
     $self->{'name'} = shift if  defined($_[0]);
-    return $self->_ace_format($self->{'class'},$self->{'name'});
+    my $name = $self->_ace_format($self->{'class'},$self->{'name'});
+    $name;
 }
 
 ################### class of the object #################

@@ -31,7 +31,7 @@ WriteMakefile(
 	      'XSPROTOARG'   => '-noprototypes',
 	      'INC'	     => "-I$headers",
 	      PREREQ_PM      => {
-				 'Digest::MD5' => 0,
+				 'Digest::MD5' => 2.0,
 				 },
 	      'dist'         => {'COMPRESS'=>'gzip -9f', 
                                  'SUFFIX' => 'gz',

@@ -3,7 +3,7 @@
 
 # Tests of Ace::Sequence and Ace::Sequence::Feature
 ######################### We start with some black magic to print on failure.
-use lib '../blib/lib','../blib/arch';
+use lib '..','../blib/lib','../blib/arch';
 use constant HOST => $ENV{ACEDB_HOST} || 'stein.cshl.org';
 use constant PORT => $ENV{ACEDB_PORT} || 2005;
 

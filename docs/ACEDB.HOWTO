@@ -126,12 +126,20 @@ is /usr/local/acedb
  * /etc/inetd.conf:
  ... lots of existing entries...
  elegans/1  stream  rpc/tcp wait acedb  /usr/local/acedb/bin/gifaceserver 
-         aceserver /local/acedb/elegans 200005 1200:1200:0
+         aceserver /usr/local/acedb/elegans 200005 1200:1200:0
 
 The line has been wrapped to fit on the page.  All inetd.conf entries
 should be on a single line.  Replace /usr/local/acedb/bin/gifaceserver
 with the location of your aceserver binary, and
 /usr/local/acedb/elegans with the location of your ACE database.
+
+For the socket server implementation of versions 4.8 and higher, modify this line to read:
+
+ 2005  stream  tcp wait acedb  /usr/local/acedb/bin/sgifaceserver 
+         sgifaceserver /usr/local/acedb/elegans 1200:1200:0
+
+The first field tells the server to listen to port 2005.  Modify as
+appropriate to run on a different port.
 
 The server needs to be able to open and write to a file named
 "server.log" located at the top level of its database directory.

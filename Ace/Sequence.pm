@@ -385,7 +385,8 @@ sub _make_transcripts {
   my %transcripts;
 
   for my $feature (@$features) {
-    my $transcript = $feature->info or next;
+    my $transcript = $feature->info;
+    next unless $transcript;
     if ($feature->type =~ /^(exon|intron|cds)$/) {
       my $type = $1;
       push @{$transcripts{$transcript}{$type}},$feature;
@@ -393,6 +394,7 @@ sub _make_transcripts {
       $transcripts{$transcript}{base} ||= $feature;
     }
   }
+
   # get rid of transcripts without exons
   foreach (keys %transcripts) {
     delete $transcripts{$_} unless exists $transcripts{$_}{exon}
