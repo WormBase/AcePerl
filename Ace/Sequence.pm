@@ -469,6 +469,11 @@ sub alignments {
   return $self->features(@types);
 }
 
+sub segments {
+  my $self = shift;
+  return $self;
+}
+
 sub _make_alignments {
   my $self = shift;
   my $features = shift;
