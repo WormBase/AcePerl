@@ -27,11 +27,7 @@ ace/memsubs.c
 ace/menu.c
 ace/messubs.c
 ace/randsubs.c
-ace/rpcace.h
 ace/rpcace.x
-ace/rpcace_clnt.c
-ace/rpcace_svc.c
-ace/rpcace_xdr.c
 ace/texthelp.c
 ace/timesubs.c
 ace/wh/aceclient.h
@@ -68,6 +64,7 @@ ace/wmake/HPUX_DEF
 ace/wmake/HP_4_GCC_DEF
 ace/wmake/IBM_4_DEF
 ace/wmake/IRIX4_4_DEF
+ace/wmake/IRIX_DEF
 ace/wmake/LINUX_4_DEF
 ace/wmake/LINUX_DEF
 ace/wmake/LINUX_LIBC5_4_DEF

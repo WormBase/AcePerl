@@ -6,7 +6,7 @@ use lib '../blib/lib','../blib/arch';
 use constant HOST => $ENV{ACEDB_HOST} || 'beta.crbm.cnrs-mop.fr';
 use constant PORT => $ENV{ACEDB_PORT} || 20000100;
 
-BEGIN {$| = 1; print "1..35\n"; }
+BEGIN {$| = 1; print "1..36\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Ace;
 $loaded = 1;
@@ -74,3 +74,5 @@ test(33,@obj>1,"did not get list of objects in array context with wildcard");
 @papers = $obj->follow('Paper');
 test(34,@papers>1,"did not get list of papers from follow()");
 test(35,@papers && $papers[0]->Title,"did not get title from first paper");
+@papers_new = $db->find(-query=>qq{Author IS "Sulston JE" ; >Paper});
+test(36,@papers == @papers_new,"find() did not find right number of papers")

@@ -19,7 +19,7 @@ WriteMakefile(
                                  'SUFFIX' => 'gz',
 	                         'ZIP'=>'/usr/bin/zip','ZIPFLAGS'=>'-rl'
 			      },
-	      'clean'        => {'FILES' => 'ace/lib* ace/*.o'},
+	      'clean'        => {'FILES' => 'ace/lib* ace/*.o rpcace*.[ch]'},
 );
 
 exit 0;
