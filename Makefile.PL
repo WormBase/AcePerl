@@ -2,10 +2,10 @@ use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 WriteMakefile(
-    'NAME'	=> 'Ace',
-    'DISTNAME'  => 'Ace',
-    'VERSION_FROM' => 'lib/Ace.pm',
-    'linkext'   => { LINKTYPE=>'' },	# no link needed
-    'dist'      => {'COMPRESS'=>'gzip -9f', 'SUFFIX' => 'gz',
-	            'ZIP'=>'/usr/bin/zip','ZIPFLAGS'=>'-rl'},
+    'NAME'	   => 'Ace',
+    'VERSION_FROM' => 'Ace.pm', # finds $VERSION
+    'LIBS'	   => ['-L../ace/bin -lacecl -lace'],   # e.g., '-lm' 
+    'DEFINE'	   => '',     # e.g., '-DHAVE_SOMETHING' 
+    'XSPROTOARG'   => '-noprototypes',
+    'INC'	   => '-I../ace/wh',     # e.g., '-I/usr/include/other' 
 );
