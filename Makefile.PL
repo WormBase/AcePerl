@@ -44,7 +44,9 @@ WriteMakefile(
 			      },
 	      PL_FILES => {'make_docs.PLS' => '.docs',
 			   'util/install.PLS'=>'util/install.pl',
+			   'util/ace.PLS'=>'util/ace.pl',
 			  },
+	      EXE_FILES => ['util/ace.pl'],
 	      'clean'        => {'FILES' => 'acelib/lib* acelib/*.o acelib/rpcace*.[ch]'},
 );
 

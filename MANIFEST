@@ -179,7 +179,6 @@ docs/ACE_SERVER_TRAPS.HOWTO.html
 docs/GFF_Spec.html
 docs/NEW_DB.HOWTO
 docs/README
-docs/SERVER_INSTALLATION.HOWTO
 examples/README
 examples/ace.pl
 examples/authors.pl
@@ -201,3 +200,4 @@ t/sequence.t
 t/update.t
 typemap
 util/install.PLS
+util/ace.PLS

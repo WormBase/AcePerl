@@ -1,4 +1,4 @@
-This is version 1.76 of AcePerl, a Perl interface for the ACEDB
+This is version 1.86 of AcePerl, a Perl interface for the ACEDB
 object-oriented database.  Designed specifically for use in genome
 sequencing projects, ACEDB provides powerful modeling and management
 services for biological and laboratory data.  For others, it is a good
@@ -21,8 +21,11 @@ ACEDB version 4.7c or higher, available from this location:
 	
 To take full advantage of the sequence annotation features in the
 Ace::Sequence and Ace::Sequence::Feature classes, you will need
-version 4.8c or higher.  It can be obtained from the Acedb web site at
-http://www.acdb.org.
+version 4.9r or higher.  As of April 11, 2003, it was not yet
+released, but when it is, it will be available from the Acedb web site
+at http://www.acdb.org.  In the meanwhile, you can download an
+unsupported alpha release from
+ftp://ftp.wormbase.org/pub/wormbase/software/acedb4.9r_prerelease.tar.gz
 
 Version 4.8 of Aceserver adds support for Berkeley sockets.  It is
 highly recommended that you use it if you are not already reliant on

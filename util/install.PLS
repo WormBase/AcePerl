@@ -6,7 +6,7 @@ use Cwd;
 $origdir = cwd;
 chdir dirname($0);
 $file = basename($0, '.PLS');
-$file .= $^O eq 'VMS' ? '.com' : '.pls';
+$file .= $^O eq 'VMS' ? '.com' : '.pl';
 
 open OUT,">$file" or die "Can't create $file: $!";
 

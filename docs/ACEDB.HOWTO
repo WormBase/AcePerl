@@ -15,12 +15,12 @@ another.
 
 ACeDB distributions are available at:
 
-  http://stein.cshl.org/AcePerl/archive/acedb-latest.tar.gz
+  ftp://ftp.wormbase.org/pub/wormbase/software/
   ftp://ncbi.nlm.nih.gov/repository/acedb/
 
-I recommend that you use the stein.cshl.org URL, as this contains the
-latest stable snapshot of ACeDB that I use for testing and debugging
-the current release of AcePerl.
+I recommend that you use the ftp.wormbase.org URL, as this contains
+the latest stable snapshot of ACeDB that I use for testing and
+debugging the current release of AcePerl.
 
 COMPILING THE SOFTWARE
 
@@ -60,10 +60,12 @@ executables into it:
 	2) mkdir bin
 	3) cd ~/acedb (where the source code was compiled)
 	4) cd bin.LINUX_4 (or whatever)
-	5) cp xace tace giface gifaceserver ~acedb/bin/
+	5) cp xace tace giface saceserver sgifaceserver makeUserPasswd ~acedb/bin/
 
 Now put ~acedb/bin on your path so that the Ace::Local module can find
-the giface and tace programs.
+the giface and tace programs.  This usually involves editing .cshrc or
+.bashrc to change the PATH variable.  (See your system administrator
+if you don't know how to do this).
 
 CREATING DATABASES
 
@@ -100,17 +102,30 @@ You should be able browse the data, view graphics, and so on.
 
 INSTALLING AN ACE SERVER
 
-ACEDB comes with two servers called "aceserver" and "gifaceserver".
-The difference between the two is that gifaceserver has the ability to
-serve graphical pictures.  Aceserver is text-only. In general, you
-will want to use gifaceserver unless you know you will never need to
+ACEDB comes with two servers called "saceserver" and "sgifaceserver".
+The difference between the two is that sgifaceserver has the ability
+to serve graphical pictures.  Aceserver is text-only. In general, you
+will want to use sgifaceserver unless you know you will never need to
 serve pictures.  If you download a binary distribution of ACEDB, the
 two executables may have the name of the operating system appended to
 them.  Never fear.  Just rename the files.
 
-A full description of installing (gif)aceserver is given in the ACEDB
+A full description of installing s(gif)aceserver is given in the ACEDB
+web pages at:
+
+  http://www.acedb.org/Development/wdoc/Socket_Server/SOCKET_aceserver.html
+
+However, it is a rather technical description.  Here's a brief summary
+of what you need to do:
+
+  1) set up server password permissions:
+	a. choose an administrative username and password.  For example "admin"
+	   and "acepass"
+	b. 	
+     
+
 source distribution subdirectory wrpc/, in the file
-SERVER.INSTALLATION.  A copy of this file is also present in the docs/ 
+SERVER.INSTALLATION.  A copy of this file is also present in the docs/
 subdirectory of the AcePerl distribution.
 
 In order to get the server to start up automatically when it's needed,
