@@ -16,11 +16,12 @@ use overload '""' => 'asString';
 # parse a line from a sequence list
 sub new {
   my $class = shift;
-  my ($gff_line,$src,$norelative) = @_;
+  my ($gff_line,$src,$norelative,$db) = @_;
   croak "must provide a line from a GFF file"  unless $gff_line;
   return bless { parent     => $src,
 		 data       => [split("\t",$gff_line)],
-		 norelative => $norelative
+		 norelative => $norelative,
+		 db         => $db,
 	       },$class;
 }
 
@@ -38,7 +39,7 @@ sub _field {
 
 sub parent { $_[0]->{'parent'}; }
 sub source_seq { $_[0]->parent; }
-sub db     { return $_[0]->{'db'} ||= $_[0]->parent->source_seq->db; }
+sub db     { return $_[0]->{'db'} ||= $_[0]->parent->db($_[0]->db_id); }
 sub abs2rel { 
   $_[0]->parent->gff_reversed ? 2 + $_[0]->parent->offset - $_[1] : $_[1] - $_[0]->parent->offset; 
 }
@@ -55,8 +56,6 @@ sub score     { _field(5,@_); }  # float indicating some sort of score
 sub strand    { !$_[0]->abs && $_[0]->parent->gff_reversed ? 
 		    $REV{_field(6,@_)} : 
 		    _field(6,@_); }  # one of +, - or undef
-sub reversed  { $_[0]->strand eq '-'; }
-sub abs_reversed { $_[0]->strand ne $_[0]->parent->strand; }
 sub frame     { _field(7,@_); }  # one of 1, 2, 3 or undef
 sub info      {                  # returns Ace::Object(s) with info about the feature
   my ($self) = @_;
@@ -68,7 +67,12 @@ sub info      {                  # returns Ace::Object(s) with info about the fe
   }
   return wantarray ? @{$self->{'info'}} : $self->{'info'}->[0];
 }
+
+sub db_id { _field(9,@_); }    # database identifier (from Ace::Sequence::Multi)
  
+sub reversed  { $_[0]->strand eq '-'; }
+sub abs_reversed { $_[0]->strand ne $_[0]->parent->strand; }
+
 sub group  { $_[0]->info; }
 sub target { $_[0]->info; }
 
@@ -85,6 +89,10 @@ sub end    {
   my $val = $self->parent->gff_reversed ? $self->abs_start : $self->abs_end; 
   return $val if $self->abs;
   return $self->abs2rel($val);
+}
+
+sub length { 
+  $_[0]->end - $_[0]->start + 1;
 }
 
 sub dna {

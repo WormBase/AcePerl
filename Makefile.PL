@@ -20,6 +20,7 @@ WriteMakefile(
                                  'SUFFIX' => 'gz',
 	                         'ZIP'=>'/usr/bin/zip','ZIPFLAGS'=>'-rl'
 			      },
+	      PL_FILES => {'make_docs.PL' => '.docs'},
 	      'clean'        => {'FILES' => 'ace/lib* ace/*.o rpcace*.[ch]'},
 );
 

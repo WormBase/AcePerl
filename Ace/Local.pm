@@ -5,7 +5,6 @@ require 5.004;
 use strict;
 use IPC::Open2;
 use Symbol;
-use IO::Select;
 use Fcntl qw/F_SETFL O_NONBLOCK/;
 
 use vars '$VERSION';
@@ -22,7 +21,7 @@ $SIG{'CHLD'} = sub { wait(); } ;
 
 sub connect {
   my $class = shift;
-  my ($path,$program,$host,$port) = rearrange(['PATH','PROGRAM','HOST','PORT'],@_);
+  my ($path,$program,$host,$port,$nosync) = rearrange(['PATH','PROGRAM','HOST','PORT','NOSYNC'],@_);
   my $args;
   
   # some pretty insane heuristics to handle BOTH tace and aceclient
@@ -33,8 +32,10 @@ sub connect {
     if defined($program) && $program=~/tace/ and (defined $port || defined $host);
   
   # note, this relies on the programs being included in the current PATH
+  my $prompt = 'acedb> ';
   if ($host || $port) {
     $program ||= 'aceclient';
+    $prompt = "acedb\@$host> ";
   } else {
     $program ||= 'giface';
   }
@@ -57,12 +58,14 @@ sub connect {
 
   # Figure out the prompt by reading until we get zero length,
   # then take whatever's at the end.
-  local($/) = "> ";
-  my $data = <$rdr>;
-  my ($prompt) = $data=~/^(.+> )/m;
-  unless ($prompt) {
-    $ACE::ERR = "$program didn't open correctly";
-    return undef;
+  unless ($nosync) {
+    local($/) = "> ";
+    my $data = <$rdr>;
+    ($prompt) = $data=~/^(.+> )/m;
+    unless ($prompt) {
+      $ACE::ERR = "$program didn't open correctly";
+      return undef;
+    }
   }
 
   return bless {
@@ -71,7 +74,7 @@ sub connect {
 		'prompt' => $prompt,
 		'pid'    => $pid,
 		'auto_save' => 1,
-		'status' => STATUS_WAITING,
+		'status' => $nosync ? STATUS_PENDING : STATUS_WAITING,  # initial stuff to read
 	       },$class;
 }
 
@@ -119,6 +122,21 @@ sub query {
   my $wtr = $self->{'write'};
   print $wtr "$query\n";
   $self->{'status'} = STATUS_PENDING;
+}
+
+sub low_read {  # hack to accomodate "uninitialized database" warning from tace
+  my $self = shift;
+  my $rdr = $self->{'read'};
+  return undef unless $self->{'status'} == STATUS_PENDING;
+  my $rin = '';
+  my $data = '';
+  vec($rin,fileno($rdr),1)=1;
+  unless (select($rin,undef,undef,1)) {
+    $self->{'status'} = STATUS_WAITING;
+    return undef;
+  }
+  sysread($rdr,$data,READSIZE);
+  return $data;
 }
 
 sub read {
@@ -234,6 +252,13 @@ Used when invoking I<aceclient>.  Indicates the host to connect to.
 
 Used when invoking I<aceclient>.  Indicates the port to connect to.
 
+=item B<-nosync>
+
+Ordinarily Ace::Local synchronizes with the tace/giface prompt,
+throwing out all warnings and copyright messages.  If this is set,
+Ace::Local will not do so.  In this case you must call the low_read()
+method until it returns undef in order to synchronize.
+
 =back
 
 =head2 query()
@@ -256,6 +281,11 @@ entire result.  Canonical example:
   while ($accessor->status == STATUS_PENDING) {
      $result .= $accessor->read;
   }
+
+=head2 low_read()
+
+Read whatever data's available, or undef if none.  This is only used
+by the ace.pl replacement for tace.
 
 =head2 status()
 

@@ -59,7 +59,8 @@ sub new {
     return;
   }
 
-  $len +=2 if defined $len && $len < 0; # to correct for 1-based coordinates
+  $len +=2 if defined $len && $len < 0 && $p_length > 0; # to correct for 1-based coordinates
+  $len -=2 if defined $len && $len > 0 && $p_length < 0; # to correct for 1-based coordinates
   my $native_length = 0;
 
   if ($p_length > 0 || $source_reversed) {  # We are oriented positive relative to parent
@@ -116,7 +117,9 @@ sub end  {
 
 # return length
 sub length { 
-  return $_[0]->{'length'} > 0 ? $_[0]->{'length'} : $_[0]->{'length'}-2; 
+#  return $_[0]->{'length'} > 0 ? $_[0]->{'length'} : $_[0]->{'length'}-2; 
+  return $_[0]->end  - $_[0]->start -  1 if $_[0]->reversed;
+  return $_[0]->end - $_[0]->start + 1;
 }
 
 # return whether we are reversed
@@ -154,7 +157,7 @@ sub db {
 sub dna {
   my $self = shift;
   return $self->{dna} if $self->{dna};
-  my $raw = $self->_query('seqdna');
+  my $raw = $self->_query(undef,'seqdna');
   $raw=~s/^>.*\n//;
   $raw=~s/^\/\/.*//mg;
   $raw=~s/\n//g;
@@ -166,17 +169,14 @@ sub dna {
 # return a gff file
 sub gff {
   my $self = shift;
-  my ($abs,$features) = rearrange([['ABS','ABSOLUTE'],'FEATURES'],@_);
+  my ($abs,$features,$db) = rearrange([['ABS','ABSOLUTE'],'FEATURES','DB'],@_);
   $abs = $self->abs unless defined $abs;
 
   # can provide list of feature names, such as 'similarity', or 'all' to get 'em all
-  my $opt = '';
-  if ( defined $features ) {
-    $opt = '-feature ' . join('|',@$features) if ref($features) eq 'ARRAY' && @$features;
-    $opt = "-feature $features" unless ref $features;
-  }
-  
-  my $gff = $self->_gff($opt);
+  my $opt = $self->_feature_filter($features);
+
+  $db ||= $self->db;
+  my $gff = $self->_gff($db,$opt);
   $self->transformGFF(\$gff) unless $abs;
   return $gff;
 }
@@ -231,6 +231,7 @@ sub features {
   }
   # get raw gff file
   my $gff = $self->gff(-abs=>1,-features=>[keys %filter]);
+
   my @features = map {Ace::Sequence::Feature->new($_,$self,$self->{norelative})} 
                  grep !m@^(?:\#|//)@ && $sub->($_),split("\n",$gff);
 
@@ -241,7 +242,7 @@ sub features {
 sub feature_list {
   my $self = shift;
   return $self->{'feature_list'} if $self->{'feature_list'};
-  return unless my $raw = $self->_query('seqfeatures -list');
+  return unless my $raw = $self->_query(undef,'seqfeatures -list');
   return $self->{'feature_list'} = Ace::Sequence::FeatureList->new($raw);
 }
 
@@ -428,7 +429,8 @@ sub _get_child {
 # low level GFF call, no changing absolute to relative coordinates
 sub _gff {
   my $self = shift;
-  my $data = $self->_query("seqfeatures -version 2 @_");
+  my $db = shift;
+  my $data = $self->_query($db,"seqfeatures -version 2 @_");
   $data =~ s/\0+\Z//;
   return $data; #blasted nulls!
 }
@@ -436,7 +438,8 @@ sub _gff {
 # shortcut for running a query
 sub _query {
   my $self = shift;
-  return unless $self->source_seq && (my $db = $self->source_seq->db);
+  my $db = shift;
+  return unless $self->source_seq && ($db ||= $self->source_seq->db);
 
   my $command = shift;
   my $name = $self->parent->name;
@@ -461,6 +464,16 @@ sub _complement {
   my $dna = shift;
   $$dna =~ tr/GATCgatc/CTAGctag/;
   $$dna = scalar reverse $$dna;
+}
+
+sub _feature_filter {
+  my $self = shift;
+  my $features = shift;
+  return '' unless $features;
+  my $opt = '';
+  $opt = '-feature ' . join('|',@$features) if ref($features) eq 'ARRAY' && @$features;
+  $opt = "-feature $features" unless ref $features;
+  $opt;
 }
 
 1;
@@ -527,7 +540,7 @@ positive or negative.  This will return an I<Ace::Sequence> object.
 Once a region is defined, you may retrieve its DNA sequence, or query
 the database for any features that may be contained within this
 region.  Features can be returned as objects (using the
-I<Ace::Sequence::Feature class), as GFF text-only dumps, or in the
+I<Ace::Sequence::Feature> class), as GFF text-only dumps, or in the
 form of the GFF class defined by the Sanger Centre's GFF.pm module.
 
 This class builds on top of L<Ace> and L<Ace::Object>.  Please see

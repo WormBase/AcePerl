@@ -1,9 +1,14 @@
 #!/usr/local/bin/perl
 
 use Pod::Html;
+$marker = shift;
+
+print STDERR "Creating HTML documentation in docs...\n";
+
 mkdir "docs",0755;
 mkdir "docs/Ace",0755;
-foreach $pod ('Ace.pm',<Ace/*.pm>) {
+mkdir "docs/Ace/Sequence",0755;
+foreach $pod ('Ace.pm',<Ace/*.pm>,<Ace/*/*.pm>) {
   (my $out = $pod) =~ s/\.pm$/.html/;
 
   if (open(POD,"-|")) {
@@ -21,8 +26,8 @@ END
 	print OUT;
       }
     }
-
   } else {  # child process
+    open STDERR,">/dev/null";
     pod2html(
 	     $pod,
 	     '--podroot=.',
@@ -35,3 +40,6 @@ END
     exit 0;
   }
 }
+
+system "touch $marker" if $marker;
+print STDERR "            ....done!\n";

@@ -48,7 +48,7 @@ $HOST ||= $ENV{ACEDB_HOST} || 'localhost';
 $PORT ||= $ENV{ACEDB_PORT} || 200005;
 my $PROMPT = "aceperl> ";
 
-my $DB = $PATH ? Ace->connect(-path=>$PATH) : Ace->connect(-host=>$HOST,-port=>$PORT);
+my $DB = $PATH ? Ace->connect(-path=>$PATH,-nosync=>1) : Ace->connect(-host=>$HOST,-port=>$PORT);
 $DB ||  die "Connection failure.\n";
 $DB->auto_save($AUTOSAVE);
 
@@ -60,7 +60,10 @@ if (@EXEC) {
   exit 0;
 }
 
+read_top_material() if $PATH;
+
 if (@ARGV || !-t STDIN) {
+
   while (<>) {
     chomp;
     evaluate($_);
@@ -115,7 +118,7 @@ sub evaluate {
 
     while ($DB->db->status == STATUS_PENDING) {
       my $h = $DB->db->read;
-      $h=~tr/\0//d; # get rid of nulls in data stream!
+      $h=~s/\0+\Z//; # get rid of nulls in data stream!
       print $h;
     }
 
@@ -235,4 +238,15 @@ sub debug {
   warn "\n",@text,"\n";
   $readline::force_redraw++;
   readline::redisplay();
+}
+
+sub read_top_material {
+  while ($DB->db->status == STATUS_PENDING) {
+    my $h = $DB->db->low_read;
+    $h=~s/\A\s+\*\*\*.+\.\n\n//s;
+    $h=~s!\n// Type.*\n!!s;
+    $h=~s/acedb> \Z//;
+    $h=~s/\0+\Z//; # get rid of nulls in data stream!
+    print $h;
+  }
 }

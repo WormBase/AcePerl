@@ -140,45 +140,9 @@ Or you could reinstall AcePerl in the main Perl library tree just by
 entering the wperl/ subdirectory, and rerunning "perl Makefile.PL"
 without defining INSTALLSITELIB.
 
-HINTS ON INSTALLING AN ACE SERVER
-
-ACEDB comes with two servers called "aceserver" and "gifaceserver".
-The difference between the two is that gifaceserver has the ability to 
-serve graphical pictures.  Aceserver is text-only. In general, you
-will want to use gifaceserver unless you know you will never need to
-serve pictures.
-
-A full description of installing (gif)aceserver is given in the ACEDB
-distribution subdirectory wrpc/, in the file SERVER.INSTALLATION.
-In order to get the server to start up automatically when it's needed, 
-you must modify two system files, /etc/rpc, and /etc/inetd.conf.
-
-Here's my configuration:
-
-* /etc/rpc: 
-... lots of existing entries...
-elegans		200005
-
-* /etc/inetd.conf:
-... lots of existing entries...
-elegans/1  stream  rpc/tcp wait acedb  /usr/local/bin/gifaceserver 
-        aceserver /local/db/elegans 200005 1200:1200:0
-
-The line has been wrapped to fit on the page.  All inetd.conf entries
-should be on a single line.  Replace /usr/local/bin/gifaceserver with
-the location of your aceserver binary, and /local/db/elegans with the
-location of your ACE database.
-
-You may need to kill the inetd daemon completely and restart it in
-order to have the server come up correctly the first time.  At least I
-did.  After that it will come up whenever it is needed and exit after
-it has idled for the timeout period specified on the command line.
-
-(gif)aceserver has a problem on many Solaris systems.  The symptom of
-this problem is that the server launches, but fails to respond to
-requests.  The solution to this problem is to install the binary
-distribution of ACEDB for solaris, or to follow the directions given
-in the SERVER.INSTALLATION file.
+See ACEDB.HOWTO in the docs/ subdirectory for instructions on
+obtaining and setting up the ACeDB database.  You'll find other hints
+here too.
 
 USING ACEPERL
 

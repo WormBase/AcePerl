@@ -7,7 +7,7 @@ use lib '../blib/lib','../blib/arch';
 use Ace;
 use strict vars;
 
-use constant HOST => $ENV{ACEDB_HOST} || 'localhost';
+use constant HOST => $ENV{ACEDB_HOST} || 'stein.cshl.org';
 use constant PORT => $ENV{ACEDB_PORT} || 200005;
 
 $|=1;
@@ -19,6 +19,4 @@ print "done.\n";
 my @authors = $db->list('Author','S*');
 print "There are ",scalar(@authors)," Author objects starting with the letter \"S\".\n";
 print "The first one's name is ",$authors[0],"\n";
-print "Address: ",$authors[0]->Address,"\n";
-print "Mail: ",$authors[0]->Mail->col,"\n";
-print "Mail2: ",$authors[1]->Mail->col,"\n";
+print "Address: ",join "\n\t",$authors[0]->Address(2),"\n";

@@ -7,8 +7,8 @@ use lib '../blib/lib','../blib/arch';
 use Ace;
 use strict vars;
 
-use constant HOST => $ENV{ACEDB_HOST} || 'beta.crbm.cnrs-mop.fr';
-use constant PORT => $ENV{ACEDB_PORT} || 20000100;
+use constant HOST => $ENV{ACEDB_HOST} || 'stein.cshl.org';
+use constant PORT => $ENV{ACEDB_PORT} || 200005;
 
 $|=1;
 
@@ -30,6 +30,6 @@ foreach (@homol) {
   print "\t$_ (",scalar(@hits)," hits)\n";
 }
 
-print "The DNA homology hits are: ",join(', ',$sequences[0]->Homol->DNA_homol->col),"\n";
-my $homol = $sequences[0]->Homol->DNA_homol->pick;
-print "The sequence of the homologous sequence $homol is: ",$homol->DNA->pick->right,"\n";
+print "The DNA homology hits are: ",join(', ',$sequences[0]->DNA_homol),"\n";
+my $homol = $sequences[0]->DNA_homol;
+print "The sequence of the homologous sequence $homol is: ",$homol->DNA->right,"\n";

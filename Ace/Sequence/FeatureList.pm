@@ -1,5 +1,7 @@
 package Ace::Sequence::FeatureList;
 
+use overload '""' => 'asString';
+
 sub new {
   my $package =shift;
   my @lines = split("\n",$_[0]);
@@ -8,8 +10,8 @@ sub new {
     next if m!^//!;
     my ($minor,$major,$count) = split "\t";
     next unless $count > 0;
-    $parsed{$major}{$minor} = $count;
-    $parsed{_TOTAL}++;
+    $parsed{$major}{$minor} += $count;
+    $parsed{_TOTAL} += $count;
   }
   return bless \%parsed,$package;
 }
@@ -43,8 +45,8 @@ sub types {
 sub asString {
   my $self = shift;
   my ($type,$subtype);
-  for my $type (sort keys %self) {
-    for my $subtype (sort keys %{$self->{$type}}) {
+  for my $type ( sort $self->types() ) {
+    for my $subtype (sort $self->types($type) ) {
       print join("\t",$type,$subtype,$self->{$type}{$subtype}),"\n";
     }
   }
