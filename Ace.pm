@@ -270,6 +270,11 @@ sub memory_cache_store {
   weaken($MEMORY_CACHE{$key} = $obj);
 }
 
+sub memory_cache_clear {
+    my $self = shift;
+    %MEMORY_CACHE = ();
+}
+
 sub memory_cache_delete {
   my $package = shift;
   my $obj = shift or croak "Usage: memory_cache_delete(\$obj)";
@@ -1624,6 +1629,10 @@ internally.
 
 Delete an object from the memory cache. This is ordinarily called
 internally.
+
+=head2 memory_cache_clear()
+
+Completely clears the memory cache.
 
 =head2 file_cache_fetch()
 
