@@ -7,6 +7,10 @@ use vars '$AUTOLOAD';
 use overload 
   '""' => 'asString',
   ;
+use vars '$VERSION';
+$VERSION = '1.20';
+
+*sub_SeqFeature = \&merged_segments;
 
 
 # autoload delegates everything to the Sequence feature
@@ -68,6 +72,9 @@ sub segments {
 
 sub merged_segments {
   my $self = shift;
+
+  return @{$self->{merged_segs}} if exists $self->{merged_segs};
+
   my @segs = sort {$a->start <=> $b->start} $self->segments;
   # attempt to merge overlapping segments
   my @merged;
@@ -80,6 +87,7 @@ sub merged_segments {
       push @merged,$clone;
     }
   }
+  $self->{merged_segs} = \@merged;
   return @merged;
 }
 

@@ -85,8 +85,6 @@ sub info {
   return $self->{info} || $self->name;
 }
 
-
-
 1;
 
 __END__

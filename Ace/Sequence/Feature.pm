@@ -166,6 +166,10 @@ sub tag2ace {
     return $class->new(Text=>$data[0]);
 }
 
+sub sub_SeqFeature {
+  return wantarray ? () : 0;
+}
+
 1;
 
 =head1 NAME
