@@ -9,7 +9,7 @@ use Fcntl qw/F_SETFL O_NONBLOCK/;
 
 use vars '$VERSION';
 
-$VERSION = '1.04';
+$VERSION = '1.05';
 
 use Ace qw/rearrange STATUS_WAITING STATUS_PENDING STATUS_ERROR/;
 use constant DEFAULT_HOST=>'localhost';
@@ -149,8 +149,8 @@ sub low_read {  # hack to accomodate "uninitialized database" warning from tace
 sub read {
   my $self = shift;
   return undef unless $self->{'status'} == STATUS_PENDING;
-  my $rdr = $self->{'read'};
-  my $len = length($self->{'buffer'});
+  my $rdr  = $self->{'read'};
+  my $len  = defined $self->{'buffer'} ? length($self->{'buffer'}) : 0;
   my $plen = length($self->{'prompt'});
   my ($result, $bytes, $pos, $searchfrom);
 

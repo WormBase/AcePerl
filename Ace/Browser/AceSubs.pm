@@ -851,9 +851,10 @@ An alternative way to do the same thing:
 
 # Toggle a subsection open and close
 sub Toggle {
-    my ($section,$label,$count,$addplural,$addcount) = @_;
-    my %open = %OPEN;
+    my ($section,$label,$count,$addplural,$addcount,$max_open) = @_;
+    $OPEN{$section}++ if defined($max_open) && $count <= $max_open;
 
+    my %open = %OPEN;
     $label ||= $section;
     my $img;
     if (exists $open{$section}) {

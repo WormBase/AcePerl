@@ -192,8 +192,10 @@ sub fetch {
   $pattern = Ace->freeprotect($pattern);
   if (defined $query) {
     $query = "query $query" unless $query=~/^query\s/;
-  } else {
+  } elsif (defined $class) {
     $query = qq{find $class $pattern};
+  } else {
+    croak "must call fetch() with the -class or -query arguments";
   }
   my $r = $self->raw_query($query);
   my ($cnt) = $r =~ /Found (\d+) objects/m;
@@ -1661,8 +1663,10 @@ sub fetch_many {
   $pattern = Ace->freeprotect($pattern);
   if (defined $query) {
     $query = "query $query" unless $query=~/^query\s/;
-  } else {
+  } elsif (defined $class) {
     $query = qq{query find $class $pattern};
+  } else {
+    croak "must call fetch_many() with the -class or -query arguments";
   }
   my $iterator = Ace::Iterator->new($self,$query,$filled,$chunksize);
   return $iterator;
