@@ -10,6 +10,7 @@ DISCLAIMER.txt
 MANIFEST
 Makefile.PL
 README
+typemap
 ace/Makefile
 ace/aceclientlib.c
 ace/arraysub.c
