@@ -624,6 +624,8 @@ Currently, the following glyphs are available:
 
   box	      A filled rectangle, nondirectional.
 
+  ellipse     A filled ellipse, nondirectional.
+
   arrow	      An arrow; can be unidirectional or bidirectional.
 	      It is also capable of displaying a scale with
 	      major and minor tickmarks, and can be oriented
@@ -636,6 +638,10 @@ Currently, the following glyphs are available:
   transcript  Similar to segments, but the connecting line is
 	      a "hat" shape, and the direction of transcription
 	      is indicated by a small arrow.
+
+  transcript2 Similar to transcript, but the arrow that indicates
+              the direction of transcription is the last exon
+              itself.
 
   primers     Two inward pointing arrows connected by a line.
 	      Used for STSs.

@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.36 2001/05/31 18:15:23 lstein Exp $
+# $Id: Object.pm,v 1.37 2001/07/07 19:24:43 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -22,7 +22,7 @@ use constant XML_SUPPRESS_TIMESTAMPS=>0;
 require AutoLoader;
 
 $DEFAULT_WIDTH=25;  # column width for pretty-printing
-$VERSION = '1.62';
+$VERSION = '1.63';
 
 # Pseudonyms and deprecated methods.
 *isClass        =  \&isObject;
@@ -122,6 +122,12 @@ sub class {
     defined($_[0])
 	? $self->{'class'} = shift
 	: $self->{'class'};
+}
+
+################### name and class together #################
+sub id {
+  my $self = shift;
+  return "$self->{class}:$self->{name}";
 }
 
 ############## return true if two objects are equivalent ##################

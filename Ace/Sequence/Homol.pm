@@ -18,6 +18,8 @@ sub start  {  return $_[0]->{'start'};  }
 
 sub end    {  return $_[0]->{'end'};    }
 
+sub stop   {  return $_[0]->{'end'};    }
+
 # sub _clone {
 #     my $self = shift;
 #     my $pack = ref($self);
