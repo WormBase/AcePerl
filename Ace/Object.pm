@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.23 2000/07/14 20:24:57 lstein Exp $
+# $Id: Object.pm,v 1.24 2000/08/28 15:10:40 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -1891,7 +1891,7 @@ sub commit {
     $result = $db->raw_query("parse = $cmd");
   }
 
-  if (defined($result) and $result=~/write access/im) {  # this keeps changing
+  if (defined($result) and $result=~/write( or admin)? access/im) {  # this keeps changing
     $Ace::Error = "Write access denied";
   } elsif ($result =~ /sorry|parse error/mi) {
     $Ace::Error = $result;

@@ -54,7 +54,11 @@ sub connect {
 
 sub DESTROY {
   my $self = shift;
+  return if $self->{last_msg} eq ACESERV_MSGKILL;
   $self->_send_msg('quit');
+  my ($msg,$body) = $self->_recv_msg('strip');
+  warn "Did not get expected ACESERV_MSGKILL message, got $msg instead" 
+    unless $msg eq ACESERV_MSGKILL;
 }
 
 sub encore { return shift->{encoring} }
@@ -86,7 +90,7 @@ sub read {
     return _error("Query timed out") unless select($rdr,undef,undef,$self->{timeout});
   }
   my ($msg,$body) = $self->_recv_msg;
-  if ($msg eq ACESERV_MSGOK) {
+  if ($msg eq ACESERV_MSGOK or $msg eq ACESERV_MSGFAIL) {
     $self->{status}   = STATUS_WAITING;
     $self->{encoring} = 0;
   } elsif ($msg eq ACESERV_MSGENCORE) {
@@ -159,6 +163,7 @@ sub _recv_msg {
   my ($magic,$length,$junk1,$clientID,$junk2,$msg) = unpack HEADER,$header;
   $self->{client_id} ||= $clientID;
   $msg =~ s/\0*$//;
+  $self->{last_msg} = $msg;
   if ($length > 0) {
     return _error("read of body failed: $!" ) 
       unless CORE::read($sock,$body,$length);

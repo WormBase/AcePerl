@@ -15,12 +15,14 @@ use overload '""' => 'asString';
 
 # Optional exports
 @EXPORT_OK = qw(rearrange ACE_PARSE);
-$VERSION = '1.64';
+$VERSION = '1.66';
 
 use constant STATUS_WAITING => 0;
 use constant STATUS_PENDING => 1;
 use constant STATUS_ERROR   => -1;
 use constant ACE_PARSE      => 3;
+
+use constant DEFAULT_PORT   => 200005;
 
 require Ace::Object;
 require Ace::Iterator;
@@ -39,47 +41,35 @@ sub connect {
   my $class = shift;
   my ($host,$port,$user,$pass,$path,$program,
       $objclass,$timeout,$query_timeout,$database,
-      $server_type);
+      $server_type,$url);
 
   # one-argument single "URL" form
-  if (@_ == 1) {  # look for host:port
-    $_ = $_[0];
-    if (m!^rpcace://([^:]+):(\d+)$!) {  # rpcace://localhost:200005
-      ($host,$port) = ($1,$2);
-      $server_type = 'Ace::RPC';
-    } elsif (m!^sace://([^:]+):(\d+)$!) { # sace://localhost:2005
-      ($host,$port) = ($1,$2);
-      $server_type = 'Ace::SocketServer';
-    } elsif (m!^tace:(/.+)$!) {           # tace:/path/to/database
-      $path = $1;
-      $server_type = 'Ace::Local';
-    } elsif (m!^(/.+)$!) {                # /path/to/database
-      $path = $1;
-      $server_type = 'Ace::Local';
-    } else {
-      croak "Usage:  Ace->connect(-host=>\$host,-port=>\$port [,-path=>\$path]\n";
-    }
+  if (@_ == 1) {
+    return $class->connect(-url=>shift);
   }
-  
+
   # multi-argument (traditional) form
-  else {       
-    ($host,$port,$user,$pass,
-     $path,$program,$objclass,$timeout,$query_timeout) = 
-       rearrange(['HOST','PORT','USER','PASS',
-		  'PATH','PROGRAM','CLASS','TIMEOUT',
-		  'QUERY_TIMEOUT'],@_);
-    if ($path) { # local database
-      $server_type = 'Ace::Local';
-    } else { # either RPC or socket server
-      $host      ||= 'localhost';
-      $port      ||= defined(&ACE_PORT) ? &ACE_PORT : 200001;
-      $user      ||= '';
-      $pass      ||= '';
-      $query_timeout ||= 120;
-      $timeout = 25 unless defined $timeout;
-      $server_type = 'Ace::SocketServer' if $port <  100000;
-      $server_type = 'Ace::RPC'          if $port >= 100000;
-    }
+  ($host,$port,$user,$pass,
+   $path,$program,$objclass,$timeout,$query_timeout,$url) = 
+     rearrange(['HOST','PORT','USER','PASS',
+		'PATH','PROGRAM','CLASS','TIMEOUT',
+		'QUERY_TIMEOUT','URL'],@_);
+
+  ($host,$port,$user,$path,$server_type) = $class->process_url($url) 
+    or croak "Usage:  Ace->connect(-host=>\$host,-port=>\$port [,-path=>\$path]\n"
+      if defined $url;
+  
+  if ($path) { # local database
+    $server_type = 'Ace::Local';
+  } else { # either RPC or socket server
+    $host      ||= 'localhost';
+    $port      ||= DEFAULT_PORT;
+    $user      ||= '';
+    $pass      ||= '';
+    $query_timeout ||= 120;
+    $timeout = 25 unless defined $timeout;
+    $server_type ||= 'Ace::SocketServer' if $port <  100000;
+    $server_type ||= 'Ace::RPC'          if $port >= 100000;
   }
   
   # we've normalized parameters, so do the actual connect
@@ -102,6 +92,37 @@ sub connect {
 		    'auto_save' => 0,
 		   },$class;
   return $self;
+}
+
+sub process_url {
+  my $class = shift;
+  my $url = shift;
+  my ($host,$port,$user,$path,$server_type) = ('','','','','');
+
+  if ($url) {  # look for host:port
+    $_ = $url;
+    if (m!^rpcace://([^:]+):(\d+)$!) {  # rpcace://localhost:200005
+      ($host,$port) = ($1,$2);
+      $server_type = 'Ace::RPC';
+    } elsif (m!^sace://(\w+)\@([^:]+):(\d+)$!) { # sace://user@localhost:2005
+      ($user,$host,$port) = ($1,$2,$3);
+      $server_type = 'Ace::SocketServer';
+    } elsif (m!^sace://([^:]+):(\d+)$!) { # sace://localhost:2005
+      ($host,$port) = ($1,$2);
+      $server_type = 'Ace::SocketServer';
+    } elsif (m!^tace:(/.+)$!) {           # tace:/path/to/database
+      $path = $1;
+      $server_type = 'Ace::Local';
+    } elsif (m!^(/.+)$!) {                # /path/to/database
+      $path = $1;
+      $server_type = 'Ace::Local';
+    } else {
+      return;
+    }
+  }
+
+  return ($host,$port,$user,$path,$server_type);  
+
 }
 
 # Return the low-level Ace::AceDB object
@@ -1445,7 +1466,7 @@ sub freeprotect {
   $text =~ s/\n/\\n/g;
   $text =~ s/\t/\\t/g;
   $text =~ s/"/\\"/g;
-  return '"$text"';
+  return qq("$text");
 }
 
 sub split {

@@ -1,30 +1,37 @@
-#!/usr/local/bin/perl
+#!/usr/bin/perl
 
 # Simple interface to acedb.
 # Uses readline for command-line editing if available.
-use lib '..','../blib/arch';
-use Ace 1.43;
+use lib '..','..blib/lib','../blib/arch';
+use Ace 1.66;
 use Getopt::Long;
 use Text::ParseWords;
 use strict vars;
 use vars qw/@CLASSES @HELP_TOPICS/;
 use constant DEBUG => 0;
 
-my ($HOST,$PORT,$PATH,$TCSH,$AUTOSAVE,@EXEC);
+my ($HOST,$PORT,$PATH,$TCSH,$URL,$AUTOSAVE,$USER,$PASS,@EXEC);
 GetOptions('host=s' => \$HOST,
 	   'port=i' => \$PORT,
 	   'path=s' => \$PATH,
 	   'tcsh'   => \$TCSH,
+	   'url'    => \$URL,
+	   'login:s'  => \$USER,
+	   'user:s'   => \$USER,
+	   'password:s' => \$PASS,
 	   'save'   => \$AUTOSAVE,
 	   'exec=s' => \@EXEC,
 	  ) || die <<USAGE;
-Usage: $0 [options]
+Usage: $0 [options] [URL]
 Interactive Perl client for ACEDB
 
 Options (can be abbreviated):
        -host <hostname>  Server host (localhost)
        -port <port>      Server port (200005)
        -path <db path>   Local database path (no default)
+       -url  <url>       Server URL (see below
+       -login <user>     Username
+       -pass <pass>      Password
        -tcsh             Use T-shell completion mode
        -save             Save database updates automatically
        -exec <command>   Run a command and quit
@@ -41,15 +48,31 @@ separate multiple commands in a single string by semicolons:
 
     ace.pl -e 'find Author Thierry-Mieg*' -e 'show'
     ace.pl -e 'find Author Thierry-Mieg*; show'
+
+Server URLs:
+  rpcace://hostname:port   RPC server
+  sace://hostname:port     Socket server
+  tace:/path/to/database   Local database
+  /path/to/database        Local database
+
+  Usernames can be provided as sace://user\@hostname:port
 USAGE
 ;
-
+				   
 $HOST ||= $ENV{ACEDB_HOST} || 'localhost';
 $PORT ||= $ENV{ACEDB_PORT} || 200005;
+$URL  = shift if $ARGV[0] =~ /^(rpcace|sace|tace):/;
+
 my $PROMPT = "aceperl> ";
 
-my $DB = $PATH ? Ace->connect(-path=>$PATH,-nosync=>1) : Ace->connect(-host=>$HOST,-port=>$PORT);
-$DB ||  die "Connection failure.\n";
+$USER ||= $1 if $URL && $URL=~ m!//(\w+)\@!;
+$PASS ||= get_passwd($USER) if $USER;
+
+my $DB = $URL ? Ace->connect(-url=>$URL,-user=>$USER,-pass=>$PASS) 
+              : $PATH ? Ace->connect(-path=>$PATH) 
+                      : Ace->connect(-host=>$HOST,-port=>$PORT,-user=>$USER,-pass=>$PASS);
+
+$DB ||  die "Connection failure: ",Ace->error,"\n";
 $DB->auto_save($AUTOSAVE);
 
 if (@EXEC) {
@@ -60,7 +83,7 @@ if (@EXEC) {
   exit 0;
 }
 
-read_top_material() if $PATH;
+# read_top_material() if $PATH;
 
 if (@ARGV || !-t STDIN) {
 
@@ -68,7 +91,6 @@ if (@ARGV || !-t STDIN) {
     chomp;
     evaluate($_);
   }
-
 } elsif (eval "require Term::ReadLine") {
   my $term = setup_readline();
   while (defined($_ = $term->readline($PROMPT)) ) {
@@ -88,6 +110,7 @@ if (@ARGV || !-t STDIN) {
 quit();
 
 sub quit {
+  undef $DB;
   print "\n// A bientot!\n";
   exit 0;
 }
@@ -111,20 +134,16 @@ sub evaluate {
     $_ = setup_remote_parse($_) if /^parse (?!=)/ && !$PATH;
 
     $DB->db->query($_) || return undef;
-    if ($DB->db->status == STATUS_ERROR) {
-      print "[Ace error] status code ",$DB->db->status,"\n";
-      return;
-    }
+    die "Ace Error: \n",$DB->db->error,"\n" if $DB->db->status == STATUS_ERROR;
 
     while ($DB->db->status == STATUS_PENDING) {
       my $h = $DB->db->read;
       $h=~s/\0+\Z//; # get rid of nulls in data stream!
       print $h;
+      print "\n" unless $h =~ /\n\Z/;
     }
 
-    die "[Ace error] status code ",$DB->db->status,"\n"
-      if $DB->db->status == STATUS_ERROR;
-
+    die "Ace Error: \n",$DB->db->error,"\n" if $DB->db->status == STATUS_ERROR;
   }
 }
 
@@ -249,4 +268,16 @@ sub read_top_material {
     $h=~s/\0+\Z//; # get rid of nulls in data stream!
     print $h;
   }
+}
+
+sub get_passwd {
+  my $user = shift;
+  local $| = 1;
+  chomp(my $settings = `stty -g </dev/tty`);
+  system "stty -echo </dev/tty";
+  print $ENV{EMACS} ? "password: " : "$user password: ";
+  chomp(my $password = <STDIN>);
+  print "\n";
+  system "stty $settings </dev/tty";
+  return $password;
 }

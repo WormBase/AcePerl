@@ -8,7 +8,7 @@ while (!$choice) {
 		  "  1) Interface to Ace socket server and local databases (pure Perl)\n" .
 		  "  2) The above plus XS optimizations (requires C compiler)\n" .
 		  "  3) The above plus RPC server interface (requires C compiler)\n\n" .
-		  "Enter your choice: ", "2");
+		  "Enter your choice: ", "3");
   if ($reply =~ /(\d+)/) {
     $choice = $1;
     if ($choice < 1  ||  $choice > 3) {

@@ -104,12 +104,21 @@ sub asString {
   my $self = shift;
   my $type = $self->type;
   my $name = _field(8,$self);
+  return $self->id unless $name;
   ($name) = $name =~ /\"([^\"]+)\"/; # get rid of quote
   my $start = $self->start;
   my $end = $self->end;
-  return $self->strand eq '-' ? "$type:$name/$end-$start" 
-                              : "$type:$name/$start-$end";
-#  return "$name:$type [$start-$end]";
+  return $self->strand eq '-' ? "$type:$name/$end,$start" 
+                              : "$type:$name/$start,$end";
+}
+
+# unique ID
+sub id {
+  my $self = shift;
+  my $source = $self->source_seq->name;
+  my $start = $self->start;
+  my $end = $self->end;
+  return "$source/$start,$end";
 }
 
 # map info into a reasonable set of ace objects
