@@ -1,3 +1,6 @@
+1.83	2/22/02
+	Version bump to overwrite bogus 1.82 on CPAN (will be removed)
+	
 1.82	2/21/02
 	1. Added an  Ace->reopen() call that will automatically freshen handles
 		that have timed out.
