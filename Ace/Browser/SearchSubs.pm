@@ -38,7 +38,7 @@ sub AceSearchTable {
   print
     start_form(-action=>url(-absolute=>1,-path_info=>1).'#searchagain'),
     a({-name=>'search'},''),
-    table({-border=>1,-cellspacing=>0,-cellpadding=>4,-width=>'100%',-align=>'CENTER'},
+    table({-border=>0,-cellspacing=>2,-cellpadding=>2,-width=>'100%',-align=>'CENTER'},
 	  TR(th({-class=>'searchtitle'},$title),
 	     
 	     TR({-valign=>'CENTER'},
@@ -60,7 +60,7 @@ sub AceResultsTable {
 	    'Search Again'), "|", a({-href=>(url(-absolute=>1,path_info=>1))},
 				    'Clear Search')),
     a({-name=>'results'}),
-    start_table({-border=>1,-cellspacing=>0,-cellpadding=>4,-width=>'100%',-align=>'CENTER',-class=>'resultsbody'}),
+    start_table({-border=>0,-cellspacing=>2,-cellpadding=>2,-width=>'100%',-align=>'CENTER',-class=>'resultsbody'}),
     TR(th({-class=>'resultstitle'},$title));
   unless (@$objects) {
     print end_table,p();
