@@ -33,11 +33,7 @@ ace/memsubs.c
 ace/menu.c
 ace/messubs.c
 ace/randsubs.c
-ace/rpcace.h
 ace/rpcace.x
-ace/rpcace_clnt.c
-ace/rpcace_svc.c
-ace/rpcace_xdr.c
 ace/texthelp.c
 ace/timesubs.c
 ace/wh/aceclient.h

@@ -12,7 +12,7 @@ bool_t
 xdr_ace_data(XDR *xdrs, ace_data *objp)
 {
 
-	 register long *buf=buf;
+	 register long *buf;
 
 
 	 if (xdrs->x_op == XDR_ENCODE) {
@@ -125,7 +125,7 @@ bool_t
 xdr_ace_reponse(XDR *xdrs, ace_reponse *objp)
 {
 
-	 register long *buf=buf;
+	 register long *buf;
 
 	 if (!xdr_int(xdrs, &objp->ernumber)) {
 		 return (FALSE);
