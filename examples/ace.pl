@@ -154,10 +154,12 @@ sub setup_readline {
            spush spop swap sand sor sxor sminus parse pparse write edit 
 	   eedit shutdown who data_version kill status date time_stamps
 	   count clear save undo wspec/;
-  readline::rl_basic_commands(@commands);
-  readline::rl_set('TcshCompleteMode', 'On') if $TCSH;
-  $readline::rl_special_prefixes='"';
-  $readline::rl_completion_function=\&complete;
+  eval {
+    readline::rl_basic_commands(@commands);
+    readline::rl_set('TcshCompleteMode', 'On') if $TCSH;
+    $readline::rl_special_prefixes='"';
+    $readline::rl_completion_function=\&complete;
+  };
   $term;
 }
 
