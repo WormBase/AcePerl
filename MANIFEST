@@ -1,8 +1,9 @@
-MANIFEST
+Ace.pm
+AcePerl.h
+Ace.xs
 ChangeLog
+MANIFEST
+Makefile
 Makefile.PL
-lib/Ace.pm
 test.pl
-test2.pl
-test3.pl
-
+typemap
