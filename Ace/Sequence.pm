@@ -244,7 +244,7 @@ sub end {
   my ($self,$abs) = @_;
   my $start = $self->start($abs);
   my $f = $self->{length} > 0 ? 1 : -1;  # for stupid 1-based adjustments
-  if ($abs) {
+  if ($abs && $self->refseq ne $self->parent) {
     my $r_strand = $self->r_strand;
     return $start - $self->{length} + $f 
       if $r_strand < 0 or $self->{strand} < 0 or $self->{length} < 0;

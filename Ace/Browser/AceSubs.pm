@@ -370,6 +370,7 @@ sub TypeSelector {
     my $search_bookmark = '';
     if (my $last_search_script   = cookie("ACEDB_$db")) {
       my $query_string = cookie("SEARCH_${db}_${last_search_script}");
+      $query_string .= ";again=1" if $query_string;
       $search_bookmark = "$last_search_script";
       $search_bookmark .= "?$query_string" if $query_string;
     }
