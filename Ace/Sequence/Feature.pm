@@ -8,8 +8,8 @@ use Carp;
 use AutoLoader 'AUTOLOAD';
 use vars '@ISA','%REV';
 @ISA = 'Ace::Sequence';  # for convenience sake only
-%REV = ('+' => '-', 
-	'-' => '+');  # war is peace, &c.
+%REV = ('+1' => '-1',
+	'-1' => '+1');  # war is peace, &c.
 
 use overload 
   '""' => 'asString',
@@ -20,17 +20,18 @@ sub new {
   my $pack = shift;
   my ($parent,$ref,$r_offset,$r_strand,$gff_line,$db) = @_;
   my ($sourceseq,$method,$type,$start,$end,$score,$strand,$frame,$group) = split "\t",$gff_line;
+  $strand = $strand eq '-' ? '-1' : '+1';
 
   # for efficiency/performance, we don't use superclass new() method, but modify directly
   # handling coordinates.  See SCRAPS below for what should be in here
-  $strand = '+' if $strand eq '-' && $r_strand eq '-';  # two wrongs do make a right
-  ($start,$end) = ($end,$start) if $strand eq '-';
+  $strand = '+1' if $strand < 0 && $r_strand < 0;  # two wrongs do make a right
+  ($start,$end) = ($end,$start) if $strand < 0;
   my $offset = $start - 1;
   my $length = ($end > $start) ? $end - $offset : $end - $offset - 2;
 
   # handle negative strands
   $offset ||= 0;
-  $offset *= -1 if $r_strand eq '-' && $strand ne $r_strand;
+  $offset *= -1 if $r_strand < 0 && $strand != $r_strand;
 
   my $self= bless {
 		   obj      => $ref,
@@ -299,7 +300,7 @@ features that are not stranded, returns undef.
   $reversed = $feature->reversed;
 
 Returns true if the feature is reversed relative to its source
-sequence. 
+sequence.
 
 =item frame()
 
@@ -380,7 +381,7 @@ __END__
 #    my $pack = shift;
 #    my ($ref,$r_offset,$r_strand,$gff_line) = @_;
 #    my ($sourceseq,$method,$type,$start,$end,$score,$strand,$frame,$group) = split "\t";
-#    ($start,$end) = ($end,$start) if $strand eq '-';
+#    ($start,$end) = ($end,$start) if $strand < 0;
 #    my $self = $pack->SUPER::new($source,$start,$end);
 #    $self->{info} = {
 #  				seqname=> $sourceseq,

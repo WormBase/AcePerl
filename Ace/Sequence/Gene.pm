@@ -51,7 +51,7 @@ sub introns {
   # otherwise, we have to handle relative coordinates
   my $base   = $self->{base};
   my @e = map {Ace::Sequence->new(-refseq=>$base,-seq=>$_)} @{$self->{intron}};
-  return $self->strand eq '-' ? reverse @e : @e;
+  return $self->strand < 0 ? reverse @e : @e;
 }
 
 sub exons {
@@ -60,7 +60,7 @@ sub exons {
   # otherwise, we have to handle relative coordinates
   my $base   = $self->{base};
   my @e = map {Ace::Sequence->new(-refseq=>$base,-seq=>$_)} @{$self->{exon}};
-  return $self->strand eq '-' ? reverse @e : @e;
+  return $self->strand < 0 ? reverse @e : @e;
 }
 
 1;

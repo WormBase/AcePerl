@@ -89,7 +89,7 @@ sub new {
   my $r_strand = $strand;
   my $r_offset = $p_offset;
   $offset ||= 0;
-  $offset *= -1 if $strand eq '-';
+  $offset *= -1 if $strand < 0;
 
   # handle feature objects
   $offset += $obj->offset if $obj->can('smapped');
@@ -131,6 +131,8 @@ sub length {
   my ($start,$end) = ($self->start,$self->end);
   return $end - $start + ($end > $start ? 1 : -1);  # for stupid 1-based adjustments
 }
+
+sub reversed {  return shift->strand < 0; }
 
 # return reference sequence
 sub refseq { 
@@ -208,11 +210,11 @@ sub start {
   my ($self,$abs) = @_;
   $abs = $self->absolute unless defined $abs;
   return $self->{p_offset} + $self->{offset} + 1 if $abs;
-  
+
   if ($self->refseq) {
     my ($ref,$r_offset,$r_strand) = $self->refseq;
-    return $r_strand eq '+' ? 1 + $self->{p_offset} + $self->{offset} - $r_offset
-                            : 1 + $r_offset - ($self->{p_offset} + $self->{offset})
+    return $r_strand < 0 ? 1 + $r_offset - ($self->{p_offset} + $self->{offset})
+                         : 1 + $self->{p_offset} + $self->{offset} - $r_offset;
   }
 
   else {
@@ -228,8 +230,8 @@ sub end {
   if ($abs) {
     my $r_strand = $self->r_strand;
     return $start - $self->{length} + $f 
-      if $r_strand eq '-' or $self->{strand} eq '-' or $self->{length} < 0;
-    return  $start + $self->{length} - $f 
+      if $r_strand < 0 or $self->{strand} < 0 or $self->{length} < 0;
+    return  $start + $self->{length} - $f
   }
   return  $start + $self->{length} - $f if $self->r_strand eq $self->{strand};
   return  $start - $self->{length} + $f;
@@ -278,7 +280,7 @@ sub dna {
   $raw=~s/^\/\/.*//mg;
   $raw=~s/\n//g;
   $raw =~ s/\0+\Z//; # blasted nulls!
-  my $effective_strand = $self->end >= $self->start ? '+' : '-';
+  my $effective_strand = $self->end >= $self->start ? '+1' : '-1';
   _complement(\$raw) if $self->r_strand ne $effective_strand;
   return $self->{dna} = $raw;
 }
@@ -395,8 +397,8 @@ sub _make_clones {
   my $features = shift;
 
   my (%clones,@canonical_clones);
-  my $start_label = $self->strand eq '-' ? 'end' : 'start';
-  my $end_label   = $self->strand eq '-' ? 'start' : 'end';
+  my $start_label = $self->strand < 0 ? 'end' : 'start';
+  my $end_label   = $self->strand < 0 ? 'start' : 'end';
   for my $feature (@$features) {
     $clones{$feature->info}{$start_label} = $feature->start if $feature->type eq 'Clone_left_end';
     $clones{$feature->info}{$end_label}   = $feature->start if $feature->type eq 'Clone_right_end';
@@ -477,7 +479,7 @@ sub transformGFF {
   $ref_source ||= $source;
   $ref_strand ||= $strand;
 
-  if ($ref_strand eq '+') {
+  if ($ref_strand > 0) {
     my $o = defined($ref_offset) ? $ref_offset : ($self->p_offset + $self->offset);
     # find anything that looks like a numeric field and subtract offset from it
     $$gff =~ s/(?<!\")\s+(-?\d+)\s+(-?\d+)/"\t" . ($1 - $o) . "\t" . ($2 - $o)/eg;
@@ -574,7 +576,7 @@ sub _traverse {
   $length ||= abs($tl_end - $tl_start) + 1;
   $phase  *= $tl_start < $tl_end ? +1 : -1;
 
-  return ($tl,$offset,$phase < 0 ? ($length,'-') : ($length,'+') ) if $length;  
+  return ($tl,$offset,$phase < 0 ? ($length,'-1') : ($length,'+1') ) if $length;
 }
 
 sub _get_toplevel {
@@ -599,7 +601,7 @@ sub _get_toplevel {
     }
   }
 
-  return ($tl,$tl_end,$tl_end - $length + 1) if $seq_strand eq '-';
+  return ($tl,$tl_end,$tl_end - $length + 1)         if $seq_strand eq '-';
   return ($tl,2 - $tl_start,1 - $tl_start + $length) if $seq_strand eq '+';
 }
 
@@ -964,7 +966,7 @@ beginning of the sequence is to the left of the beginning of the
 source sequence.
 
 =head2 length()
-  
+
   $length = $seq->length;
 
 The length of this sequence, in base pairs.  The length may be
@@ -977,6 +979,11 @@ the sequence length.
   $length = $seq->abslength;
 
 Return the absolute value of the length of the sequence.
+
+=head2 reversed()
+
+Returns true if the segment is reversed relative to the canonical
+genomic direction.  This is the same as $seq->strand < 0.
 
 =head2 dna()
 

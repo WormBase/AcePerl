@@ -13,7 +13,7 @@ use constant ARROW => 4;
 sub _left {
   my $self = shift;
   my $val = $self->SUPER::_left(@_);
-  $val -= ARROW if $self->feature->strand eq '-' && $val >= 4;
+  $val -= ARROW if $self->feature->strand < 0 && $val >= 4;
   $val;
 }
 
@@ -115,7 +115,7 @@ sub draw {
   # plus strand is to the right
   my $a2 = ARROW/2;
   my $s = $self->map_pt($self->feature->end);
-  if ($self->feature->strand eq '+') {
+  if ($self->feature->strand > 0) {
       $gd->line($s,$center,$s + ARROW,$center,$fg);
       $gd->line($s+ARROW,$center,$s+$a2,$center-$a2,$fg);
       $gd->line($s+ARROW,$center,$s+$a2,$center+$a2,$fg);

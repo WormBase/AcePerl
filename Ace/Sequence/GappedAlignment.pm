@@ -65,7 +65,7 @@ sub segments {
   # otherwise, we have to handle relative coordinates
   my $base   = $self->{base};
   my @e = map {Ace::Sequence->new(-refseq=>$base,-seq=>$_)} @{$self->{segments}};
-  return $self->strand eq '-' ? reverse @e : @e;
+  return $self->strand < 0 ? reverse @e : @e;
 }
 
 sub merged_segments {
