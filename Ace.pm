@@ -1,7 +1,7 @@
 package Ace;
 
 use strict;
-use Carp 'croak';
+use Carp 'croak','carp';
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK $Error);
 
 require Exporter;
@@ -31,6 +31,9 @@ use constant DEFAULT_SOCKET => 2005;    # socket server
 
 require Ace::Iterator;
 eval qq{use Ace::Freesubs};  # XS file, may not be available
+
+# Map database names to objects (to fix caching bug)
+my %NAME2DB;
 
 # Preloaded methods go here.
 $Error = '';
@@ -93,50 +96,52 @@ sub connect {
   my $cache_obj = Cache::SizeAwareFileCache->new($cache)
     if ($cache && eval "require Cache::SizeAwareFileCache; 1;");
 
-  my $self = bless {
-		    'database'=> $database,
-		    'host'   => $host,
-		    'port'   => $port,
-		    'path'   => $path,
-		    'class'  => $objclass || 'Ace::Object',
-		    'timeout' => $query_timeout,
-		    'user'    => $user,
-		    'pass'    => $pass,
-		    'other'  => $other,
-		    'date_style' => 'java',
-		    'auto_save' => 0,
-		   },ref($class)||$class;
-  $self->{filecache} = $cache_obj if defined $cache_obj;
+  my $contents = {
+		  'database'=> $database,
+		  'host'   => $host,
+		  'port'   => $port,
+		  'path'   => $path,
+		  'class'  => $objclass || 'Ace::Object',
+		  'timeout' => $query_timeout,
+		  'user'    => $user,
+		  'pass'    => $pass,
+		  'other'  => $other,
+		  'date_style' => 'java',
+		  'auto_save' => 0,
+		  filecache   => $cache_obj,
+		 };
 
-  eval "require $self->{class}" or warn $@;
+  my $self = bless {c=>$contents},ref($class)||$class;
+  eval "require $self->{c}{class}" or warn $@;
+  $self->name2db("$self",$self);
   return $self;
 }
 
 sub reopen {
   my $self = shift;
   return 1 if $self->ping;
-  my $class = ref($self->{database});
+  my $class = ref($self->{c}{database});
   my $database;
-  if ($self->{path}) {
-    $database = $class->connect(-path=>$self->{path},%{$self->other});
+  if ($self->{c}{path}) {
+    $database = $class->connect(-path=>$self->{c}{path},%{$self->other});
   } else {
-    $database = $class->connect($self->{host},$self->{port}, $self->{timeout},
-				      $self->{user},$self->{pass},%{$self->{other}});
+    $database = $class->connect($self->{c}{host},$self->{c}{port}, $self->{c}{timeout},
+				$self->{c}{user},$self->{c}{pass},%{$self->{c}{other}});
   }
   unless ($database) {
     $Ace::Error = "Couldn't open database";
     return;
   }
-  $self->{database} = $database;
+  $self->{c}{database} = $database;
   1;
 }
 
 sub class {
   my $self = shift;
-  my $d = $self->{class};
+  my $d = $self->{c}{class};
   if (@_) {
-    $self->{class} = shift;
-    eval "require $self->{class}" or warn $@;
+    $self->{c}{class} = shift;
+    eval "require $self->{c}{class}" or warn $@;
   }
   $d;
 }
@@ -174,7 +179,7 @@ sub process_url {
 
 # Return the low-level Ace::AceDB object
 sub db {
-  return $_[0]->{'database'};
+  return $_[0]->{c}{'database'};
 }
 
 # Fetch a model from the database.
@@ -185,7 +190,7 @@ sub model {
   require Ace::Model;
   my $model       = shift;
   my $break_cycle = shift;  # for breaking cycles when following #includes
-  return $self->{'models'}{$model} ||= 
+  return $self->{c}{'models'}{$model} ||=
     Ace::Model->new($self->raw_query("model \"$model\""),$self,$break_cycle);
 }
 	   
@@ -209,11 +214,12 @@ sub fetch {
     croak "must call fetch() with the -class or -query arguments";
   }
 
+
   my $use_cache = ($self->cache
-		   && defined $class
-		   && defined $pattern
-		   && $pattern !~ /[\?\*]/
-		   && !wantarray);
+                   && defined $class
+                   && defined $pattern
+                   && $pattern !~ /[\?\*]/
+                   && !wantarray);
 
   if  ($use_cache) {
     my $obj = $self->cache_fetch($class,$name);
@@ -230,19 +236,26 @@ sub fetch {
   return $cnt if !wantarray and $pattern =~ /(?:[^\\]|^)[*?]/;
 
   my(@h);
-  if ($use_cache) {
-    @h = $self->_fetch($count,$offset);
-  } elsif ($filltag) {
+  if ($filltag) {
     @h = $self->_fetch($count,$offset,$filltag);
   } else {
     @h = $filled ? $self->_fetch($count,$offset) : $self->_list($count,$offset);
   }
 
-  $self->cache_store($h[0]) if $h[0] && $use_cache;
   return wantarray ? @h : $h[0];
 }
 
-sub cache {  shift->{filecache}; }
+sub cache {  shift->{c}{filecache}; }
+sub database { shift->{c}{database} }
+
+# class method
+sub name2db {
+  shift;
+  my $name = shift;
+  return unless defined $name;
+  $NAME2DB{$name} = shift if @_;
+  $NAME2DB{$name};
+}
 
 sub cache_fetch {
   my $self = shift;
@@ -250,9 +263,8 @@ sub cache_fetch {
   my $cache = $self->cache or return;
   my $obj   = $cache->get("$class:$name");
   if (DEBUG) {
-    warn "cache ",$obj?'hit':'miss'," on '$class:$name'";
+     carp "cache ",$obj?'hit':'miss'," on '$class:$name'\n";
   }
-  $obj->{db}{database} = $self->db if $obj;  # replace database
   $obj;
 }
 
@@ -261,9 +273,10 @@ sub cache_store {
   my $obj = shift;
   my $key = join ':',$obj->class,$obj->name;
   my $cache = $self->cache or return;
-  local $obj->{db}{database};  # temporarily replace database with undef
+  carp "caching $key obj=",overload::StrVal($obj),"\n";
   $cache->set($key,$obj);
 }
+
 
 # make a new object using indicated class and name pattern
 sub new {
@@ -292,7 +305,7 @@ sub aql {
   my $self = shift;
   my $query = shift;
   my $db = $self->db;
-  my $baseclass = $self->{'class'};
+  my $baseclass = $self->{c}{'class'};
   my $r = $self->raw_query("aql -j $query");
   if ($r =~ /(AQL error.*)/) {
     $self->error($1);
@@ -318,6 +331,8 @@ sub keyset {
   return $self->_list;
 }
 
+
+
 #########################################################
 # These functions are for low-level (non OO) access only.
 # This is for low-level access only.
@@ -325,11 +340,11 @@ sub show {
     my ($self,$class,$pattern,$tag) = @_;
     $Ace::Error = '';
     return unless $self->count($class,$pattern);
-    
+
     # if we get here, then we've got some data to return.
     my @result;
-    my $ts = $self->{'timestamps'} ? '-T' : '';
-    $self->{database}->query("show -j $ts $tag");
+    my $ts = $self->{c}{'timestamps'} ? '-T' : '';
+    $self->{c}{database}->query("show -j $ts $tag");
     my $result = $self->read_object;
     unless ($result =~ /(\d+) object dumped/m) {
 	$Ace::Error = 'Unexpected close during show';
@@ -340,10 +355,10 @@ sub show {
 
 sub read_object {
     my $self = shift;
-    return unless $self->{database};
+    return unless $self->{c}{database};
     my $result;
-    while ($self->{database}->status == STATUS_PENDING()) {
-      my $data = $self->{database}->read();
+    while ($self->{c}{database}->status == STATUS_PENDING()) {
+      my $data = $self->{c}{database}->read();
 #      $data =~ s/\0//g;  # get rid of nulls in the buffer
       $result .= $data if defined $data;
     }
@@ -354,7 +369,7 @@ sub read_object {
 sub raw_query {
   my ($self,$query,$no_alert,$parse) = @_;
   $self->_alert_iterators unless $no_alert;
-  $self->{database}->query($query, $parse ? ACE_PARSE : () );
+  $self->{c}{database}->query($query, $parse ? ACE_PARSE : () );
   return $self->read_object;
 }
 
@@ -370,14 +385,16 @@ sub error {
 sub close {
   my $self = shift;
   $self->raw_query('save') if $self->auto_save;
-  foreach (keys %{$self->{iterators}}) {
+  foreach (keys %{$self->{c}{iterators}}) {
     $self->_unregister_iterator($_);
   }
-  delete $self->{database};
+  delete $self->{c}{database};
 }
 
 sub DESTROY { 
   my $self = shift;
+  return if caller() =~ /^Cache\:\:/;
+#  warn "$self->DESTROY at ", join ' ',caller();
   $self->close;
 }
 
@@ -429,7 +446,7 @@ sub rearrange {
 sub _query {
   my ($self,@query) = @_;
   $self->_alert_iterators;
-  $self->{'database'}->query("@query");
+  $self->{c}{'database'}->query("@query");
 }
 
 # return a portion of the active list
@@ -445,7 +462,7 @@ sub _list {
   foreach (split("\n",$result)) {
     my ($class,$name) = Ace->split($_);
     next unless $class and $name;
-    push(@result,$self->{'class'}->new($class,$name,$self,1));
+    push(@result,$self->{c}{'class'}->new($class,$name,$self,1));
   }
   return @result;
 }
@@ -457,17 +474,17 @@ sub _fetch {
   my (@result);
   $tag = '' unless defined $tag;
   my $query = "show -j $tag";
-  $query .= ' -T' if $self->{timestamps};
+  $query .= ' -T' if $self->{c}{timestamps};
   $query .= " -b $start"  if defined $start;
   $query .= " -c $count"  if defined $count;
-  $self->{database}->query($query);
+  $self->{c}{database}->query($query);
   while (my @objects = $self->_fetch_chunk) {
     push (@result,@objects);
   }
   # copy tag into a portion of the tree
   if ($tag) {
     for my $tree (@result) {
-      my $obj = $self->{class}->new($tree->class,$tree->name,$self,1);
+      my $obj = $self->{c}{class}->new($tree->class,$tree->name,$self,1);
       $obj->_attach_subtree($tag=>$tree);
       $tree = $obj;
     }
@@ -477,32 +494,32 @@ sub _fetch {
 
 sub _fetch_chunk {
   my $self = shift;
-  return unless $self->{database}->status == STATUS_PENDING();
-  my $result = $self->{database}->read();
+  return unless $self->{c}{database}->status == STATUS_PENDING();
+  my $result = $self->{c}{database}->read();
   $result =~ s/\0//g;  # get rid of &$#&@!! nulls
   my @chunks = split("\n\n",$result);
   my @result;
   foreach (@chunks) {
     next if m!^//!;
     next unless /\S/;  # occasional empty lines
-    push(@result,$self->{'class'}->newFromText($_,$self));
+    push(@result,$self->{c}{'class'}->newFromText($_,$self));
   }
   return @result;
 }
 
 sub _alert_iterators {
   my $self = shift;
-  foreach (keys %{$self->{iterators}}) {
-    $self->{iterators}{$_}->invalidate if $self->{iterators}{$_};
+  foreach (keys %{$self->{c}{iterators}}) {
+    $self->{c}{iterators}{$_}->invalidate if $self->{c}{iterators}{$_};
   }
-  undef $self->{active_list};
+  undef $self->{c}{active_list};
 }
 
 sub asString {
   my $self = shift;
-  return "tace://$self->{path}" if $self->{'path'};
-  my $server = $self->db->isa('Ace::SocketServer') ? 'sace' : 'rpcace';
-  return "$server://$self->{host}:$self->{port}" if $self->{'host'};
+  return "tace://$self->{c}{path}" if $self->{c}{'path'};
+  my $server = $self->db && $self->db->isa('Ace::SocketServer') ? 'sace' : 'rpcace';
+  return "$server://$self->{c}{host}:$self->{c}{port}" if $self->{c}{'host'};
   return ref $self;
 }
 
@@ -518,7 +535,43 @@ sub cmp {
 }
 
 
+# Count the objects matching pattern without fetching them.
+sub count {
+  my $self = shift;
+  my ($class,$pattern,$query) = rearrange(['CLASS',
+					   ['NAME','PATTERN'],
+					   'QUERY'],@_);
+  $Ace::Error = '';
 
+  # A special case occurs when we have already fetched this
+  # object and it is already on the active list.  In this
+  # case, we do not need to recount.
+  $query   = '' unless defined $query;
+  $pattern = '' unless defined $pattern;
+  $class   = '' unless defined $class;
+
+  my $active_tag = "$class$pattern$query";
+  if (defined $self->{c}{'active_list'} &&
+      defined ($self->{c}{'active_list'}->{$active_tag})) {
+    return $self->{c}{'active_list'}->{$active_tag};
+  }
+
+  if ($query) {
+    $query = "query $query" unless $query=~/^query\s/;
+  } else {
+    $pattern =~ tr/\n//d;
+    $pattern ||= '*';
+    $pattern = Ace->freeprotect($pattern);
+    $query = "find $class $pattern";
+  }
+  my $result = $self->raw_query($query);
+#  unless ($result =~ /Found (\d+) objects/m) {
+  unless ($result =~ /(\d+) Active Objects/m) {
+    $Ace::Error = 'Unexpected close during find';
+    return;
+  }
+  return $self->{c}{'active_list'}->{$active_tag} = $1;
+}
 
 1;
 
@@ -1456,22 +1509,22 @@ sub ping {
   my $result = $self->raw_query('');
   return unless $result;  # server has gone away
   return if $result=~/broken connection|client time out/;  # server has timed us out  
-  return unless $self->{database}->status() == STATUS_WAITING(); #communications oddness
+  return unless $self->{c}{database}->status() == STATUS_WAITING(); #communications oddness
   return 1;
 }
 
 # Get or set the display style for dates
 sub date_style {
   my $self = shift;
-  $self->{'date_style'} = $_[0] if defined $_[0];
-  return $self->{'date_style'};
+  $self->{c}{'date_style'} = $_[0] if defined $_[0];
+  return $self->{c}{'date_style'};
 }
 
 # Get or set whether we retrieve timestamps
 sub timestamps {
   my $self = shift;
-  $self->{'timestamps'} = $_[0] if defined $_[0];
-  return $self->{'timestamps'};
+  $self->{c}{'timestamps'} = $_[0] if defined $_[0];
+  return $self->{c}{'timestamps'};
 }
 
 # Add one or more objects to the database
@@ -1557,7 +1610,7 @@ sub new {
   my $self = shift;
   my ($class,$name) = rearrange([qw/CLASS NAME/],@_);
   return if $self->fetch($class,$name);
-  my $obj = $self->{'class'}->new($class,$name,$self);
+  my $obj = $self->{c}{'class'}->new($class,$name,$self);
   return $obj;
 }
 
@@ -1641,8 +1694,8 @@ sub auto_save {
   if ($self->db && $self->db->can('auto_save')) {
     $self->db->auto_save;
   } else {
-    $self->{'auto_save'} = $_[0] if defined $_[0];
-    return $self->{'auto_save'};
+    $self->{c}{'auto_save'} = $_[0] if defined $_[0];
+    return $self->{c}{'auto_save'};
   }
 }
 
@@ -1657,44 +1710,6 @@ sub find {
   $$total = $cnt if defined $total;
   return $cnt unless wantarray;
   $filled ? $self->_fetch($count,$offset) : $self->_list($count,$offset);
-}
-
-# Count the objects matching pattern without fetching them.
-sub count {
-  my $self = shift;
-  my ($class,$pattern,$query) = rearrange(['CLASS',
-					   ['NAME','PATTERN'],
-					   'QUERY'],@_);
-  $Ace::Error = '';
-
-  # A special case occurs when we have already fetched this
-  # object and it is already on the active list.  In this
-  # case, we do not need to recount.
-  $query   = '' unless defined $query;
-  $pattern = '' unless defined $pattern;
-  $class   = '' unless defined $class;
-
-  my $active_tag = "$class$pattern$query";
-  if (defined $self->{'active_list'} &&
-      defined ($self->{'active_list'}->{$active_tag})) {
-    return $self->{'active_list'}->{$active_tag};
-  }
-
-  if ($query) {
-    $query = "query $query" unless $query=~/^query\s/;
-  } else {
-    $pattern =~ tr/\n//d;
-    $pattern ||= '*';
-    $pattern = Ace->freeprotect($pattern);
-    $query = "find $class $pattern";
-  }
-  my $result = $self->raw_query($query);
-#  unless ($result =~ /Found (\d+) objects/m) {
-  unless ($result =~ /(\d+) Active Objects/m) {
-    $Ace::Error = 'Unexpected close during find';
-    return;
-  }
-  return $self->{'active_list'}->{$active_tag} = $1;
 }
 
 #########################################################
@@ -1728,7 +1743,7 @@ sub pick {
     # if we get here, then we've got some data to return.
     # yes, we're repeating code slightly...
     my @result;
-    my $ts = $self->{'timestamps'} ? '-T' : '';
+    my $ts = $self->{c}{'timestamps'} ? '-T' : '';
     my $result = $self->raw_query("show -j $ts");
     unless ($result =~ /(\d+) object dumped/m) {
 	$Ace::Error = 'Unexpected close during pick';
@@ -1800,23 +1815,23 @@ sub fetch_many {
 
 sub _register_iterator {
   my ($self,$iterator) = @_;
-  $self->{iterators}{$iterator} = $iterator;
+  $self->{c}{iterators}{$iterator} = $iterator;
 }
 
 sub _unregister_iterator {
   my ($self,$iterator) = @_;
   $self->_restore_iterator($iterator);
-  delete $self->{iterators}{$iterator};
+  delete $self->{c}{iterators}{$iterator};
 }
 
 sub _save_iterator {
   my $self = shift;
   my $iterator = shift;
-  return unless $self->{iterators}{$iterator};
-  $self->{iterator_stack} ||= [];
-  return 1 if grep { $_ eq $iterator } @{$self->{iterator_stack}};
+  return unless $self->{c}{iterators}{$iterator};
+  $self->{c}{iterator_stack} ||= [];
+  return 1 if grep { $_ eq $iterator } @{$self->{c}{iterator_stack}};
   $self->raw_query("spush",'no_alert');
-  unshift @{$self->{iterator_stack}},$iterator;
+  unshift @{$self->{c}{iterator_stack}},$iterator;
   1;  # result code -- CHANGE THIS LATER
 }
 
@@ -1827,15 +1842,15 @@ sub _restore_iterator {
   my $iterator = shift;
 
   # no such iterator known, return false
-  return unless $self->{iterators}{$iterator};
+  return unless $self->{c}{iterators}{$iterator};
 
   # make other iterators save themselves
   $self->_alert_iterators;
 
   # fetch the list of iterators stored on the stack
-  my $list = $self->{iterator_stack};
+  my $list = $self->{c}{iterator_stack};
   # spick not supported. Abandon ship
-  return if @$list > 1 and $self->{no_spick};
+  return if @$list > 1 and $self->{c}{no_spick};
 
   # Find the iterator in our list. This mirrors the
   # position in the server stack
@@ -1852,9 +1867,9 @@ sub _restore_iterator {
   
   if ($result =~ /Keyword spick does not match/) {
     # _restore_iterator will now only work for a single iterator (non-reentrantly)
-    $self->{no_spick}++;
+    $self->{c}{no_spick}++;
     $self->raw_query('spop','no_alert') foreach @$list;  # empty database stack
-    $self->{iterator_stack} = [];             # and local copy
+    $self->{c}{iterator_stack} = [];             # and local copy
     return;
   }
 

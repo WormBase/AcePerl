@@ -226,7 +226,7 @@ sub debug {
 
 # return the database this sequence is associated with
 sub db {
-  return $_[0]->{db} ||= $_[0]->source->db;
+  return Ace->name2db($_[0]->{db} ||= $_[0]->source->db);
 }
 
 sub start {

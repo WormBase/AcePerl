@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.50 2004/11/30 23:26:01 lstein Exp $
+# $Id: Object.pm,v 1.51 2004/12/01 14:35:33 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -84,7 +84,16 @@ sub AUTOLOAD {
     }
 }
 
-sub DESTROY { }
+sub DESTROY {
+  my $self = shift;
+  return if caller() =~ /^(Cache\:\:|DB)/;  # prevent recursion in FileCache code
+  my $db = $self->db or return;
+  return unless $self->isRoot;
+  return unless $self->_dirty;
+  return unless $self->{'.right'} || $self->{'.PATHS'};
+  $self->_dirty(0);
+  $db->cache_store($self);
+}
 
 ###################### object constructor #################
 # IMPORTANT: The _clone subroutine will copy all instance variables that
@@ -98,8 +107,9 @@ sub new {
   my $self = bless { 'name'  =>  $name,
 		     'class' =>  $class
 		   },$pack;
-  $self->{'db'} = $db if $self->isObject;
+  $self->db($db) if $self->isObject;
   $self->{'.root'}++ if defined $isRoot && $isRoot;
+#  $self->_dirty(1)   if $isRoot;
   return $self
 }
 
@@ -168,10 +178,12 @@ sub isRoot {
 
 ################### handle to ace database #################
 sub db {
-    my $self = shift;
-    defined($_[0])
-	? $self->{'db'} = shift
-	: $self->{'db'};
+  my $self = shift;
+  if (@_) {
+    my $db = shift;
+    $self->{db} = "$db";  # store string representation, not object
+  }
+  Ace->name2db($self->{db});
 }
 
 ### Return a portion of the tree at the indicated tag path     ###
@@ -274,6 +286,7 @@ sub search {
 	  }
 	  if ($tree) {
 	    $self->{'.PATHS'}{$lctag} = $tree->search($tag);
+	    $self->_dirty(1);
 	    last TRY;
 	  }
 	}
@@ -284,14 +297,15 @@ sub search {
 	# this feature if timestamps are active.
 	unless ($self->filled) {
 	  my $subobject = $self->newFromText(
-					     $self->{'db'}->show($self->class,$self->name,$tag),
-					     $self->{'db'}
+					     $self->db->show($self->class,$self->name,$tag),
+					     $self->db
 					    );
 	  if ($subobject) {
 	    $self->_attach_subtree($lctag => $subobject);
 	  } else {
 	    $self->{'.PATHS'}{$lctag} = undef;
 	  }
+	  $self->_dirty(1);
 	  last TRY;
 	}
 	
@@ -300,6 +314,7 @@ sub search {
 	  next unless $_->isTag;
 	  if (lc $_ eq $lctag) {
 	    $self->{'.PATHS'}{$lctag} = $_;
+	    $self->_dirty(1);
 	    last TRY;
 	  }
 	}
@@ -309,7 +324,8 @@ sub search {
 	foreach (@col) {
 	  next unless $_->isTag;
 	  if (my $r = $_->search($tag)) {
-	    $self->{'.PATHS'}{$lctag} = $r;	
+	    $self->{'.PATHS'}{$lctag} = $r;
+	    $self->_dirty(1);
 	    last TRY;
 	  }
 	}
@@ -317,6 +333,7 @@ sub search {
 	# If we got here, we just didn't find it.  So tag the cache
 	# as empty so that we don't try again
 	$self->{'.PATHS'}{$lctag} = undef;
+	$self->_dirty(1);
       }
 
     my $t = $self->{'.PATHS'}{$lctag};
@@ -350,10 +367,16 @@ sub _attach_subtree {
   if (lc($subobject->right) eq $lctag) { # new version of aceserver as of 11/30/98
     $obj = $subobject->right;
   } else { # old version of aceserver
-    $obj = $self->new('tag',$tag,$self->{'db'});
+    $obj = $self->new('tag',$tag,$self->db);
     $obj->{'.right'} = $subobject->right;
   }
   $self->{'.PATHS'}->{$lctag} = $obj;
+}
+
+sub _dirty {
+  my $self = shift;
+  $self->{'.dirty'} = shift if @_;
+  $self->{'.dirty'};
 }
 
 #### return true if tree is populated, without populating it #####
@@ -413,14 +436,7 @@ sub fetch {
     $self = $self->search($tag) || return if defined $tag;
     my $thing_to_pick = ($self->isTag and defined($self->right)) ? $self->right : $self;
     my $obj = $self->db->cache_fetch($thing_to_pick->class,$thing_to_pick->name) if $self->db;
-    return $obj if $obj;
-
-    $obj    = $thing_to_pick->_clone;
-    if ($obj && $self->db && $self->db->cache) {
-      $obj->_fill;
-      $self->db->cache_store($obj);
-    }
-
+    $obj ||= $thing_to_pick->_clone;
     return $obj;
 }
 
@@ -509,6 +525,7 @@ sub _fill {
     return unless $data;
 
     my $new = $self->newFromText($data,$self->db);
+    $new->_dirty(1) if $new->isRoot;
     %{$self}=%{$new};
 }
 
@@ -519,10 +536,12 @@ sub _parse {
   my $col = $self->{'.col'};
   my $current_obj = $self;
   my $current_row = $self->{'.start_row'};
-  my $db = $self->{'db'};
+  my $db = $self->db;
+  my $changed;
 
   for (my $r=$current_row+1; $r<=$self->{'.end_row'}; $r++) {
     next unless $raw->[$r][$col] ne '';
+    $changed++;
 
     my $obj_right = $self->_fromRaw($raw,$current_row,$col+1,$r-1,$db);
 
@@ -560,6 +579,7 @@ sub _parse {
     }
   }
   $current_obj->{'.right'} = $obj_right;
+  $self->_dirty(1) if $changed;
   delete @{$self}{qw[.raw .start_row .end_row .col]};
 }
 
@@ -570,6 +590,7 @@ sub _fromRaw {
   #  $pack = $pack->factory();
 
   my ($raw,$start_row,$col,$end_row,$db) = @_;
+  $db = "$db" if ref $db;
   return unless defined $raw->[$start_row][$col];
 
   # HACK! Some LongText entries may begin with newlines. This is within the Acedb spec.
@@ -1776,7 +1797,7 @@ sub asGif {
 
   if ($getcoords) { # just want the coordinates
     my ($start,$stop);
-    my $data = $self->{'db'}->raw_query(join(' ; ',@commands));    
+    my $data = $self->db->raw_query(join(' ; ',@commands));    
     return unless $data =~ /\"[^\"]+\" ([\d.-]+) ([\d.-]+)/;
     ($start,$stop) = ($1,$2);
     return ($start,$stop);
@@ -1785,7 +1806,7 @@ sub asGif {
   push(@commands,"gifdump -");
 
   # do the query
-  my $data = $self->{'db'}->raw_query(join(' ; ',@commands));
+  my $data = $self->db->raw_query(join(' ; ',@commands));
 
   # A $' has been removed here to improve speed -- tim.cutts@incyte.com 2 Sep 1999
 
@@ -1818,7 +1839,7 @@ sub asGif {
 sub timestamp {
     my $self = shift;
     return $self->{'.timestamp'} = $_[0] if defined $_[0];
-    if ($self->{'db'} && !$self->{'.timestamp'}) {
+    if ($self->db && !$self->{'.timestamp'}) {
       $self->_fill;
       $self->_parse;
     }
@@ -1830,7 +1851,7 @@ sub timestamp {
 sub comment {
     my $self = shift;
     return $self->{'.comment'} = $_[0] if defined $_[0];
-    if ($self->{'db'} && !$self->{'.comment'}) {
+    if ($self->db && !$self->{'.comment'}) {
       $self->_fill;
       $self->_parse;
     }
@@ -2034,7 +2055,7 @@ sub commit {
   my $result = '';
 
   # bad design alert: the following breaks encapsulation
-  if ($db->{database}->can('write')) { # new way for socket server
+  if ($db->database->can('write')) { # new way for socket server
     my $cmd = join "\n","$self->{'class'} : $name",@{$self->{'.update'}};
     warn $cmd if $self->debug;
     $result = $db->raw_query($cmd,0,'parse');  # sets Ace::Error for us

@@ -9,6 +9,8 @@ use constant PORT => $ENV{ACEDB_PORT} || 2007;
 BEGIN {$| = 1; print "1..36\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Ace;
+use constant TEST_CACHE=>1;
+
 $loaded = 1;
 print "ok 1\n";
 
@@ -32,9 +34,12 @@ my $DATA = q{Address  Mail    The Sanger Centre
                  1223-494958
          Fax     1223-494919
 };
-test(2,$db = Ace->connect(-host=>HOST,-port=>PORT,-timeout=>50,  #,-cache=>{namespace=>'testing',
-								 #     max_size=>1_000_000}),
-     "connection failure");
+my @args  = (-host=>HOST,-port=>PORT,-timeout=>50);
+push @args,(-cache=>{namespace=>'testing',
+		      max_size=>100_000}
+	   ) if TEST_CACHE;
+
+test(2,$db = Ace->connect(@args),"connection failure");
 die "Couldn't establish connection to database.  Aborting tests.\n" unless $db;
 test(3,$obj = $db->fetch('Author','Sulston JE'),"fetch failure");
 print STDERR "\n  ...Failed to get test object. Wrong database?\n     Expect more failures... " 
