@@ -318,6 +318,8 @@ sub gff {
   my $opt = $self->_feature_filter($features);
 
   my $gff = $self->_gff($opt);
+  warn $query if $self->debug;
+
   $self->transformGFF(\$gff) unless $abs;
   return $gff;
 }
