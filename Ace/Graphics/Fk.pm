@@ -1,9 +1,10 @@
 package Ace::Graphics::Fk;
 
 use strict;
-*stop  = \&end;
-*info  = \&name;
-*exons = \&segments;
+*stop        = \&end;
+*info        = \&name;
+*primary_tag = \&name;
+*exons       = \&segments;
 
 # usage:
 # Ace::Graphics::Fk->new(

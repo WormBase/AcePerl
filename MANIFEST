@@ -136,6 +136,8 @@ examples/gif.pl
 examples/sequence.pl
 examples/upstream.pl
 examples/upstream2.pl
+examples/exons.txt
+examples/draw_seqmap.pl
 gff.txt
 make_docs.PL
 t/basic.t
