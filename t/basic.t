@@ -9,6 +9,7 @@ use constant PORT => $ENV{ACEDB_PORT} || 200005;
 BEGIN {$| = 1; print "1..11\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Ace qw/STATUS_WAITING STATUS_PENDING/;
+use Ace::RPC;
 $loaded = 1;
 print "ok 1\n";
 
@@ -21,7 +22,7 @@ sub test {
 }
 
 # Test code:
-my $ptr = Ace::AceDB->new(HOST,PORT,50);
+my $ptr = Ace::RPC->connect(HOST,PORT,50);
 test(2,$ptr,"connection failed");
 die "Couldn't establish connection to database.  Aborting tests.\n" unless $ptr;
 test(3,$ptr->status() == STATUS_WAITING,"did not get wait status");

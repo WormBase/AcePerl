@@ -1,117 +1,107 @@
 package Ace;
 
 use strict;
-use Carp;
-use vars qw($VERSION @ISA @EXPORT @EXPORT_OK $AUTOLOAD);
+use Carp 'croak';
+use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
 
 require Exporter;
-require DynaLoader;
 require AutoLoader;
 use overload '""' => 'asString';
 
-@ISA = qw(Exporter DynaLoader);
+@ISA = qw(Exporter AutoLoader);
 
 # Items to export into callers namespace by default.
-@EXPORT = qw(
-	ACE_INVALID
-	ACE_OUTOFCONTEXT
-	ACE_SYNTAXERROR
-	ACE_UNRECOGNIZED
-	ACE_PARSE
-	STATUS_WAITING
-        STATUS_PENDING
-	STATUS_ERROR
-);
+@EXPORT = qw(STATUS_WAITING STATUS_PENDING STATUS_ERROR);
 
 # Optional exports
-@EXPORT_OK = qw(rearrange);
+@EXPORT_OK = qw(rearrange ACE_PARSE);
 $VERSION = '1.64';
+
+use constant STATUS_WAITING => 0;
+use constant STATUS_PENDING => 1;
+use constant STATUS_ERROR   => -1;
+use constant ACE_PARSE      => 3;
 
 require Ace::Object;
 require Ace::Iterator;
-
-sub AUTOLOAD {
-  my $constname;
-  ($constname = $AUTOLOAD) =~ s/.*:://;
-  my $val = constant($constname, 0);
-  if ($! != 0) {
-    if ($! =~ /Invalid/) {
-      $AutoLoader::AUTOLOAD = $AUTOLOAD;
-      goto &AutoLoader::AUTOLOAD;
-    }
-    else {
-      croak "Your vendor has not defined constant $constname";
-    }
-  }
-  eval "sub $AUTOLOAD { $val }";
-  goto &$AUTOLOAD;
-}
-
-bootstrap Ace $VERSION;
+eval qq{use Ace::Freesubs};  # XS file, may not be available
 
 # Preloaded methods go here.
-$Ace::ERR = '';
+$Ace::Error = '';
 
 # Pseudonyms and deprecated methods.
-*list = \&fetch;
+*list      = \&fetch;
 *find_many = \&fetch_many;
-*models = \&classes;
+*models    = \&classes;
+*Ace::ERR  = *Ace::Error;
 
 sub connect {
-    my $class = shift;
-    my ($host,$port,$user,$pass,$path,$program,$objclass,$timeout,$query_timeout,$database);
-    if (@_ == 1) {  # look for host:port
-      if (($host,$port) = $_[0] =~ /^(?:aceserver:\/\/)?([^:]+):(\d+)$/) {
-	$database = Ace::AceDB->new($host,$port);
-      } elsif (($host,$port) = $_[0] =~ /^(?:saceserver:\/\/)?([^:]+):(\d+)$/) {
-	require Ace::SocketServer;
-	$database = Ace::SocketServer->new($host,$port);
-      } else {
-	require Ace::Local;
-	($path = $_[0]) =~ s!^\w+://!!;
-	$database = Ace::Local->connect(-path=>$path);
-      }
+  my $class = shift;
+  my ($host,$port,$user,$pass,$path,$program,
+      $objclass,$timeout,$query_timeout,$database,
+      $server_type);
+
+  # one-argument single "URL" form
+  if (@_ == 1) {  # look for host:port
+    $_ = $_[0];
+    if (m!^rpcace://([^:]+):(\d+)$!) {  # rpcace://localhost:200005
+      ($host,$port) = ($1,$2);
+      $server_type = 'Ace::RPC';
+    } elsif (m!^sace://([^:]+):(\d+)$!) { # sace://localhost:2005
+      ($host,$port) = ($1,$2);
+      $server_type = 'Ace::SocketServer';
+    } elsif (m!^tace:(/.+)$!) {           # tace:/path/to/database
+      $path = $1;
+      $server_type = 'Ace::Local';
+    } elsif (m!^(/.+)$!) {                # /path/to/database
+      $path = $1;
+      $server_type = 'Ace::Local';
     } else {
-      ($host,$port,$user,$pass,
-       $path,$program,$objclass,$timeout,$query_timeout) = 
-	rearrange(['HOST','PORT','USER','PASS',
-		   'PATH','PROGRAM','CLASS','TIMEOUT',
-		   'QUERY_TIMEOUT'],@_);
-      $host ||= 'localhost';
-      $port ||= defined(&ACE_PORT) ? &ACE_PORT : 200001;
+      croak "Usage:  Ace->connect(-host=>\$host,-port=>\$port [,-path=>\$path]\n";
+    }
+  }
+  
+  # multi-argument (traditional) form
+  else {       
+    ($host,$port,$user,$pass,
+     $path,$program,$objclass,$timeout,$query_timeout) = 
+       rearrange(['HOST','PORT','USER','PASS',
+		  'PATH','PROGRAM','CLASS','TIMEOUT',
+		  'QUERY_TIMEOUT'],@_);
+    if ($path) { # local database
+      $server_type = 'Ace::Local';
+    } else { # either RPC or socket server
+      $host      ||= 'localhost';
+      $port      ||= defined(&ACE_PORT) ? &ACE_PORT : 200001;
+      $user      ||= '';
+      $pass      ||= '';
+      $query_timeout ||= 120;
       $timeout = 25 unless defined $timeout;
-      
-      # open up a connection to a local database
-      if ($path || $program) {
-	require Ace::Local;
-	$database = Ace::Local->connect(@_);
-      } elsif ($port < 100000) { # socket server
-	require Ace::SocketServer;
-	$database = Ace::SocketServer->connect($host,$port,$user,$pass);
-      } else {
-	my @p = ($host,$port);
-	push(@p,$query_timeout) if defined $query_timeout;
-	#      local($SIG{ALRM}) = sub { die "timed out" } ;
-	#      $database = eval "alarm($timeout) if $timeout; my \$d = Ace::AceDB->new(\@p);alarm(0); \$d";
-	$database = Ace::AceDB->new(@p);
-      }
+      $server_type = 'Ace::SocketServer' if $port <  100000;
+      $server_type = 'Ace::RPC'          if $port >= 100000;
     }
-
-    unless ($database) {
-	$Ace::ERR ||= "Couldn't open database";
-	return;
-    }
-
-    my $self = bless {
-		      'database'=> $database,
-		      'host'   => $host,
-		      'port'   => $port,
-		      'path'   => $path,
-		      'class'  => $objclass || 'Ace::Object',
-		      'date_style' => 'java',
-		      'auto_save' => 0,
-    },$class;
-    return $self;
+  }
+  
+  # we've normalized parameters, so do the actual connect
+  eval "require $server_type" || croak "Module $server_type not loaded: $@";
+  $database = $server_type->connect($path) if $path;
+  $database = $server_type->connect($host,$port,$query_timeout,$user,$pass) if $host && $port;
+  
+  unless ($database) {
+    $Ace::Error ||= "Couldn't open database";
+    return;
+  }
+  
+  my $self = bless {
+		    'database'=> $database,
+		    'host'   => $host,
+		    'port'   => $port,
+		    'path'   => $path,
+		    'class'  => $objclass || 'Ace::Object',
+		    'date_style' => 'java',
+		    'auto_save' => 0,
+		   },$class;
+  return $self;
 }
 
 # Return the low-level Ace::AceDB object
@@ -138,7 +128,7 @@ sub fetch {
 	       ['FILL','FILLED'],'TOTAL'],@_);
   $offset += 0;
   $pattern ||= '*';
-  $pattern = Ace::AceDB->freeprotect($pattern);
+  $pattern = Ace->freeprotect($pattern);
   if (defined $query) {
     $query = "query $query" unless $query=~/^query\s/;
   } else {
@@ -171,7 +161,7 @@ sub aql {
   foreach (split "\n",$r) {
     next if m!^//!;
     next if m!^\0!;
-    my @objects = map { $baseclass->new(Ace::AceDB->split($_),$self,1)} split "\t";
+    my @objects = map { $baseclass->new(Ace->split($_),$self,1)} split "\t";
     push @r,\@objects;
   }
   return @r;
@@ -192,7 +182,7 @@ sub keyset {
 # This is for low-level access only.
 sub show {
     my ($self,$class,$pattern,$tag) = @_;
-    $Ace::ERR = '';
+    $Ace::Error = '';
     return unless $self->count($class,$pattern);
     
     # if we get here, then we've got some data to return.
@@ -201,7 +191,7 @@ sub show {
     $self->{database}->query("show -j $ts $tag");
     my $result = $self->read_object;
     unless ($result =~ /(\d+) object dumped/m) {
-	$Ace::ERR = 'Unexpected close during show';
+	$Ace::Error = 'Unexpected close during show';
 	return;
     }
     return grep (!m!^//!,split("\n\n",$result));
@@ -230,9 +220,9 @@ sub raw_query {
 # return the last error
 sub error {
   my $class = shift;
-  $Ace::ERR = shift() if defined($_[0]);
-  $Ace::ERR=~s/\0//g;  # get rid of nulls
-  return $Ace::ERR;
+  $Ace::Error = shift() if defined($_[0]);
+  $Ace::Error=~s/\0//g;  # get rid of nulls
+  return $Ace::Error;
 }
 
 # close the database
@@ -313,7 +303,7 @@ sub _list {
   my $result = $self->raw_query($query);
   $result =~ s/\0//g;  # get rid of &$#&@( nulls
   foreach (split("\n",$result)) {
-    next unless my ($class,$name) = Ace::AceDB->split($_);
+    next unless my ($class,$name) = Ace->split($_);
     push(@result,$self->{'class'}->new($class,$name,$self,1));
   }
   return @result;
@@ -360,8 +350,8 @@ sub _alert_iterators {
 
 sub asString {
   my $self = shift;
-  return "acedb://$self->{path}" if $self->{'path'};
-  my $server = $self->db->isa('Ace::SocketServer') ? 'saceserver' : 'aceserver';
+  return "tace://$self->{path}" if $self->{'path'};
+  my $server = $self->db->isa('Ace::SocketServer') ? 'sace' : 'rpcace';
   return "$server://$self->{host}:$self->{port}" if $self->{'host'};
   return ref $self;
 }
@@ -1033,7 +1023,7 @@ For your convenience, you can call error() in any of several ways:
     print $db->error();  # $db is an Ace database handle
     print $obj->error(); # $object is an Ace::Object
 
-There's also a global named $Ace::ERR that you are free to use.
+There's also a global named $Ace::Error that you are free to use.
 
 =head1 THE LOW LEVEL C API
 
@@ -1191,7 +1181,7 @@ sub put {
   my $self = shift;
   my @objects = @_;
   my $count = 0;
-  $Ace::ERR = '';
+  $Ace::Error = '';
   foreach my $object (@objects) {
     croak "Can't put a non-Ace object into an Ace database"
       unless $object->isa('Ace::Object');
@@ -1201,8 +1191,8 @@ sub put {
     my $data = $object->asAce;
     $data =~ s/\n/; /mg;
     my $result = $self->raw_query("parse = $data");
-    $Ace::ERR = $result if $result =~ /sorry|parse error/mi;
-    return $count if $Ace::ERR;
+    $Ace::Error = $result if $result =~ /sorry|parse error/mi;
+    return $count if $Ace::Error;
     $count++;  # bump if succesful
   }
   return $count;
@@ -1216,7 +1206,7 @@ sub parse {
   foreach (@lines) { s/;/\\;/;  } # protect semicolons  
   my $query = join("; ",@lines);
   my $result = $self->raw_query("parse = $query");
-  $Ace::ERR = $result=~/sorry|parse error/mi ? $result : '';
+  $Ace::Error = $result=~/sorry|parse error/mi ? $result : '';
   my @results = $self->_list(1,0);
   return $results[0];
 }
@@ -1235,7 +1225,7 @@ $body
   $mm =~ s/\n/\\n/g ;
   $mm .= "\n" ;
   my $result = $self->raw_query($mm) ;
-  $Ace::ERR = $result=~/sorry|parse error/mi ? $result : '';
+  $Ace::Error = $result=~/sorry|parse error/mi ? $result : '';
   my @results = $self->_list(1,0);
   return $results[0];
 }
@@ -1253,13 +1243,13 @@ sub parse_file {
     chomp;
     my $obj = $self->parse($_);
     unless ($obj) {
-      $errors .= $Ace::ERR;  # keep track of errors
+      $errors .= $Ace::Error;  # keep track of errors
       last unless $keepgoing;
     }
     push(@objects,$obj);
   }
   close ACE;
-  $Ace::ERR = $errors;
+  $Ace::Error = $errors;
   return @objects;
 }
 
@@ -1273,6 +1263,14 @@ sub new {
   return $obj;
 }
 
+# Return the layout, which contains classes that should be displayed
+sub layout {
+  my $self = shift;
+  my $result = $self->raw_query('layout');
+  $result=~s{\n(\s*\n|//.*\n|\0)+\Z}{}m;  # get rid of extraneous information
+  $result;
+}
+
 # Return a list of all the classes known to the server.
 sub classes {
   my ($self,$invisible) = @_;
@@ -1282,14 +1280,6 @@ sub classes {
     "query find class visible AND !buried";
   $self->_query($query);
   return $self->_list;
-}
-
-# Return the layout, which contains classes that should be displayed
-sub layout {
-  my $self = shift;
-  my $result = $self->raw_query('layout');
-  $result=~s{\n(\s*\n|//.*\n|\0)+\Z}{}m;  # get rid of extraneous information
-  $result;
 }
 
 # Return a hash of all the classes and the number of objects in each
@@ -1350,7 +1340,7 @@ sub count {
   my ($class,$pattern,$query) = rearrange(['CLASS',
 					   ['NAME','PATTERN'],
 					   'QUERY'],@_);
-  $Ace::ERR = '';
+  $Ace::Error = '';
 
   # A special case occurs when we have already fetched this
   # object and it is already on the active list.  In this
@@ -1370,13 +1360,13 @@ sub count {
   } else {
     $pattern =~ tr/\n//d;
     $pattern ||= '*';
-    $pattern = Ace::AceDB->freeprotect($pattern);
+    $pattern = Ace->freeprotect($pattern);
     $query = "find $class $pattern";
   }
   my $result = $self->raw_query($query);
 #  unless ($result =~ /Found (\d+) objects/m) {
   unless ($result =~ /(\d+) Active Objects/m) {
-    $Ace::ERR = 'Unexpected close during find';
+    $Ace::Error = 'Unexpected close during find';
     return;
   }
   return $self->{'active_list'}->{$active_tag} = $1;
@@ -1407,7 +1397,7 @@ sub fetch_many {
 							       'QUERY',
 							       'CHUNKSIZE'],@_);
   $pattern ||= '*';
-  $pattern = Ace::AceDB->freeprotect($pattern);
+  $pattern = Ace->freeprotect($pattern);
   if (defined $query) {
     $query = "query $query" unless $query=~/^query\s/;
   } else {
@@ -1419,7 +1409,7 @@ sub fetch_many {
 
 sub pick {
     my ($self,$class,$item) = @_;
-    $Ace::ERR = '';
+    $Ace::Error = '';
     # assumption of uniqueness of name is violated by some classes!
     #    return () unless $self->count($class,$item) == 1;
     return unless $self->count($class,$item) >= 1;
@@ -1430,7 +1420,7 @@ sub pick {
     my $ts = $self->{'timestamps'} ? '-T' : '';
     my $result = $self->raw_query("show -j $ts");
     unless ($result =~ /(\d+) object dumped/m) {
-	$Ace::ERR = 'Unexpected close during pick';
+	$Ace::Error = 'Unexpected close during pick';
 	return;
     }
 
@@ -1448,3 +1438,23 @@ sub _unregister_iterator {
   delete $self->{'iterators'}->{$iterator};
 }
 
+# these two only get loaded if the Ace::Freesubs .XS isn't compiled
+sub freeprotect {
+  my $class = shift;
+  my $text = shift;
+  $text =~ s/\n/\\n/g;
+  $text =~ s/\t/\\t/g;
+  $text =~ s/"/\\"/g;
+  return '"$text"';
+}
+
+sub split {
+  my $class = shift;
+  my $text = shift;
+  $text =~ s/\\n/\n/g;
+  $text =~ s/\\t/\t/g;
+  my ($class,$id) = $text=~m/^\?(.+)(?<!\\)\?(.+)(?<!\\)\?$/s;
+  $class =~ s/\\\?/?/g;
+  $id =~  s/\\\?/?/g;
+  return ($class,$id);
+}

@@ -9,10 +9,11 @@ use Digest::MD5 'md5_hex';
 use vars '$VERSION';
 $VERSION = '1.00';
 
-use constant DEFAULT_SERVER => 'localhost';
-use constant DEFAULT_PORT   => 23100;
-use constant DEFAULT_USER   => 'anonymous';  # ? anonymous user
-use constant DEFAULT_PASS   => 'guest';  # ? anonymous password
+use constant DEFAULT_SERVER  => 'localhost';
+use constant DEFAULT_PORT    => 23100;
+use constant DEFAULT_USER    => 'anonymous';  # anonymous user
+use constant DEFAULT_PASS    => 'guest';      # anonymous password
+use constant DEFAULT_TIMEOUT => 120;          # two minute timeout on queries
 
 # header information
 use constant HEADER => 'L5a30';
@@ -33,15 +34,17 @@ use constant ACESERV_SERVER_HELLO => "et bonjour a vous";
 
 sub connect {
   my $class = shift;
-  my ($host,$port,$user,$pass) = rearrange(['HOST','PORT','USER','PASS'],@_);
+  my ($host,$port,$timeout,$user,$pass) = rearrange(['HOST','PORT','TIMEOUT','USER','PASS'],@_);
   $host ||= DEFAULT_SERVER;
   $port ||= DEFAULT_PORT;
   $user ||= DEFAULT_USER;
   $pass ||= DEFAULT_PASS;
+  $timeout ||= DEFAULT_TIMEOUT;
   my $s = IO::Socket::INET->new("$host:$port") || 
     return _error("Couldn't establish connection");
   my $self = bless { socket    => $s,
 		     client_id => 0,  # client ID provided by server
+		     timeout   => $timeout,
 		   },$class;
   return unless $self->_handshake($user,$pass);
   $self->{status} = STATUS_WAITING;
@@ -58,7 +61,7 @@ sub encore { return shift->{encoring} }
 
 sub status { shift->{status} }
 
-sub error { $Ace::ERR; }
+sub error { $Ace::Error; }
 
 sub query {
   my $self = shift;
@@ -76,6 +79,12 @@ sub read {
   my $self = shift;
   return _error("No pending query") unless $self->status == STATUS_PENDING;
   return $self->do_encore if $self->encore;
+  # call select() here to time out
+  if ($self->{timeout}) {
+    my $rdr = '';
+    vec($rdr,fileno($self->{socket}),1) = 1;
+    return _error("Query timed out") unless select($rdr,undef,undef,$self->{timeout});
+  }
   my ($msg,$body) = $self->_recv_msg;
   if ($msg eq ACESERV_MSGOK) {
     $self->{status}   = STATUS_WAITING;
@@ -103,7 +112,7 @@ sub write {
 }
 
 sub _error {
-  $Ace::ERR = shift;
+  $Ace::Error = shift;
   return;
 }
 
@@ -160,13 +169,6 @@ sub _recv_msg {
   }
 }
 
-
-# if XS routines Ace::AceDB::freeprotect() and Ace::AceDB::split() 
-# are not defined, then we emulate them using Perl
-eval <<'END' unless defined &Ace::AceDB::freeprotect;
-sub Ace::AceDB::freeprotect { }
-sub Ace::AceDB::split { }
-END
-
+1;
 
 __END__

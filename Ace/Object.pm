@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp;
 
-# $Id: Object.pm,v 1.19 2000/06/11 15:05:00 lstein Exp $
+# $Id: Object.pm,v 1.20 2000/06/14 19:45:38 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -370,7 +370,7 @@ sub follow {
     return unless $self->db;
     return $self->fetch() unless $tag;
     my $class = $self->class;
-    my $name = Ace::AceDB->freeprotect($self->name);
+    my $name = Ace->freeprotect($self->name);
     return $self->db->fetch(-query=>"find $class $name ; follow $tag",
 			    '-filled'=>$filled);
 }
@@ -392,8 +392,8 @@ sub isTag {
 
 # return the most recent error message
 sub error {
-  $Ace::ERR=~s/\0//g;  # get rid of nulls
-  return $Ace::ERR;
+  $Ace::Error=~s/\0//g;  # get rid of nulls
+  return $Ace::Error;
 }
 
 ### Returns the object's model (as an Ace::Model object)
@@ -469,11 +469,11 @@ sub _parse {
     }
     $current_obj->{'.right'} = $obj_right;
 
-    my $obj_down = $self->new(Ace::AceDB->split($raw->[$r][$col]),$db);
+    my $obj_down = $self->new(Ace->split($raw->[$r][$col]),$db);
 
     # timestamp handling / comments never occur at down pointers
     if ($ts && defined($obj_down) ) {
-      ($time,$obj_down) = ($obj_down,$self->new(Ace::AceDB->split($raw->[++$r][$col]),$db))
+      ($time,$obj_down) = ($obj_down,$self->new(Ace->split($raw->[++$r][$col]),$db))
 	if $obj_down->isTimestamp;
       $obj_down->timestamp($time) if defined $time;
     }
@@ -513,7 +513,7 @@ sub _fromRaw {
 
   my ($raw,$start_row,$col,$end_row,$db) = @_;
   return unless $raw->[$start_row][$col];
-  my ($class,$name) = Ace::AceDB->split($raw->[$start_row][$col]);
+  my ($class,$name) = Ace->split($raw->[$start_row][$col]);
   my $self = $pack->new($class,$name,$db,!($start_row || $col));
   @{$self}{qw(.raw .start_row .end_row .col db)} = ($raw,$start_row,$end_row,$col,$db);
   return $self;
@@ -565,6 +565,70 @@ sub _split_tags {
   $tag =~ s/\\\./$;/g; # protect backslashed dots
   return map { (my $x=$_)=~s/$;/./g; $x } split(/\./,$tag);
 }
+
+
+
+### Return an XML syntax representation                      ###
+### Unfortunately, this is not yet true XML because the same ###
+### tag may appear in different contexts                     ###
+sub asXML {
+    my $self = shift;
+    return unless defined($self->right);
+    my $name = $self->escapeXML($self->name);
+    my $class = $self->class;
+    my $string = '';
+    $self->_asXML(\$string,0,0,'',0);
+    return $string;
+}
+
+use constant COLLAPSE_TAGS => 0;
+
+sub _asXML {
+  my($self,$out,$position,$level,$current_tag,$tag_level) = @_;
+  my $name = $self->escapeXML($self->name);
+  my $class = $self->class;
+  my ($tagname,$attributes) = ('',''); # prevent uninitialized variable warnings
+  my $tab = "    " x ($level-$position); # four spaces
+  $current_tag ||= 'Object';
+
+  if ($self->isTag) {
+    $current_tag = $tagname = $name;
+    $tag_level = 0;
+  } else {
+    $tagname = $tag_level > 0 ? sprintf "%s-%d",$current_tag,$tag_level : $current_tag;
+    $class = "#$class" unless $self->isObject;
+    $attributes = qq( class="$class" value="$name");
+  }
+
+  if (my $c = $self->comment) {
+    $c = $self->escapeXML($c);
+    $attributes .= qq( comment="$c");
+  }
+
+  unless (defined $self->right) { # lone tag
+    $$out .= $self->isTag ? qq($tab<$tagname$attributes />\n) : qq($tab<$tagname$attributes>$name</$tagname>\n);
+  } elsif ($self->isTag) { # most tags are implicit in the XML tag names
+    if (!COLLAPSE_TAGS or $self->right->isTag) {
+      $$out .= qq($tab<$tagname$attributes>\n);
+      $level = $self->right->_asXML($out,$position,$level+1,$current_tag,$tag_level + !COLLAPSE_TAGS);
+      $$out .= qq($tab</$tagname>\n);
+    } else {
+      $level = $self->right->_asXML($out,$position+1,$level+1,$current_tag,$tag_level);
+    }
+  } else {
+    $$out .= qq($tab<$tagname$attributes>$name\n);
+    $level = $self->right->_asXML($out,$position,$level+1,$current_tag,$tag_level+1);
+    $$out  .= qq($tab</$tagname>\n);
+  }
+
+  if (defined($self->down)) {
+    $level = $self->down->_asXML($out,$position,$level,$current_tag,$tag_level);
+  } else {
+    $level--;
+  }
+  return $level;
+}
+
 
 1;
 
@@ -1738,7 +1802,7 @@ sub delete {
   }
 
   push(@{$self->{'.update'}},join(' ','-D',
-				 map { Ace::AceDB->freeprotect($_) } ($self->_split_tags($tag),@values)));
+				 map { Ace->freeprotect($_) } ($self->_split_tags($tag),@values)));
   delete $self->{'.PATHS'}; # uncache cached values
   1;
 }
@@ -1751,7 +1815,7 @@ sub kill {
   return 1 unless $db->count($self->class,$self->name);
   my $result = $db->raw_query("kill");
   if (defined($result) and $result=~/write access/im) {  # this keeps changing
-    $Ace::ERR = "Write access denied";
+    $Ace::Error = "Write access denied";
     return;
   }
   # uncache cached values and clear the object out
@@ -1820,7 +1884,7 @@ sub add_row {
     $p->{'.right'} = $values[0];
   }
 
-  push(@{$self->{'.update'}},join(' ',map { Ace::AceDB->freeprotect($_) } (@tags,@values)));
+  push(@{$self->{'.update'}},join(' ',map { Ace->freeprotect($_) } (@tags,@values)));
   delete $self->{'.PATHS'}; # uncache cached values
   1;
 }
@@ -1881,27 +1945,28 @@ sub commit {
   return 1 unless exists $self->{'.update'} && $self->{'.update'};
 
   
-  $Ace::ERR = undef;
+  $Ace::Error = undef;
+  my $result = '';
   
   # bad design alert: the following breaks encapsulation
   if ($db->{database}->can('write')) { # new way for socket server
     my $cmd = join "\n","$self->{'class'} : $name",@{$self->{'.update'}};
     warn $cmd if $self->debug;
-    my $result = $db->raw_query($cmd,'parse');  # sets Ace::ERR for us
+    $result = $db->raw_query($cmd,'parse');  # sets Ace::Error for us
   } else {   # old way for RPC server and local
     my $cmd = join('; ',"$self->{'class'} : $name",
 		   @{$self->{'.update'}});
     warn $cmd if $self->debug;
-    my $result = $db->raw_query("parse = $cmd");
-    
-    if (defined($result) and $result=~/write access/im) {  # this keeps changing
-      $Ace::ERR = "Write access denied";
-    } elsif ($result =~ /sorry|parse error/mi) {
-      $Ace::ERR = $result;
-    }
+    $result = $db->raw_query("parse = $cmd");
+  }
+
+  if (defined($result) and $result=~/write access/im) {  # this keeps changing
+    $Ace::Error = "Write access denied";
+  } elsif ($result =~ /sorry|parse error/mi) {
+    $Ace::Error = $result;
   }
   undef $self->{'.update'};
-  return !$Ace::ERR;
+  return !$Ace::Error;
 }
 
 sub rollback {
@@ -1936,7 +2001,7 @@ sub _asTable {
       my $new_row;
       foreach (@to_append) {
 	# hack alert
-	s/(\?.*?[^\\]\?.*?[^\\]\?)/$self->_ace_format(Ace::AceDB->split($1))/eg;
+	s/(\?.*?[^\\]\?.*?[^\\]\?)/$self->_ace_format(Ace->split($1))/eg;
 	if ($new_row++) {
 	  $$out .= "\n";
 	  $$out .= "\t" x ($level-1) 
@@ -2037,7 +2102,7 @@ sub _asAce {
       $$out .= join("\t",@$tags) . "\t" if ($level==0) && (@$tags);
       my (@to_modify) = @{$_}[$a..$#{$_}];
       foreach (@to_modify) {
-	my ($class,$name) =Ace::AceDB->split($_);
+	my ($class,$name) =Ace->split($_);
 	if (defined($name)) {
 	  $name = $self->_ace_format($class,$name);
 	  if (_isObject($class) || $name=~/[^\w.-]/) {
@@ -2082,3 +2147,11 @@ sub _to_ace_date {
   return "$yr-$MO{$mo}-$day";
 }
 
+sub escapeXML {
+  my ($self,$string) = @_;
+  $string =~ s/&/&amp;/g;
+  $string =~ s/\"/&quot;/g;
+  $string =~ s/</&lt;/g;
+  $string =~ s/>/&gt;/g;
+  return $string;
+}

@@ -59,7 +59,7 @@ sub connect {
   my($rdr,$wtr) = (gensym,gensym);
   my($pid) = open2($rdr,$wtr,"$program $args");
   unless ($pid) {
-    $Ace::ERR = <$rdr>;
+    $Ace::Error = <$rdr>;
     return undef;
   }
 
@@ -70,7 +70,7 @@ sub connect {
     my $data = <$rdr>;
     ($prompt) = $data=~/^(.+> )/m;
     unless ($prompt) {
-      $ACE::ERR = "$program didn't open correctly";
+      $Ace::Error = "$program didn't open correctly";
       return undef;
     }
   }
