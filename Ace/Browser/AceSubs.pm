@@ -452,7 +452,7 @@ sub Toggle {
 	$img =  img({-src=>'/icons/triangle_right.gif',-alt=>'&gt;',
 			-height=>11,-width=>6,-border=>0}),
 	my $plural = ($noplural or $label =~ /s$/) ? $label : "${label}s";
-	$label = font({-color=>'red'},$nocount ? $plural : "$count $plural");
+	$label = font({-class=>'toggle'},$nocount ? $plural : "$count $plural");
     }
     param(-name=>'open',-value=>join(' ',keys %open));
     my $url = url(-absolute=>1,-path_info=>1,-query=>1);
