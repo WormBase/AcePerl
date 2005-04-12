@@ -4,7 +4,7 @@ use strict;
 use Carp qw(croak carp cluck);
 use WeakRef;
 
-use vars qw($VERSION @ISA @EXPORT @EXPORT_OK $Error);
+use vars qw($VERSION @ISA @EXPORT @EXPORT_OK $Error $DEBUG_LEVEL);
 
 use Data::Dumper;
 require Exporter;
@@ -38,9 +38,6 @@ my %NAME2DB;
 
 # internal cache of objects
 my %MEMORY_CACHE;
-
-# Debugging level
-my $DEBUG_LEVEL;
 
 my %DEFAULT_CACHE_PARAMETERS = (
 				default_expires_in  => '1 day',
@@ -257,7 +254,7 @@ sub memory_cache_fetch {
   my ($class,$name) = @_;
   my $key = join ":",$self,$class,$name;
   return unless defined $MEMORY_CACHE{$key};
-  carp "memory_cache hit on $key = ",overload::StrVal($MEMORY_CACHE{$key})
+  carp "memory_cache hit on $class:$name"
     if Ace->debug;
   return $MEMORY_CACHE{$key};
 }
@@ -268,7 +265,7 @@ sub memory_cache_store {
   my $obj = shift;
   my $key = join ':',$obj->db,$obj->class,$obj->name;
   return if exists $MEMORY_CACHE{$key};
-  carp "memory_cache store on $key = ",overload::StrVal($obj) if Ace->debug;
+  carp "memory_cache store on ",$obj->class,":",$obj->name if Ace->debug;
   weaken($MEMORY_CACHE{$key} = $obj);
 }
 
@@ -343,7 +340,8 @@ sub fetch {
   if (defined $class
       && defined $pattern
       && $pattern !~ /[\?\*]/
-      && !wantarray) {
+#      && !wantarray
+     )  {
     return $self->get($class,$pattern,$filled);
   }
 
