@@ -267,6 +267,7 @@ sub memory_cache_store {
   croak "Usage: memory_cache_store(\$obj)" unless @_ == 1;
   my $obj = shift;
   my $key = join ':',$obj->db,$obj->class,$obj->name;
+  return if exists $MEMORY_CACHE{$key};
   carp "memory_cache store on $key = ",overload::StrVal($obj) if Ace->debug;
   weaken($MEMORY_CACHE{$key} = $obj);
 }
@@ -291,7 +292,6 @@ sub file_cache_fetch {
   my $key = join ':',$class,$name;
   my $cache = $self->cache or return;
   my $obj   = $cache->get($key);
-  warn "cache ",$obj?'hit':'miss'," on '$key'\n" if Ace->debug;
   if ($obj && !exists $obj->{'.root'}) {  # consistency checks
     require Data::Dumper;
     warn "CACHE BUG! Discarding inconsistent object $obj\n";
