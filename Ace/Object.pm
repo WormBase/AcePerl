@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp qw(:DEFAULT cluck);
 
-# $Id: Object.pm,v 1.57 2005/03/11 01:33:11 lstein Exp $
+# $Id: Object.pm,v 1.58 2005/04/12 13:29:37 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -33,8 +33,6 @@ $VERSION = '1.66';
 sub AUTOLOAD {
     my($pack,$func_name) = $AUTOLOAD=~/(.+)::([^:]+)$/;
     my $self = $_[0];
-
-    warn "AUTOLOAD: $self->$func_name()" if Ace->debug;
 
     # This section works with Autoloader
     my $presumed_tag = $func_name =~ /^[A-Z]/ && $self->isObject;  # initial_cap 
@@ -95,7 +93,7 @@ sub DESTROY {
   return unless $self->isRoot;
 
   if ($self->_dirty) {
-    cluck "Destroy for ",overload::StrVal($self)," ",$self->name if Ace->debug;
+    warn "Destroy for ",overload::StrVal($self)," ",$self->class,':',$self->name if Ace->debug;
     $self->_dirty(0);
     $db->file_cache_store($self);
   }

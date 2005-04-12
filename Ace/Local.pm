@@ -131,7 +131,7 @@ sub error {
 sub query {
   my $self = shift;
   my $query = shift;
-
+  warn "query($query)\n" if $self->debug;
   if ($self->debug) {
     my $msg = $query || '';
     warn "\tquery($msg)";

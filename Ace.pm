@@ -6,6 +6,7 @@ use WeakRef;
 
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK $Error);
 
+use Data::Dumper;
 require Exporter;
 require AutoLoader;
 use overload 
@@ -290,7 +291,7 @@ sub file_cache_fetch {
   my $key = join ':',$class,$name;
   my $cache = $self->cache or return;
   my $obj   = $cache->get($key);
-#   warn "cache ",$obj?'hit':'miss'," on '$key'\n";
+  warn "cache ",$obj?'hit':'miss'," on '$key'\n" if Ace->debug;
   if ($obj && !exists $obj->{'.root'}) {  # consistency checks
     require Data::Dumper;
     warn "CACHE BUG! Discarding inconsistent object $obj\n";
@@ -298,7 +299,7 @@ sub file_cache_fetch {
     $cache->remove($key);
     return;
   }
-  #carp "cache ",$obj?'hit':'miss'," on '$key'\n" if Ace->debug;
+  warn "cache ",$obj?'hit':'miss'," on '$key'\n" if Ace->debug;
   $self->memory_cache_store($obj) if $obj;
   $obj;
 }
@@ -309,12 +310,10 @@ sub file_cache_store {
   my $self = shift;
   my $obj  = shift;
 
-  warn "file_cache_store, .PATHS keys = {".join ',',keys(%{$self->{'.PATHS'}})."}" if exists $self->{'.PATHS'};
   my $key = join ':',$obj->class,$obj->name;
   my $cache = $self->cache or return;
 
-#  carp "caching $key obj=",overload::StrVal($obj),"\n" if Ace->debug;
-#   warn "caching $key obj=",overload::StrVal($obj),"\n";
+  warn "caching $key obj=",overload::StrVal($obj),"\n" if Ace->debug;
   if ($key eq ':') {  # something badly wrong
     cluck "NULL OBJECT";
   }
@@ -503,7 +502,6 @@ sub read_object {
 # do a query, and return the result immediately
 sub raw_query {
   my ($self,$query,$no_alert,$parse) = @_;
-  warn "raw_query($query)\n" if $self->debug;
   $self->_alert_iterators unless $no_alert;
   $self->{database}->query($query, $parse ? ACE_PARSE : () );
   return $self->read_object;
