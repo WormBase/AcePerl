@@ -2,7 +2,7 @@ package Ace::Object;
 use strict;
 use Carp qw(:DEFAULT cluck);
 
-# $Id: Object.pm,v 1.59 2005/04/12 17:00:07 lstein Exp $
+# $Id: Object.pm,v 1.60 2005/04/13 14:26:08 lstein Exp $
 
 use overload 
     '""'       => 'name',
@@ -285,7 +285,7 @@ sub search {
   if ($filled) {
     my @node = $self->search($tag) or return;  # watch out for recursion!
     my @obj  = map {$_->fetch} @node;
-    foreach (@obj) {$_->right};  # trigger a fill
+    foreach (@obj) {$_->right if defined $_};  # trigger a fill
     return wantarray ? @obj : $obj[0];
   }
 
