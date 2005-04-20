@@ -424,7 +424,7 @@ information from the configuration file.
 
 # get the configuration object for this database
 sub Configuration {
-  my $s = get_symbolic();
+  my $s = get_symbolic()||return;
   return Ace::Browser::SiteDefs->getConfig($s);
 }
 
