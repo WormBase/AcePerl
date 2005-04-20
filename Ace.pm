@@ -31,6 +31,7 @@ use constant DEFAULT_PORT   => 200005;  # rpc server
 use constant DEFAULT_SOCKET => 2005;    # socket server
 
 require Ace::Iterator;
+require Ace::Object;
 eval qq{use Ace::Freesubs};  # XS file, may not be available
 
 # Map database names to objects (to fix file-caching issue)
@@ -70,7 +71,7 @@ sub connect {
   ($host,$port,$user,$pass,
    $path,$objclass,$timeout,$query_timeout,$url,$cache,$other) = 
      rearrange(['HOST','PORT','USER','PASS',
-		'PATH','CLASS','TIMEOUT',
+		'PATH',['CLASS','CLASSMAPPER'],'TIMEOUT',
 		'QUERY_TIMEOUT','URL','CACHE'],@_);
 
   ($host,$port,$u,$pass,$p,$server_type) = $class->process_url($url) 
@@ -117,7 +118,6 @@ sub connect {
 		 };
 
   my $self = bless $contents,ref($class)||$class;
-  eval "require $self->{class}" or warn $@;
 
   $self->_create_cache($cache) if $cache;
   $self->name2db("$self",$self);
@@ -146,11 +146,36 @@ sub reopen {
 sub class {
   my $self = shift;
   my $d = $self->{class};
-  if (@_) {
-    $self->{class} = shift;
-    eval "require $self->{class}" or warn $@;
-  }
+  $self->{class} = shift if @_;
   $d;
+}
+
+sub class_for {
+  my $self = shift;
+  my ($class,$id) = @_;
+  my $selected_class;
+
+  if (my $selector = $self->class) {
+    if (ref $selector eq 'HASH') {
+      $selected_class = $selector->{$class} || $selector->{'_DEFAULT_'};
+    }
+    elsif ($selector->can('class_for')) {
+      $selected_class = $selector->class_for($class,$id,$self);
+    }
+    elsif (!ref $selector) {
+      $selected_class = $selector;
+    }
+    else {
+      croak "$selector is neither a scalar, nor a HASH, nor an object that supports the class_for() method";  
+    }
+  }
+
+  $selected_class ||= 'Ace::Object';
+
+  eval "require $selected_class; 1;" || croak $@
+    unless $selected_class->can('new');
+
+  $selected_class;
 }
 
 sub process_url {
@@ -438,7 +463,6 @@ sub aql {
   my $self = shift;
   my $query = shift;
   my $db = $self->db;
-  my $baseclass = $self->{'class'};
   my $r = $self->raw_query("aql -j $query");
   if ($r =~ /(AQL error.*)/) {
     $self->error($1);
@@ -448,7 +472,8 @@ sub aql {
   foreach (split "\n",$r) {
     next if m!^//!;
     next if m!^\0!;
-    my @objects = map { $baseclass->new(Ace->split($_),$self,1)} split "\t";
+    my ($class,$id) = Ace->split($_);
+    my @objects = map { $self->class_for($class,$id)->new(Ace->split($_),$self,1)} split "\t";
     push @r,\@objects;
   }
   return @r;
@@ -597,7 +622,7 @@ sub _list {
     my $obj = $self->memory_cache_fetch($class,$name);
     $obj  ||= $self->file_cache_fetch($class,$name);
     unless ($obj) {
-      $obj = $self->{'class'}->new($class,$name,$self,1);
+      $obj = $self->class_for($class,$name)->new($class,$name,$self,1);
       $self->memory_cache_store($obj);
       $self->file_cache_store($obj);
     }
@@ -623,7 +648,7 @@ sub _fetch {
   # copy tag into a portion of the tree
   if ($tag) {
     for my $tree (@result) {
-      my $obj = $self->{class}->new($tree->class,$tree->name,$self,1);
+      my $obj = $self->class_for($tree->class,$tree->name)->new($tree->class,$tree->name,$self,1);
       $obj->_attach_subtree($tag=>$tree);
       $tree = $obj;
     }
@@ -650,7 +675,8 @@ sub _fetch_chunk {
   foreach (@chunks) {
     next if m!^//!;
     next unless /\S/;  # occasional empty lines
-    push(@result,$self->{'class'}->newFromText($_,$self));
+    my ($class,$id) = Ace->split($_); # /^\?([^?]+)\?([^?]+)\?/m;
+    push(@result,$self->class_for($class,$id)->newFromText($_,$self));
   }
   return @result;
 }
@@ -820,9 +846,9 @@ full syntax is as follows:
     $db = Ace->connect(-host  =>  $host,
                        -port  =>  $port,
 		       -path  =>  $database_path,
-		       -program =>$local_connection_program
-                       -class =>  $object_class,
-		       -timeout => $timeout,
+		       -program     => $local_connection_program
+                       -classmapper =>  $object_class,
+		       -timeout     => $timeout,
 		       -query_timeout => $query_timeout
 		       -cache        => {cache parameters},
 		      );
@@ -910,17 +936,29 @@ by connecting this way:
                      -port => 20000100,
                      -program=>'aceclient');
 
-=item B<-class>
+=item B<-classmapper>
 
-The optional B<-class> argument points to the class you would like to
-return from database queries.  It is provided for your use if you
-subclass Ace::Object.  For example, if you have created a subclass of
-Ace::Object called Ace::Object::Graphics, you can have the database
-return this subclass by default by connecting this way:
+The optional B<-classmapper> argument (alias B<-class>) points to the
+class you would like to return from database queries.  It is provided
+for your use if you subclass Ace::Object.  For example, if you have
+created a subclass of Ace::Object called Ace::Object::Graphics, you
+can have the database return this subclass by default by connecting
+this way:
 
   $db = Ace->connect(-host => 'beta.crbm.cnrs-mop.fr',
                      -port => 20000100,
 	             -class=>'Ace::Object::Graphics');
+
+The value of B<-class> can be a hash reference consisting of AceDB
+class names as keys and Perl class names as values.  If a class name
+does not exist in the hash, a key named _DEFAULT_ will be looked for.
+If that does not exist, then Ace will default to Ace::Object.
+
+The value of B<-class> can also be an object or a classname that
+implements a class_for() method.  This method will receive three
+arguments containing the AceDB class name, object ID and database
+handle.  It should return a string indicating the perl class to
+create.
 
 =item B<-timeout>
 
@@ -1899,7 +1937,7 @@ sub new {
   my $self = shift;
   my ($class,$name) = rearrange([qw/CLASS NAME/],@_);
   return if $self->fetch($class,$name);
-  my $obj = $self->{'class'}->new($class,$name,$self);
+  my $obj = $self->class_for($class,$name)->new($class,$name,$self);
   return $obj;
 }
 
