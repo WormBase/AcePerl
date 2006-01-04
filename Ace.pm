@@ -2,7 +2,7 @@ package Ace;
 
 use strict;
 use Carp qw(croak carp cluck);
-use WeakRef;
+use Scalar::Util 'weaken';
 
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK $Error $DEBUG_LEVEL);
 

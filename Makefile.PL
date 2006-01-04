@@ -1,6 +1,7 @@
 use Config;
 use ExtUtils::MakeMaker qw(prompt WriteMakefile);
 use File::Path;
+require 5.8.0;
 
 my $choice;
 while (!$choice) {
@@ -37,7 +38,6 @@ WriteMakefile(
 	      'INC'	     => "-I$headers",
 	      PREREQ_PM      => {
 				 'Digest::MD5'   => 2.0,
-				 'WeakRef'       => 0.01,
 				 'Cache::Cache'  => 1.03,
 				},
 	      'dist'         => {'COMPRESS'=>'gzip -9f', 
