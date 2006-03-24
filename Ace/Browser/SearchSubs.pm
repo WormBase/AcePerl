@@ -183,10 +183,12 @@ sub make_navigation_bar {
   my $spacer = "$icons/". SPACER_ICON;
   my $left   = "$icons/". LEFT_ICON;
   my $right  = "$icons/". RIGHT_ICON;
-
+  my $url    = url(-absolute=>1,-query=>1);
+  #  my $url    = self_url();
   push(@buttons,td({-align=>'RIGHT',-valign=>'MIDDLE'},
 		   $offset > 0 
-		               ? a({-href=>self_url() . '&scroll=-' . MAXOBJECTS},
+		               ? a({-href=>$url
+                                  . '&scroll=-' . MAXOBJECTS},
 				      img({-src=>$left,-alt=>'&lt; PREVIOUS',-border=>0}))
                                : img({-src=>$spacer,-alt=>''})
 		   )
@@ -225,7 +227,8 @@ sub make_navigation_bar {
 
   push(@buttons,td({-align=>'LEFT',-valign=>'MIDDLE'},
 		   $offset + MAXOBJECTS <= $count 
-		   ? a({-href=>self_url() . '&scroll=+' . MAXOBJECTS},
+		   ? a({-href=>$url
+			    . '&scroll=+' . MAXOBJECTS},
 		       img({-src=>$right,-alt=>'NEXT &gt;',-border=>0}))
 		   : img({-src=>$spacer,-alt=>''})
 		  )
