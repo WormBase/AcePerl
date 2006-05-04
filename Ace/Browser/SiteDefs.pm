@@ -142,8 +142,8 @@ sub map_url {
   # if we get here, then take the first display
   my @displays = $self->displays($class,$name);
   push @displays,$self->displays('default') unless @displays;
-  my $n = CGI->escape($name);
-  my $c = CGI->escape($class);
+  my $n = CGI::escape($name);
+  my $c = CGI::escape($class);
   return ($displays[0],"name=$n;class=$c") if $displays[0];
 
   return unless @result = $self->getConfig('default')->Url_mapper->($display,$name,$class);
