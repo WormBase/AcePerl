@@ -97,10 +97,10 @@ sub getConfig {
   my $path = $package->get_config || $package->resolveConf($file);
 
   return unless -r $path;
-  return $CONFIG{$name} if exists $CONFIG{$name} and $CACHETIME{$name} >= (stat(_))[9];
+  return $CONFIG{$name} if exists $CONFIG{$name} and $CACHETIME{$name} >= (stat($path))[9];
   return unless $CONFIG{$name} = $package->_load($path);
   $CONFIG{$name}->{'name'} ||= $name;  # remember name
-  $CACHETIME{$name} = (stat(_))[9];
+  $CACHETIME{$name} = (stat($path))[9];
   return $CONFIG{$name};
 }
 
