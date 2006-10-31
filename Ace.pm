@@ -7,20 +7,20 @@ use Scalar::Util 'weaken';
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK $Error $DEBUG_LEVEL);
 
 use Data::Dumper;
+use AutoLoader 'AUTOLOAD';
 require Exporter;
-require AutoLoader;
 use overload 
   '""'  => 'asString',
   'cmp' => 'cmp';
 
-@ISA = qw(Exporter AutoLoader);
+@ISA = qw(Exporter);
 
 # Items to export into callers namespace by default.
 @EXPORT = qw(STATUS_WAITING STATUS_PENDING STATUS_ERROR);
 
 # Optional exports
 @EXPORT_OK = qw(rearrange ACE_PARSE);
-$VERSION = '1.90';
+$VERSION = '1.91';
 
 use constant STATUS_WAITING => 0;
 use constant STATUS_PENDING => 1;
