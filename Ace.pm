@@ -332,6 +332,8 @@ sub file_cache_store {
   my $self = shift;
   my $obj  = shift;
 
+  return unless $obj->name;
+
   my $key = join ':',$obj->class,$obj->name;
   my $cache = $self->cache or return;
 
