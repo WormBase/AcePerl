@@ -63,15 +63,15 @@ rpc_ace_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		return;
 	}
 	memset ((char *)&argument, 0, sizeof (argument));
-	if (!svc_getargs (transp, _xdr_argument, (caddr_t) &argument)) {
+	if (!svc_getargs (transp, (xdrproc_t) _xdr_argument, (caddr_t) &argument)) {
 		svcerr_decode (transp);
 		return;
 	}
 	result = (*local)((char *)&argument, rqstp);
-	if (result != NULL && !svc_sendreply(transp, _xdr_result, result)) {
+	if (result != NULL && !svc_sendreply(transp, (xdrproc_t) _xdr_result, result)) {
 		svcerr_systemerr (transp);
 	}
-	if (!svc_freeargs (transp, _xdr_argument, (caddr_t) &argument)) {
+	if (!svc_freeargs (transp, (xdrproc_t) _xdr_argument, (caddr_t) &argument)) {
 		_msgout ("unable to free arguments");
 		exit (1);
 	}
