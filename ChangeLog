@@ -1,5 +1,9 @@
+1.92	Tue Nov 11 11:43:17 EST 2008
+	1. Cache ignores objects that do not have a proper name.
+
 1.91	Tue Oct 31 17:42:00 EST 2006
 	1. Updated AUTOLOAD style so that inheritance works again.
+	2. Removed dependency on WeakRef
 	
 1.90	Thu Mar 17 17:09:10 EST 2005
 	1. Fixed error in which the -fill argument wasn't being passed down to get() caching code.
